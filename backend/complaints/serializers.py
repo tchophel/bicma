@@ -10,7 +10,7 @@ from core.models import Category, Dzongkhag, Gewog, Outcome, Priority, Provider,
 from .models import Attachment, CaseMessage, Complaint, StatusHistory
 
 CREATE_FIELDS = [
-    "complainant_name", "cid", "phone", "email", "confidential", "dzongkhag", "gewog", "locality", "area_type",
+    "complainant_type", "complainant_name", "cid", "phone", "email", "confidential", "dzongkhag", "gewog", "locality", "area_type",
     "preferred_contact", "on_behalf", "affected_name", "affected_relationship", "affected_contact",
     "category", "division", "subcategory", "subject", "description", "incident_date", "incident_time",
     "platform", "provider", "provider_type", "already_complained", "provider_reference", "medium_of_publication",
@@ -49,10 +49,7 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
         return value
 
     def validate_cid(self, value):
-        value = (value or "").strip()
-        if value and not CID_RE.match(value):
-            raise serializers.ValidationError("The CID must be 11 digits.")
-        return value
+        return (value or "").strip()
 
     def validate(self, attrs):
         offline = self.context.get("offline", False)
@@ -67,6 +64,12 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
 
         for f in ("complainant_name", "subject", "description", "category"):
             need(f)
+        individual = attrs.get("complainant_type", "individual") == "individual"
+        if attrs.get("cid"):
+            if individual and not CID_RE.match(attrs["cid"]):
+                errors["cid"] = "The CID must be 11 digits."
+            elif not individual and len(attrs["cid"]) > 20:
+                errors["cid"] = "Enter at most 20 characters."
         need("provider_type", "Select the provider / party type.")
         need("dzongkhag", "Select a Dzongkhag.")
         need("locality", "Enter the Gewog / town / village.") if not attrs.get("gewog") else None
@@ -75,7 +78,7 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
         need("incident_time", "Enter the incident time.")
         need("remedy_sought", "State the remedy you are seeking.")
         if not offline:
-            need("cid", "Enter your CID.")
+            need("cid", "Enter your CID." if individual else "Enter the registration or licence number.")
             need("phone", "Enter your phone number.")
             need("email", "Enter your email address.")
             if not attrs.get("declaration_accepted"):
@@ -213,7 +216,7 @@ class ComplaintDetailSerializer(ComplaintListSerializer):
 
     class Meta(ComplaintListSerializer.Meta):
         fields = ComplaintListSerializer.Meta.fields + [
-            "cid", "phone", "email", "gewog", "gewog_name", "locality", "area_type", "preferred_contact", "on_behalf",
+            "complainant_type", "cid", "phone", "email", "gewog", "gewog_name", "locality", "area_type", "preferred_contact", "on_behalf",
             "affected_name", "affected_relationship", "affected_contact", "subcategory", "subcategory_name",
             "description", "incident_date", "incident_time", "platform", "provider", "provider_type", "provider_type_name",
             "already_complained", "provider_reference", "medium_of_publication", "remedy_sought", "website_or_social",

@@ -523,3 +523,27 @@ class RoleMasterTests(WorkflowBase):
         unused = self.make_role("Spare", "supervisor")
         self.assertEqual(a.patch(f"{self.URL}{unused['id']}/", {"is_active": False}, format="json").status_code, 200)
         self.assertEqual(a.post("/api/admin/users/", {"email": "y@x.bt", "password": "Str0ng-pass-123", "role": "spare"}, format="json").status_code, 400)
+
+
+class ComplainantTypeAndDeclarationTests(Base):
+    def post(self, **kw):
+        return self.client.post("/api/public/complaints/", self.payload(**kw), format="json")
+
+    def test_individual_needs_an_11_digit_cid_others_a_registration_number(self):
+        self.assertEqual(self.post(complainant_type="individual", cid="123").status_code, 400)
+        r = self.post(complainant_type="firm", cid="REG-2020-045", complainant_name="Acme Pvt Ltd")
+        self.assertEqual(r.status_code, 201, r.content)
+        c = Complaint.objects.get(reference=r.data["reference"])
+        self.assertEqual((c.complainant_type, c.cid), ("firm", "REG-2020-045"))
+        self.assertEqual(self.post(complainant_type="agency", cid="").status_code, 400)
+        self.assertEqual(self.post(complainant_type="bogus").status_code, 400)
+
+    def test_declaration_text_is_master_data(self):
+        meta = self.client.get("/api/meta/").data
+        self.assertIn("proceedings", meta["declaration_text"])
+        a = self.login(self.admin)
+        self.assertEqual(a.patch("/api/admin/settings/", {"declaration_text": "short"}, format="json").status_code, 400)
+        new = "I confirm that the facts in this complaint are true and complete."
+        self.assertEqual(a.patch("/api/admin/settings/", {"declaration_text": new}, format="json").status_code, 200)
+        self.assertEqual(self.client.get("/api/meta/").data["declaration_text"], new)
+        self.assertEqual(self.login(self.focal1).patch("/api/admin/settings/", {"declaration_text": new}, format="json").status_code, 403)

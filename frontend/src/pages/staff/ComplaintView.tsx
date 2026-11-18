@@ -73,7 +73,7 @@ export function ComplaintView() {
           <section className="card"><PanelTitle icon="user">Complainant</PanelTitle>
             <dl className="kv">
               <dt>Name</dt><dd>{c.complainant_name}</dd>
-              {row("CID", c.cid)}{row("Phone", c.phone)}{row("Email", c.email)}
+              {row("Type", c.complainant_type[0].toUpperCase() + c.complainant_type.slice(1))}{row(c.complainant_type === "individual" ? "CID" : "Registration / licence no.", c.cid)}{row("Phone", c.phone)}{row("Email", c.email)}
               <dt>Prefers</dt><dd>{c.preferred_contact}</dd>
               {c.on_behalf && <>{row("On behalf of", c.affected_name)}{row("Relationship", c.affected_relationship)}{row("Their contact", c.affected_contact)}</>}
             </dl>

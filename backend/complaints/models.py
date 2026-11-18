@@ -94,7 +94,10 @@ class Complaint(UUIDModel):
 
     # complainant
     complainant_name = models.CharField(max_length=150)
-    cid = models.CharField(max_length=20, blank=True)
+    complainant_type = models.CharField(
+        max_length=12, default="individual",
+        choices=[("individual", "Individual"), ("firm", "Firm"), ("institute", "Institute"), ("agency", "Agency")])
+    cid = models.CharField(max_length=20, blank=True, help_text="CID for an individual; registration or licence number otherwise")
     confidential = models.BooleanField(default=False, help_text="Complainant asked to keep their identity confidential")
     phone = models.CharField(max_length=30, blank=True)
     email = models.EmailField(blank=True)

@@ -25,6 +25,15 @@ import re
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 
+DEFAULT_DECLARATION = (
+    "To the best of my knowledge and belief, I have placed all the relevant facts before the Authority and no proceedings "
+    "are pending in any court of law in respect of any matter alleged in the complaint. I shall inform the Authority forthwith "
+    "if, during the pendency of the inquiry, any matter alleged in the complaint becomes the subject matter of any proceedings "
+    "in a court of law. I understand that withholding of information or giving false information is an offence and may result "
+    "in legal action against me."
+)
+
+
 class MetaView(APIView):
     """Public reference data for forms."""
 
@@ -40,6 +49,7 @@ class MetaView(APIView):
                 for d in dzongkhags
             ],
             "divisions": list(Division.objects.filter(is_active=True).values("id", "name")),
+            "declaration_text": SystemConfiguration.get("declaration_text", DEFAULT_DECLARATION),
             "provider_types": list(ProviderType.objects.filter(is_active=True).values("id", "name")),
             "providers": list(Provider.objects.filter(is_active=True).values("id", "name", "provider_type")),
             "priorities": list(Priority.objects.filter(is_active=True).values("id", "name", "response_days", "resolution_days")),
@@ -161,9 +171,18 @@ class SettingsView(APIView):
     permission_classes = [IsSuperAdmin]
 
     def get(self, request):
-        return Response({"reference_prefix": SystemConfiguration.get("reference_prefix", "BICMA-CMS")})
+        return Response({"reference_prefix": SystemConfiguration.get("reference_prefix", "BICMA-CMS"),
+                         "declaration_text": SystemConfiguration.get("declaration_text", DEFAULT_DECLARATION)})
 
     def patch(self, request):
+        if "declaration_text" in request.data:
+            text = str(request.data["declaration_text"]).strip()
+            if not 20 <= len(text) <= 3000:
+                return Response({"declaration_text": ["Enter the declaration (20 to 3000 characters)."]}, status=status.HTTP_400_BAD_REQUEST)
+            SystemConfiguration.objects.update_or_create(key="declaration_text", defaults={"value": text, "description": "Public form declaration"})
+            audit.log(request, "settings.update", entity_type="settings", entity_id="declaration_text", detail={"length": len(text)})
+            if "reference_prefix" not in request.data:
+                return Response({"reference_prefix": SystemConfiguration.get("reference_prefix", "BICMA-CMS"), "declaration_text": text})
         prefix = str(request.data.get("reference_prefix", "")).strip().upper()
         if not re.fullmatch(r"[A-Z0-9][A-Z0-9-]{1,19}", prefix):
             return Response({"reference_prefix": ["Use 2-20 letters, numbers or hyphens (e.g. BICMA-CMS)."]}, status=status.HTTP_400_BAD_REQUEST)

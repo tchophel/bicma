@@ -78,7 +78,7 @@ class Gewog(UUIDModel):
 
 class SystemConfiguration(UUIDModel):
     key = models.CharField(max_length=80, unique=True)
-    value = models.CharField(max_length=500)
+    value = models.TextField(max_length=5000)
     description = models.CharField(max_length=255, blank=True)
 
     def __str__(self):

@@ -10,7 +10,7 @@ export interface FormResult { reference: string; id?: string; draft?: boolean }
 type Values = Record<string, string | boolean>;
 const empty: Values = {
   channel: "phone", date_received: new Date().toISOString().slice(0, 10),
-  complainant_name: "", cid: "", phone: "", email: "", confidential: false, dzongkhag: "", gewog: "", locality: "", area_type: "",
+  complainant_type: "individual", complainant_name: "", cid: "", phone: "", email: "", confidential: false, dzongkhag: "", gewog: "", locality: "", area_type: "",
   preferred_contact: "email", on_behalf: false, affected_name: "", affected_relationship: "", affected_contact: "",
   category: "", subcategory: "", subject: "", description: "", incident_date: "", incident_time: "",
   provider_type: "", provider: "", platform: "", already_complained: false, provider_reference: "", medium_of_publication: "",
@@ -48,8 +48,9 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   const set = (k: string) => (e: { target: { value: string } }) =>
     setV((p) => ({ ...p, [k]: e.target.value, ...(k === "category" ? { subcategory: "" } : {}), ...(k === "dzongkhag" ? { gewog: "" } : {}),
       ...(k === "provider" ? { platform: meta?.providers.find((p) => p.id === e.target.value)?.name ?? "" } : {}) }));
+  const individual = v.complainant_type === "individual";
   async function lookupCid(cid: string) {
-    if (!/^\d{11}$/.test(cid)) { setCidState(""); return; }
+    if (!individual || !/^\d{11}$/.test(cid)) { setCidState(""); return; }
     setCidState("loading");
     try {
       const r = await api<{ full_name: string }>("/public/cid-lookup/", { json: { cid } });
@@ -60,9 +61,9 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
     }
   }
   const onCid = (e: { target: { value: string } }) => {
-    const cid = e.target.value.replace(/\D/g, "").slice(0, 11);
+    const cid = individual ? e.target.value.replace(/\D/g, "").slice(0, 11) : e.target.value.slice(0, 20);
     setV((p) => ({ ...p, cid }));
-    if (cid.length === 11) lookupCid(cid); else setCidState("");
+    if (individual && cid.length === 11) lookupCid(cid); else setCidState("");
   };
   const check = (k: string) => (e: { target: { checked: boolean } }) => setV((p) => ({ ...p, [k]: e.target.checked }));
   const f = (k: string) => err?.fields[k];
@@ -141,8 +142,13 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       <section className="form-section" aria-labelledby="about-you-heading">
       <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="users" size={23} /></span><div><span className="form-section-step">SECTION {offline ? "02" : "01"}</span><h2 id="about-you-heading">{offline ? "Complainant" : "About you"}</h2><p className="section-description">{t("Tell us who is making the complaint and how we can contact you.", "Enter the details of the person who made the complaint and how BICMA can contact them.")}</p></div></div>
       <div className="row">
-        <Field label="CID number" required={!offline} error={f("cid")} hint={cidState === "loading" ? "Looking up your name…" : cidState === "found" ? "Name filled from the citizen registry." : cidState === "missing" ? "No registry record found. Enter the name by hand." : cidState === "unavailable" ? "Registry lookup is unavailable. Enter the name by hand." : "11 digits. Your name is filled in automatically."}><input required={!offline} inputMode="numeric" pattern="\d{11}" maxLength={11} placeholder="11-digit CID" value={v.cid as string} onChange={onCid} autoComplete="off" /></Field>
-        <Field label="Full name" required error={f("complainant_name")}><input required readOnly={cidState === "found"} placeholder={cidState === "loading" ? "Looking up…" : t("Enter your full name", "Enter the complainant’s full name")} value={v.complainant_name as string} onChange={set("complainant_name")} autoComplete="name" /></Field>
+        <Field label="Complainant type" required error={f("complainant_type")}>
+          <select required value={v.complainant_type as string} onChange={(e) => { setCidState(""); setV((p) => ({ ...p, complainant_type: e.target.value, cid: "", complainant_name: "" })); }}>
+            <option value="individual">Individual</option><option value="firm">Firm</option><option value="institute">Institute</option><option value="agency">Agency</option>
+          </select>
+        </Field>
+        <Field label={individual ? "CID number" : "Registration / licence number"} required={!offline} error={f("cid")} hint={!individual ? "Enter the number the organisation is registered under." : cidState === "loading" ? "Looking up your name…" : cidState === "found" ? "Name filled from the citizen registry." : cidState === "missing" ? "No registry record found. Enter the name by hand." : cidState === "unavailable" ? "Registry lookup is unavailable. Enter the name by hand." : "11 digits. Your name is filled in automatically."}><input required={!offline} inputMode={individual ? "numeric" : "text"} pattern={individual ? "\\d{11}" : undefined} maxLength={individual ? 11 : 20} placeholder={individual ? "11-digit CID" : "Registration number"} value={v.cid as string} onChange={onCid} autoComplete="off" /></Field>
+        <Field label={individual ? "Full name" : "Name of the organisation"} required error={f("complainant_name")}><input required readOnly={cidState === "found"} placeholder={cidState === "loading" ? "Looking up…" : t("Enter your full name", "Enter the complainant’s full name")} value={v.complainant_name as string} onChange={set("complainant_name")} autoComplete="name" /></Field>
         <Field label="Phone number" required={!offline} error={f("phone")} hint="8-digit Bhutan number"><input required={!offline} type="tel" pattern="(\+975)?\d{8}" placeholder="17123456" value={v.phone as string} onChange={set("phone")} autoComplete="tel" /></Field>
         <Field label="Email address" required={!offline} error={f("email")} hint={offline ? "Leave empty if the complainant has none." : "Used for the acknowledgement and updates."}><input required={!offline} type="email" placeholder="you@example.com" value={v.email as string} onChange={set("email")} autoComplete="email" /></Field>
         <Field label="Preferred communication" required>
@@ -229,7 +235,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       {!offline && (
         <label className="on-behalf">
           <input type="checkbox" required checked={v.declaration_accepted as boolean} onChange={check("declaration_accepted")} />
-          <span><strong>Declaration <span className="req" aria-hidden="true">*</span></strong><small>To the best of my knowledge and belief, I have placed all the relevant facts before the Authority and no proceedings are pending in any court of law in respect of any matter alleged in the complaint. I shall inform the Authority forthwith if, during the pendency of the inquiry, any matter alleged in the complaint becomes the subject matter of any proceedings in a court of law. I understand that withholding of information or giving false information is an offence and may result in legal action against me.</small></span>
+          <span><strong>Declaration <span className="req" aria-hidden="true">*</span></strong><small>{meta.declaration_text}</small></span>
           {f("declaration_accepted") && <small role="alert" style={{ color: "var(--c-accent)" }}>{f("declaration_accepted")}</small>}
         </label>
       )}

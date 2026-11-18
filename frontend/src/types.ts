@@ -37,6 +37,7 @@ export interface Meta {
   priorities: { id: string; name: string; response_days: number; resolution_days: number }[];
   outcomes: Named[];
   closure_reasons: Named[];
+  declaration_text: string;
 }
 export interface DzongkhagRow { id: string; name: string; is_active: boolean; gewog_count: number }
 export interface GewogRow { id: string; dzongkhag: string; dzongkhag_name: string; name: string; is_active: boolean }
@@ -73,7 +74,7 @@ export interface CaseMessage {
 export interface AttachmentInfo { id: string; original_name: string; size: number; visibility: string; created_at: string }
 
 export interface ComplaintDetail extends ComplaintRow {
-  cid: string; phone: string; email: string; gewog: string | null; gewog_name: string | null; locality: string; area_type: string;
+  complainant_type: string; cid: string; phone: string; email: string; gewog: string | null; gewog_name: string | null; locality: string; area_type: string;
   preferred_contact: string; on_behalf: boolean; affected_name: string; affected_relationship: string; affected_contact: string;
   subcategory: string | null; subcategory_name: string | null; description: string; incident_date: string | null; incident_time: string | null;
   platform: string; provider: string | null; provider_type: string | null; provider_type_name: string | null;
