@@ -92,7 +92,7 @@ export function UserMenu() {
         <div className={css.panel} role="menu" style={{ minWidth: 220 }}>
           <div className={css.panelHead} style={{ display: "block" }}><strong>{name}</strong><br /><small>{user.email}</small></div>
           {item("/staff/profile", "user", "My profile")}
-          {user.role === "super_admin" && item("/staff/settings", "gear", "Settings")}
+          {user.base_role === "super_admin" && item("/staff/settings", "gear", "Settings")}
           <button className={css.menuItem} role="menuitem" onClick={async () => { setOpen(false); await logout(); nav("/staff"); }}><Icon name="logout" />Sign out</button>
         </div>
       )}

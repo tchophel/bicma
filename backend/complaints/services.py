@@ -6,7 +6,7 @@ from django.core.mail import send_mail
 from django.db import transaction
 from django.utils import timezone
 
-from accounts.models import Role, User
+from accounts.models import Role, User, roles_with_base
 from core import audit
 from core.models import EmailTemplate, Holiday, NotificationLog, Priority
 from core.notifications import notify
@@ -179,7 +179,7 @@ def _on_registered(complaint, registered_by, request):
         detail={"reference": complaint.reference, "channel": complaint.channel},
     )
     # triage queue alert for the division head(s)
-    heads = User.objects.filter(role=Role.FOCAL, is_active=True)
+    heads = User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True)
     if complaint.division_id:
         heads = heads.filter(division_id=complaint.division_id)
     if registered_by:
@@ -264,7 +264,7 @@ def alert_officers(complaint, message, *, include_head=True):
     if complaint.assigned_to and complaint.assigned_to.is_active:
         users.append(complaint.assigned_to)
     if include_head and complaint.division_id:
-        users += list(User.objects.filter(role=Role.FOCAL, is_active=True, division_id=complaint.division_id))
+        users += list(User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True, division_id=complaint.division_id))
     notify({u.pk: u for u in users}.values(), message, f"/staff/complaints/{complaint.pk}")
 
 

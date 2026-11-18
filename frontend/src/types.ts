@@ -1,3 +1,4 @@
+/** Built-in behaviour a role is based on. Custom roles inherit one of these. */
 export type Role = "supervisor" | "super_admin" | "focal" | "investigator";
 
 export interface User {
@@ -9,7 +10,8 @@ export interface User {
   cid: string | null;
   designation: string;
   phone: string;
-  role: Role;
+  role: string;
+  base_role: Role;
   role_display: string;
   division: string | null;
   division_name: string | null;

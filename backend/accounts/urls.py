@@ -6,6 +6,7 @@ from . import views
 router = DefaultRouter()
 router.register("users", views.UserViewSet, basename="admin-user")
 router.register("divisions", views.DivisionViewSet, basename="admin-division")
+router.register("roles", views.RoleDefViewSet, basename="admin-role")
 
 urlpatterns = [
     path("auth/csrf/", views.CsrfView.as_view()),

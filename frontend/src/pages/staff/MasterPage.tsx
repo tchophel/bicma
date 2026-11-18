@@ -127,3 +127,8 @@ export function Providers() {
   return <MasterPage title="Service providers / licensees" subtitle="Providers a complaint can name. The contact email receives the stakeholder notice after initial review." icon="users" path="providers"
     fields={[{ key: "name", label: "Name", required: true }, { key: "provider_type", label: "Type", type: "select", options: opts(types.data?.results) }, { key: "licence_number", label: "Licence number" }, { key: "contact_email", label: "Contact email", type: "email" }]} />;
 }
+export function Roles() {
+  return <MasterPage title="Roles" subtitle="Roles you can give to users. A new role is built on one of the four built-in behaviours, which decide what data it can see; set what it may do on Roles & permissions." icon="lock" path="roles"
+    fields={[{ key: "name", label: "Role name", required: true }, { key: "description", label: "Description" },
+      { key: "base", label: "Based on", type: "select", required: true, hint: "Cannot be changed later.", options: [{ value: "investigator", label: "Investigating Officer (own division, works assigned cases)" }, { value: "focal", label: "Division Head (own division, assigns and approves)" }, { value: "supervisor", label: "Management Viewer (all divisions, read-only)" }, { value: "super_admin", label: "Administrator (system administration)" }] }]} />;
+}

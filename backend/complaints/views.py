@@ -10,7 +10,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import Division, Role, User
+from accounts.models import Division, Role, User, roles_with_base
 from accounts.perms import has_perm
 from core import audit, captcha
 from core.models import Category, Outcome, Priority
@@ -257,7 +257,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
                 div = Division.objects.filter(pk=_pk(d["division"]), is_active=True).first()
                 if not div:
                     raise WorkflowError("Select a valid division.", "division")
-                if div.pk != c.division_id and request.user.role != Role.SUPER_ADMIN and request.user.role != Role.FOCAL:
+                if div.pk != c.division_id and request.user.base_role not in (Role.SUPER_ADMIN, Role.FOCAL):
                     raise WorkflowError("Only a Division Head can change the division; use Refer.", "division")
                 c.division = div
             prio = Priority.objects.filter(pk=_pk(d.get("priority")), is_active=True).first()
@@ -275,8 +275,8 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
     @action(detail=True, methods=["get"], url_path="officers")
     def officers(self, request, pk=None):
         c = self.get_object()
-        users = User.objects.filter(is_active=True, division_id=c.division_id, role__in=[Role.INVESTIGATOR, Role.FOCAL])
-        return Response([{"id": str(u.pk), "name": u.get_full_name() or u.email, "role": u.get_role_display()} for u in users])
+        users = User.objects.filter(is_active=True, division_id=c.division_id, role__in=roles_with_base(Role.INVESTIGATOR, Role.FOCAL))
+        return Response([{"id": str(u.pk), "name": u.get_full_name() or u.email, "role": u.role_name} for u in users])
 
     @action(detail=True, methods=["post"])
     def assign(self, request, pk=None):
@@ -284,7 +284,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
 
         def run(c):
             officer = User.objects.filter(pk=_pk(d.get("assigned_to")), is_active=True, division_id=c.division_id,
-                                          role__in=[Role.INVESTIGATOR, Role.FOCAL]).first() if d.get("assigned_to") else None
+                                          role__in=roles_with_base(Role.INVESTIGATOR, Role.FOCAL)).first() if d.get("assigned_to") else None
             if not officer:
                 raise WorkflowError("Select an officer of this division.", "assigned_to")
             reason = str(d.get("reason", "")).strip()
@@ -317,7 +317,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
             c.division = target
             c.assigned_to = None
             services.move(c, S.REFERRED, actor=request.user, reason=f"Referred to {target.name}: {reason}", request=request, notify_complainant=False)
-            notify(User.objects.filter(role=Role.FOCAL, is_active=True, division=target), f"Complaint {c.reference} referred to your division.", f"/staff/complaints/{c.pk}")
+            notify(User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True, division=target), f"Complaint {c.reference} referred to your division.", f"/staff/complaints/{c.pk}")
         return self._run(request, "refer", run)
 
     @action(detail=True, methods=["post"], url_path="not-in-mandate")

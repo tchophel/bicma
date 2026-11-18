@@ -35,9 +35,10 @@ DEFAULTS = {
 
 
 def role_perms(role):
-    """Effective permission codes for a role: defaults overridden by saved changes."""
-    from .models import RolePermission
-    perms = set(DEFAULTS.get(role, set()))
+    """Effective permission codes for a role code: the defaults of its base role, overridden by saved changes."""
+    from .models import RoleDef, RolePermission
+    base = role if role in DEFAULTS else RoleDef.objects.filter(code=role).values_list("base", flat=True).first()
+    perms = set(DEFAULTS.get(base, set()))
     for row in RolePermission.objects.filter(role=role):
         (perms.add if row.allowed else perms.discard)(row.code)
     return perms

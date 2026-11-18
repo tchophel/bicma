@@ -7,11 +7,11 @@ import { useList } from "../../useList";
 import "./Directory.css";
 import "./Users.css";
 
-const ROLES = [["investigator", "Investigating Officer"], ["focal", "Division Head"], ["super_admin", "Administrator"], ["supervisor", "Management Viewer (read-only)"]];
 
 export function Users() {
   const { data, err, loading, reload } = useList<Page<User>>("/admin/users/?page_size=100");
   const divs = useList<Page<Division>>("/admin/divisions/");
+  const roles = useList<Page<{ id: string; code: string; name: string; base: string; is_active: boolean }>>("/admin/roles/?page_size=200");
   const blank = { employee_id: "", designation: "", first_name: "", last_name: "", email: "", phone: "", role: "investigator", division: "" };
   const [form, setForm] = useState(blank);
   const [msg, setMsg] = useState<ApiError | null>(null);
@@ -39,7 +39,8 @@ export function Users() {
     try { await api(`/admin/users/${u.id}/`, { method: "PATCH", json: { is_active: !u.is_active } }); reload(); }
     catch (x) { setMsg(x as ApiError); }
   }
-  const needsDiv = form.role === "focal" || form.role === "investigator";
+  const chosen = roles.data?.results.find((r) => r.code === form.role);
+  const needsDiv = ["focal", "investigator"].includes(chosen?.base ?? form.role);
   const users = data?.results ?? [];
   const visible = users.filter((u) => `${u.email} ${u.first_name} ${u.last_name} ${u.role_display} ${u.division_name ?? ""}`.toLowerCase().includes(query.toLowerCase()));
   return (
@@ -92,7 +93,7 @@ export function Users() {
           <fieldset disabled={busy}>
             <legend><span className="users-section-number">02</span> Account access</legend>
             <div className="row">
-              <Field label="Role" required><select required value={form.role} onChange={set("role")}>{ROLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
+              <Field label="Role" required><select required value={form.role} onChange={set("role")}>{roles.data?.results.filter((r) => r.is_active).map((r) => <option key={r.code} value={r.code}>{r.name}</option>)}</select></Field>
               <Field label="Division" required={needsDiv} hint={needsDiv ? "Required for this role." : "Optional for this role."}><select required={needsDiv} value={form.division} onChange={set("division")}><option value="">{needsDiv ? "Select a division" : "No division"}</option>{divs.data?.results.filter((d) => d.is_active).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></Field>
             </div>
             {divs.err && <p className="error" role="alert">Could not load divisions. Refresh the page to try again.</p>}

@@ -3,7 +3,7 @@ import datetime as dt
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from accounts.models import Role, User
+from accounts.models import Role, User, roles_with_base
 from complaints.models import OPEN_STATUSES, Complaint, InternalStatus as S
 from core.models import Notification, SystemConfiguration
 from core.notifications import notify
@@ -21,7 +21,7 @@ class Command(BaseCommand):
         triage_days = int(SystemConfiguration.get("triage_period_days", "2") or 2)
         count = 0
         for c in Complaint.objects.filter(internal_status__in=OPEN_STATUSES, paused_at__isnull=True).select_related("assigned_to"):
-            heads = list(User.objects.filter(role=Role.FOCAL, is_active=True, division_id=c.division_id))
+            heads = list(User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True, division_id=c.division_id))
             targets = ([c.assigned_to] if c.assigned_to else []) + heads
             if c.resolution_due_at and c.resolution_due_at < now:
                 kind, msg = "overdue", f"{c.reference} has missed its resolution timeline."

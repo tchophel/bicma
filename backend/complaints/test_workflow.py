@@ -470,3 +470,56 @@ class RolePermissionTests(WorkflowBase):
         self.assertEqual(a.put(self.URL, {"role": "focal", "code": "approve", "allowed": "yes"}, format="json").status_code, 400)
         me = self.login(self.focal1).get("/api/auth/me/").data
         self.assertIn("approve", me["permissions"])
+
+
+class RoleMasterTests(WorkflowBase):
+    URL = "/api/admin/roles/"
+
+    def make_role(self, name="Senior Officer", base="investigator"):
+        r = self.login(self.admin).post(self.URL, {"name": name, "base": base, "description": "x"}, format="json")
+        self.assertEqual(r.status_code, 201, r.content)
+        return r.data
+
+    def test_builtin_roles_are_listed_and_protected(self):
+        rows = self.login(self.admin).get(self.URL + "?page_size=50").data["results"]
+        self.assertEqual({r["code"] for r in rows if r["is_system"]}, {"investigator", "focal", "supervisor", "super_admin"})
+        sysrole = next(r for r in rows if r["code"] == "focal")
+        r = self.login(self.admin).patch(f"{self.URL}{sysrole['id']}/", {"is_active": False}, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.login(self.focal1).get(self.URL).status_code, 403)
+
+    def test_custom_role_behaves_like_its_base_and_has_own_permissions(self):
+        role = self.make_role()
+        self.assertEqual(role["code"], "senior-officer")
+        u = self.login(self.admin).post("/api/admin/users/", {"email": "so@x.bt", "password": "Str0ng-pass-123", "role": "senior-officer", "division": str(self.d1.pk)}, format="json")
+        self.assertEqual(u.status_code, 201, u.content)
+        from accounts.models import User
+        so = User.objects.get(email="so@x.bt")
+        self.assertEqual(so.base_role, "investigator")
+        self.assertEqual(self.login(so).get(f"/api/complaints/{self.c.pk}/").status_code, 200)  # sees its division
+        self.assertEqual(self.login(self.focal2).get(f"/api/complaints/{self.c.pk}/").status_code, 404)
+        me = self.login(so).get("/api/auth/me/").data
+        self.assertEqual((me["role_display"], me["base_role"]), ("Senior Officer", "investigator"))
+        self.assertIn("triage", me["permissions"])
+        # permissions are per role: switching one off for this role leaves the others alone
+        self.login(self.admin).put("/api/admin/permissions/", {"role": "senior-officer", "code": "triage", "allowed": False}, format="json")
+        self.assertNotIn("triage", self.login(so).get("/api/auth/me/").data["permissions"])
+        self.assertIn("triage", self.login(self.inv1).get("/api/auth/me/").data["permissions"])
+
+    def test_division_required_for_custom_division_role_and_rules_on_edit(self):
+        self.make_role("Desk Officer", "investigator")
+        r = self.login(self.admin).post("/api/admin/users/", {"email": "d@x.bt", "password": "Str0ng-pass-123", "role": "desk-officer"}, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("division", r.data)
+        role = self.make_role("Reviewer", "supervisor")
+        self.assertEqual(self.login(self.admin).patch(f"{self.URL}{role['id']}/", {"base": "focal"}, format="json").status_code, 400)
+
+    def test_cannot_deactivate_role_in_use_or_assign_inactive_or_unknown(self):
+        role = self.make_role()
+        a = self.login(self.admin)
+        a.post("/api/admin/users/", {"email": "so@x.bt", "password": "Str0ng-pass-123", "role": "senior-officer", "division": str(self.d1.pk)}, format="json")
+        self.assertEqual(a.patch(f"{self.URL}{role['id']}/", {"is_active": False}, format="json").status_code, 400)
+        self.assertEqual(a.post("/api/admin/users/", {"email": "z@x.bt", "password": "Str0ng-pass-123", "role": "ghost"}, format="json").status_code, 400)
+        unused = self.make_role("Spare", "supervisor")
+        self.assertEqual(a.patch(f"{self.URL}{unused['id']}/", {"is_active": False}, format="json").status_code, 200)
+        self.assertEqual(a.post("/api/admin/users/", {"email": "y@x.bt", "password": "Str0ng-pass-123", "role": "spare"}, format="json").status_code, 400)

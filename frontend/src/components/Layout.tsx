@@ -55,6 +55,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
     heading: "Master data",
     items: [
       { to: "/staff/categories", label: "Categories", icon: "category", roles: ["super_admin"] },
+      { to: "/staff/roles", label: "Roles", icon: "lock", roles: ["super_admin"] },
       { to: "/staff/divisions", label: "Divisions", icon: "division", roles: ["super_admin"] },
       { to: "/staff/providers", label: "Service providers", icon: "users", roles: ["super_admin"] },
       { to: "/staff/provider-types", label: "Provider types", icon: "category", roles: ["super_admin"] },
@@ -84,7 +85,7 @@ export function StaffLayout() {
   const [open, setOpen] = useState(false);
   if (loading) return <p className="container">Loading…</p>;
   if (!user) return <Navigate to="/staff" replace />;
-  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.roles || i.roles.includes(user.role)) && (!i.perm || user.permissions?.includes(i.perm))) })).filter((g) => g.items.length);
+  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.roles || i.roles.includes(user.base_role)) && (!i.perm || user.permissions?.includes(i.perm))) })).filter((g) => g.items.length);
   return (
     <div className={css.shell}>
       <a className="skip" href="#main">Skip to content</a>

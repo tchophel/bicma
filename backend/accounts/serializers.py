@@ -3,7 +3,7 @@ import re
 
 from rest_framework import serializers
 
-from .models import DIVISIONAL_ROLES, Division, Role, User
+from .models import DIVISIONAL_ROLES, Division, Role, RoleDef, User, roles_with_base
 
 
 class DivisionSerializer(serializers.ModelSerializer):
@@ -23,7 +23,7 @@ class DivisionAdminSerializer(DivisionSerializer):
     def get_focal(self, obj):
         focals = getattr(obj, "active_focals", None)
         if focals is None:
-            focals = list(obj.users.filter(role=Role.FOCAL, is_active=True)[:1])
+            focals = list(obj.users.filter(role__in=roles_with_base(Role.FOCAL), is_active=True)[:1])
         if not focals:
             return None
         u = focals[0]
@@ -43,12 +43,13 @@ class FocalRegistrationSerializer(serializers.Serializer):
 
 class UserSerializer(serializers.ModelSerializer):
     division_name = serializers.CharField(source="division.name", read_only=True, default=None)
-    role_display = serializers.CharField(source="get_role_display", read_only=True)
+    role_display = serializers.CharField(source="role_name", read_only=True)
+    base_role = serializers.CharField(read_only=True)
 
     class Meta:
         model = User
         fields = [
-            "id", "email", "employee_id", "cid", "designation", "first_name", "last_name", "phone", "role", "role_display",
+            "id", "email", "employee_id", "cid", "designation", "first_name", "last_name", "phone", "role", "role_display", "base_role",
             "division", "division_name", "is_active", "last_login",
         ]
         read_only_fields = ["last_login"]
@@ -111,16 +112,24 @@ class UserWriteSerializer(UserSerializer):
             raise serializers.ValidationError("Enter a valid 8-digit phone number.")
         return value
 
+    def validate_role(self, value):
+        rd = RoleDef.objects.filter(code=value).first()
+        keeps_current = self.instance is not None and self.instance.role == value
+        if rd is None or (not rd.is_active and not keeps_current):
+            raise serializers.ValidationError("Choose an active role.")
+        return value
+
     def validate(self, attrs):
         role = attrs.get("role", getattr(self.instance, "role", None))
+        base = role if role in Role.values else (RoleDef.objects.filter(code=role).values_list("base", flat=True).first() or role)
         division = attrs.get("division", getattr(self.instance, "division", None))
-        if role in DIVISIONAL_ROLES and not division:
+        if base in DIVISIONAL_ROLES and not division:
             raise serializers.ValidationError({"division": "A division is required for this role."})
         request = self.context.get("request")
         if self.instance and request and self.instance.pk == request.user.pk:
             if attrs.get("is_active") is False:
                 raise serializers.ValidationError({"is_active": "You cannot deactivate your own account."})
-            if "role" in attrs and attrs["role"] != Role.SUPER_ADMIN:
+            if "role" in attrs and attrs["role"] != self.instance.role:
                 raise serializers.ValidationError({"role": "You cannot change your own role."})
         return attrs
 

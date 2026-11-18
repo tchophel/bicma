@@ -8,16 +8,16 @@ HEAD_OR_ADMIN = (Role.FOCAL, Role.SUPER_ADMIN)
 
 
 def _in_division(user, c):
-    return user.role == Role.SUPER_ADMIN or (user.division_id is not None and c.division_id == user.division_id)
+    return user.base_role == Role.SUPER_ADMIN or (user.division_id is not None and c.division_id == user.division_id)
 
 
 def allowed_actions(user, c):
     """Return {action: bool} for the current user and case."""
     st = c.internal_status
-    head = user.role in HEAD_OR_ADMIN and _in_division(user, c)
-    officer = user.role == Role.INVESTIGATOR and c.assigned_to_id == user.pk
+    head = user.base_role in HEAD_OR_ADMIN and _in_division(user, c)
+    officer = user.base_role == Role.INVESTIGATOR and c.assigned_to_id == user.pk
     handler = head or officer
-    triage_role = user.role in (Role.FOCAL, Role.INVESTIGATOR, Role.SUPER_ADMIN) and _in_division(user, c)
+    triage_role = user.base_role in (Role.FOCAL, Role.INVESTIGATOR, Role.SUPER_ADMIN) and _in_division(user, c)
     structural = {
         "triage": triage_role and st in (S.RECEIVED, S.TRIAGE, S.REFERRED),
         "assign": head and st in (S.RECEIVED, S.TRIAGE, S.REFERRED, S.ASSIGNED, S.INVESTIGATING),

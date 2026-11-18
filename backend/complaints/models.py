@@ -75,11 +75,11 @@ class ComplaintQuerySet(models.QuerySet):
             return self.none()
         base = self.exclude(internal_status=InternalStatus.DRAFT)
         own_drafts = Q(internal_status=InternalStatus.DRAFT, registered_by=user)
-        if user.role in (Role.SUPERVISOR, Role.SUPER_ADMIN):
+        if user.base_role in (Role.SUPERVISOR, Role.SUPER_ADMIN):
             return base
-        if user.role == Role.FOCAL:
+        if user.base_role == Role.FOCAL:
             return self.filter((Q(division=user.division) & ~Q(internal_status=InternalStatus.DRAFT)) | own_drafts)
-        if user.role == Role.INVESTIGATOR:
+        if user.base_role == Role.INVESTIGATOR:
             # whole division, except confidential cases which are restricted to the named officer
             return self.filter(
                 (Q(division=user.division) & ~Q(internal_status=InternalStatus.DRAFT) & (Q(confidential_case=False) | Q(assigned_to=user)))

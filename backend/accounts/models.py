@@ -53,7 +53,7 @@ class UserManager(BaseUserManager):
 class User(UUIDModel, AbstractUser):
     username = None
     email = models.EmailField("email address", unique=True)
-    role = models.CharField(max_length=20, choices=Role.choices, default=Role.INVESTIGATOR)
+    role = models.CharField(max_length=40, default=Role.INVESTIGATOR, help_text="Code of a RoleDef (master data)")
     division = models.ForeignKey(
         Division, null=True, blank=True, on_delete=models.PROTECT, related_name="users"
     )
@@ -78,21 +78,64 @@ class User(UUIDModel, AbstractUser):
 
     def clean(self):
         super().clean()
-        if self.role in DIVISIONAL_ROLES and not self.division_id:
+        if self.base_role in DIVISIONAL_ROLES and not self.division_id:
             raise ValidationError({"division": "A division is required for this role."})
 
     @property
+    def base_role(self):
+        """The built-in behaviour this user's role is based on (a custom role inherits one of the four)."""
+        cached = getattr(self, "_base_role", None)
+        if cached is not None and cached[0] == self.role:
+            return cached[1]
+        base = self.role if self.role in Role.values else (
+            RoleDef.objects.filter(code=self.role).values_list("base", flat=True).first() or Role.INVESTIGATOR)
+        self._base_role = (self.role, base)
+        return base
+
+    @property
+    def role_name(self):
+        name = RoleDef.objects.filter(code=self.role).values_list("name", flat=True).first()
+        return name or self.get_role_display()
+
+    def get_role_display(self):
+        return dict(Role.choices).get(self.role, self.role)
+
+    @property
     def is_oversight(self):
-        return self.role in (Role.SUPERVISOR, Role.SUPER_ADMIN)
+        return self.base_role in (Role.SUPERVISOR, Role.SUPER_ADMIN)
 
 
 class RolePermission(UUIDModel):
     """A saved change to a role's permission; roles with no row use the defaults in accounts/perms.py."""
 
-    role = models.CharField(max_length=20, choices=Role.choices)
+    role = models.CharField(max_length=40)  # RoleDef code
     code = models.CharField(max_length=40)
     allowed = models.BooleanField()
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
         constraints = [models.UniqueConstraint(fields=["role", "code"], name="uniq_role_permission")]
+
+
+class RoleDef(UUIDModel):
+    """Role master data. `base` decides data scope and case rules; permissions are edited per role code."""
+
+    code = models.SlugField(max_length=40, unique=True)
+    name = models.CharField(max_length=80, unique=True)
+    description = models.CharField(max_length=300, blank=True)
+    base = models.CharField(max_length=20, choices=Role.choices)
+    is_system = models.BooleanField(default=False)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+def roles_with_base(*bases):
+    """Role codes whose behaviour is one of `bases` (built-in roles plus custom roles built on them)."""
+    codes = set(b for b in bases)
+    codes.update(RoleDef.objects.filter(base__in=bases).values_list("code", flat=True))
+    return list(codes)

@@ -21,11 +21,12 @@ import { SettingsPage } from "./pages/staff/Settings";
 import { Users } from "./pages/staff/Users";
 import { Reports } from "./pages/staff/Reports";
 import { Permissions } from "./pages/staff/Permissions";
+import { Roles } from "./pages/staff/MasterPage";
 import { ClosureReasons, EmailTemplates, Holidays, Outcomes, Priorities, ProviderTypes, Providers } from "./pages/staff/MasterPage";
 
 function AdminOnly({ children }: { children: JSX.Element }) {
   const { user } = useAuth();
-  return user?.role === "super_admin" ? children : <Navigate to="/staff/dashboard" replace />;
+  return user?.base_role === "super_admin" ? children : <Navigate to="/staff/dashboard" replace />;
 }
 
 export default function App() {
@@ -56,6 +57,7 @@ export default function App() {
             <Route path="gewogs" element={<AdminOnly><Gewogs /></AdminOnly>} />
             <Route path="divisions" element={<AdminOnly><Divisions /></AdminOnly>} />
             <Route path="categories" element={<AdminOnly><Categories /></AdminOnly>} />
+            <Route path="roles" element={<AdminOnly><Roles /></AdminOnly>} />
             <Route path="permissions" element={<AdminOnly><Permissions /></AdminOnly>} />
             <Route path="reports" element={<Reports />} />
             <Route path="providers" element={<AdminOnly><Providers /></AdminOnly>} />

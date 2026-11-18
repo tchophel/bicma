@@ -51,7 +51,7 @@ export function DashboardPage() {
       <div className="card filter-bar" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
         <label><span>From</span><input type="date" value={sp.get("date_from") ?? ""} onChange={set("date_from")} /></label>
         <label><span>To</span><input type="date" value={sp.get("date_to") ?? ""} onChange={set("date_to")} /></label>
-        {user && ["supervisor", "super_admin"].includes(user.role) && <label><span>Division</span><select value={sp.get("division") ?? ""} onChange={set("division")}><option value="">All</option>{meta.data?.divisions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>}
+        {user && ["supervisor", "super_admin"].includes(user.base_role) && <label><span>Division</span><select value={sp.get("division") ?? ""} onChange={set("division")}><option value="">All</option>{meta.data?.divisions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>}
         <label><span>Category</span><select value={sp.get("category") ?? ""} onChange={set("category")}><option value="">All</option>{meta.data?.categories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</select></label>
         <label><span>Provider</span><select value={sp.get("provider") ?? ""} onChange={set("provider")}><option value="">All</option>{meta.data?.providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select></label>
         <label><span>Dzongkhag</span><select value={sp.get("dzongkhag") ?? ""} onChange={set("dzongkhag")}><option value="">All</option>{meta.data?.dzongkhags.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></label>

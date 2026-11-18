@@ -187,11 +187,11 @@ def can_see_identity(user, complaint):
         return True
     if user is None or not user.is_authenticated:
         return False
-    if user.role == Role.SUPER_ADMIN:
+    if user.base_role == Role.SUPER_ADMIN:
         return True
-    if user.role == Role.FOCAL:
+    if user.base_role == Role.FOCAL:
         return complaint.division_id == user.division_id
-    if user.role == Role.INVESTIGATOR:
+    if user.base_role == Role.INVESTIGATOR:
         return complaint.assigned_to_id == user.pk or complaint.registered_by_id == user.pk
     return False
 

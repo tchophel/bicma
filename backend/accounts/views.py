@@ -26,7 +26,7 @@ from core import audit
 from .authentication import CsrfOnlyAuthentication
 from .models import Division, User
 from .permissions import IsSuperAdmin
-from .models import Role, RolePermission
+from .models import Role, RoleDef, RolePermission, roles_with_base
 from . import perms as perm_mod
 from .serializers import (
     DivisionAdminSerializer, DivisionSerializer, FocalRegistrationSerializer, ProfileSerializer, UserSerializer, UserWriteSerializer,
@@ -251,7 +251,7 @@ class DivisionViewSet(AuditedModelViewSet):
     entity_type = "division"
 
     def get_queryset(self):
-        focals = User.objects.filter(role=Role.FOCAL, is_active=True).order_by("date_joined")
+        focals = User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True).order_by("date_joined")
         return Division.objects.prefetch_related(Prefetch("users", queryset=focals, to_attr="active_focals"))
 
 
@@ -282,7 +282,7 @@ class RegisterFocalsView(APIView):
         if valid:
             seen_div, seen_email = set(), set()
             existing_emails = {e.lower() for e in User.objects.filter(email__in=[r["email"] for r in ser.validated_data]).values_list("email", flat=True)}
-            busy_divs = set(User.objects.filter(role=Role.FOCAL, is_active=True, division__in=[r["division"] for r in ser.validated_data]).values_list("division_id", flat=True))
+            busy_divs = set(User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True, division__in=[r["division"] for r in ser.validated_data]).values_list("division_id", flat=True))
             for i, row in enumerate(ser.validated_data):
                 if row["division"].pk in busy_divs:
                     rows[i]["division"] = ["This division already has an active Division Head."]
@@ -377,18 +377,18 @@ class RolePermissionsView(APIView):
     permission_classes = [IsSuperAdmin]
 
     def _matrix(self):
-        return {r.value: sorted(perm_mod.role_perms(r.value)) for r in Role}
+        return {r.code: sorted(perm_mod.role_perms(r.code)) for r in RoleDef.objects.filter(is_active=True)}
 
     def get(self, request):
         return Response({
-            "roles": [{"value": r.value, "label": r.label} for r in Role],
+            "roles": [{"value": r.code, "label": r.name} for r in RoleDef.objects.filter(is_active=True)],
             "permissions": [{"code": c, "label": l, "group": g} for c, l, g in perm_mod.CATALOG],
             "matrix": self._matrix(),
         })
 
     def put(self, request):
         role, code, allowed = request.data.get("role"), request.data.get("code"), request.data.get("allowed")
-        if role not in Role.values or code not in perm_mod.CODES or not isinstance(allowed, bool):
+        if not RoleDef.objects.filter(code=role).exists() or code not in perm_mod.CODES or not isinstance(allowed, bool):
             return Response({"detail": "Choose a valid role, permission and on/off value."}, status=400)
         before = code in perm_mod.role_perms(role)
         RolePermission.objects.update_or_create(role=role, code=code, defaults={"allowed": allowed})
@@ -399,8 +399,58 @@ class RolePermissionsView(APIView):
     def delete(self, request):
         """Reset one role to the defaults."""
         role = request.query_params.get("role")
-        if role not in Role.values:
+        if not RoleDef.objects.filter(code=role).exists():
             return Response({"detail": "Choose a valid role."}, status=400)
         RolePermission.objects.filter(role=role).delete()
         audit.log(request, "role_permission.reset", entity_type="role", entity_id=role)
         return Response({"matrix": self._matrix()})
+
+
+class RoleDefSerializer(serializers.ModelSerializer):
+    user_count = serializers.SerializerMethodField()
+    base_display = serializers.CharField(source="get_base_display", read_only=True)
+
+    class Meta:
+        model = RoleDef
+        fields = ["id", "code", "name", "description", "base", "base_display", "is_system", "is_active", "user_count"]
+        read_only_fields = ["code", "is_system"]
+
+    def get_user_count(self, obj):
+        return User.objects.filter(role=obj.code, is_active=True).count()
+
+    def validate_name(self, value):
+        value = value.strip()
+        qs = RoleDef.objects.filter(name__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A role with this name already exists.")
+        return value
+
+    def validate(self, attrs):
+        inst = self.instance
+        if inst:
+            if "base" in attrs and attrs["base"] != inst.base:
+                raise serializers.ValidationError({"base": "The base behaviour of an existing role cannot be changed."})
+            if attrs.get("is_active") is False:
+                if inst.is_system:
+                    raise serializers.ValidationError({"is_active": "Built-in roles cannot be deactivated."})
+                if User.objects.filter(role=inst.code, is_active=True).exists():
+                    raise serializers.ValidationError({"is_active": "Move the users with this role to another role first."})
+        return attrs
+
+    def create(self, validated):
+        from django.utils.text import slugify
+        base_code = slugify(validated["name"])[:36] or "role"
+        code, n = base_code, 2
+        while code in Role.values or RoleDef.objects.filter(code=code).exists():
+            code, n = f"{base_code}-{n}", n + 1
+        return RoleDef.objects.create(code=code, **validated)
+
+
+class RoleDefViewSet(AuditedModelViewSet):
+    queryset = RoleDef.objects.all()
+    serializer_class = RoleDefSerializer
+    entity_type = "role"
+    filter_backends = [SearchFilter]
+    search_fields = ["name", "code"]

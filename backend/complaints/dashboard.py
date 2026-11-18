@@ -46,15 +46,15 @@ class DashboardView(APIView):
             {"label": "Overdue", "count": open_qs.filter(paused_at__isnull=True, resolution_due_at__lt=now).count(), "query": "scope=overdue"},
             {"label": "Due soon", "count": apply_filters(qs, {"scope": "due_soon"}).count(), "query": "scope=due_soon"},
         ]
-        if user.role in (Role.FOCAL, Role.INVESTIGATOR, Role.SUPER_ADMIN):
+        if user.base_role in (Role.FOCAL, Role.INVESTIGATOR, Role.SUPER_ADMIN):
             cards.insert(1, {"label": "Awaiting triage", "count": qs.filter(internal_status__in=[S.RECEIVED, S.TRIAGE, S.REFERRED]).count(), "query": "scope=triage"})
-        if user.role == Role.INVESTIGATOR:
+        if user.base_role == Role.INVESTIGATOR:
             cards.insert(2, {"label": "My assigned", "count": qs.filter(assigned_to=user, internal_status__in=OPEN_STATUSES).count(), "query": "scope=mine"})
 
         by_status = [{"key": r["internal_status"], "label": S(r["internal_status"]).label, "count": r["n"], "query": f"status={r['internal_status']}"}
                      for r in qs.values("internal_status").annotate(n=Count("id")).order_by("-n")]
         data = {
-            "role": user.role, "cards": cards, "by_status": by_status,
+            "role": user.base_role, "cards": cards, "by_status": by_status,
             "by_category": _group(qs, "category", "category__name", "category", "Uncategorized"),
             "by_division": _group(qs, "division", "division__name", "division", "Unassigned"),
             "by_provider": [{"label": r["pname"] or "Not stated", "count": r["n"]} for r in
