@@ -612,3 +612,17 @@ class UploadLimitSettingsTests(Base):
         self.login(self.admin).patch(self.URL, {"photo_max_kb": 5120}, format="json")
         up = SimpleUploadedFile("p.png", data, content_type="image/png")
         self.assertEqual(self.login(self.inv1).post("/api/auth/me/photo/", {"photo": up}, format="multipart").status_code, 200)
+
+
+class AdminUploadsPageTests(WorkflowBase):
+    def test_admin_sees_totals_and_files_others_blocked(self):
+        f = SimpleUploadedFile("evidence.pdf", b"%PDF-1.4 abc", content_type="application/pdf")
+        self.to_investigating()
+        self.login(self.inv1).post(f"/api/complaints/{self.c.pk}/upload/", {"files": [f]}, format="multipart")
+        d = self.login(self.admin).get("/api/admin/uploads/").data
+        self.assertEqual((d["count"], d["results"][0]["name"], d["results"][0]["reference"]), (1, "evidence.pdf", self.c.reference))
+        self.assertGreater(d["total_bytes"], 0)
+        self.assertEqual(d["limits"]["upload_max_mb"], 5)
+        self.assertEqual(self.login(self.admin).get("/api/admin/uploads/?q=nomatch").data["matches"], 0)
+        for u in (self.focal1, self.inv1, self.sup):
+            self.assertEqual(self.login(u).get("/api/admin/uploads/").status_code, 403)

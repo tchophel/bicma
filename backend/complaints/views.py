@@ -503,3 +503,37 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
         resp = FileResponse(att.file.open("rb"), as_attachment=True, filename=att.original_name)
         resp["X-Content-Type-Options"] = "nosniff"
         return resp
+
+
+class AdminUploadsView(APIView):
+    """Administrator: storage totals and every uploaded document, newest first."""
+
+    def get(self, request):
+        from django.db.models import Count, Q, Sum
+        from accounts.permissions import has_role
+        from core.limits import get_limits
+        if not has_role(request.user, Role.SUPER_ADMIN):
+            return Response({"detail": "Not permitted."}, status=403)
+        qs = Attachment.objects.select_related("complaint", "uploaded_by").order_by("-created_at")
+        q = request.query_params.get("q", "").strip()
+        if q:
+            qs = qs.filter(Q(original_name__icontains=q) | Q(complaint__reference__icontains=q))
+        if request.query_params.get("visibility") in ("public", "internal"):
+            qs = qs.filter(visibility=request.query_params["visibility"])
+        totals = Attachment.objects.aggregate(count=Count("id"), bytes=Sum("size"))
+        try:
+            page, size = max(1, int(request.query_params.get("page", 1))), 25
+        except ValueError:
+            page, size = 1, 25
+        total = qs.count()
+        rows = qs[(page - 1) * size: page * size]
+        audit.log(request, "uploads.view", entity_type="uploads")
+        return Response({
+            "count": totals["count"] or 0, "total_bytes": totals["bytes"] or 0, "limits": get_limits(),
+            "matches": total, "page": page, "pages": max(1, -(-total // size)),
+            "results": [{
+                "id": str(a.pk), "name": a.original_name, "size": a.size, "visibility": a.visibility, "created_at": a.created_at,
+                "complaint": str(a.complaint_id), "reference": a.complaint.reference,
+                "uploaded_by": (a.uploaded_by.get_full_name() or a.uploaded_by.email) if a.uploaded_by else "Complainant",
+            } for a in rows],
+        })

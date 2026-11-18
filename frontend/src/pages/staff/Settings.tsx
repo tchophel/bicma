@@ -10,11 +10,9 @@ export function SettingsPage() {
   const value = prefix ?? data?.reference_prefix ?? "";
   const [decl, setDecl] = useState<string | null>(null);
   const declValue = decl ?? data?.declaration_text ?? "";
-  const [lim, setLim] = useState<Record<string, string>>({});
-  const limVal = (k: "upload_max_mb" | "upload_max_files" | "photo_max_kb") => lim[k] ?? String(data?.[k] ?? "");
   async function save(e: FormEvent) {
     e.preventDefault(); setMsg({});
-    try { await api("/admin/settings/", { method: "PATCH", json: { reference_prefix: value, declaration_text: declValue, upload_max_mb: Number(limVal("upload_max_mb")), upload_max_files: Number(limVal("upload_max_files")), photo_max_kb: Number(limVal("photo_max_kb")) } }); setPrefix(null); setDecl(null); setLim({}); reload(); setMsg({ ok: "Settings saved." }); }
+    try { await api("/admin/settings/", { method: "PATCH", json: { reference_prefix: value, declaration_text: declValue } }); setPrefix(null); setDecl(null); reload(); setMsg({ ok: "Settings saved." }); }
     catch (x) { setMsg({ err: (x as ApiError).message }); }
   }
   return (<>
@@ -25,12 +23,6 @@ export function SettingsPage() {
         <input required maxLength={20} value={value} onChange={(e) => setPrefix(e.target.value.toUpperCase())} />
       </Field>
       {msg.err && <p className="error" role="alert">{msg.err}</p>}{msg.ok && <p className="notice" role="status">{msg.ok}</p>}
-      <PanelTitle icon="complaint">Upload limits</PanelTitle>
-      <div className="row">
-        <Field label="Largest document (MB)" required hint="1 to 20 MB per file."><input type="number" min={1} max={20} required value={limVal("upload_max_mb")} onChange={(e) => setLim({ ...lim, upload_max_mb: e.target.value })} /></Field>
-        <Field label="Files per upload" required hint="1 to 10 files. Size times files may not exceed 40 MB."><input type="number" min={1} max={10} required value={limVal("upload_max_files")} onChange={(e) => setLim({ ...lim, upload_max_files: e.target.value })} /></Field>
-        <Field label="Largest profile photo (KB)" required hint="50 to 5120 KB (5120 KB = 5 MB)."><input type="number" min={50} max={5120} required value={limVal("photo_max_kb")} onChange={(e) => setLim({ ...lim, photo_max_kb: e.target.value })} /></Field>
-      </div>
       <PanelTitle icon="edit">Complaint form declaration</PanelTitle>
       <Field label="Declaration text" required hint="Shown on the public complaint form. The complainant must accept it to submit."><textarea required rows={7} minLength={20} maxLength={3000} value={declValue} onChange={(e) => setDecl(e.target.value)} /></Field>
       <button className="btn">Save settings</button>

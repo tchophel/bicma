@@ -13,6 +13,7 @@ urlpatterns = [
     path("public/captcha/", views.PublicCaptchaView.as_view()),
     path("public/track/", views.PublicTrackView.as_view()),
     path("public/track/reply/", views.PublicReplyView.as_view()),
+    path("admin/uploads/", views.AdminUploadsView.as_view()),
     path("reports/", reports.ReportListView.as_view()),
     path("reports/<str:key>/", reports.ReportView.as_view()),
     path("", include(router.urls)),

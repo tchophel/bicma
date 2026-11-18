@@ -21,6 +21,7 @@ import { SettingsPage } from "./pages/staff/Settings";
 import { Users } from "./pages/staff/Users";
 import { Reports } from "./pages/staff/Reports";
 import { Permissions } from "./pages/staff/Permissions";
+import { Uploads } from "./pages/staff/Uploads";
 import { Roles } from "./pages/staff/MasterPage";
 import { ClosureReasons, EmailTemplates, Holidays, Outcomes, Priorities, ProviderTypes, Providers } from "./pages/staff/MasterPage";
 
@@ -58,6 +59,7 @@ export default function App() {
             <Route path="divisions" element={<AdminOnly><Divisions /></AdminOnly>} />
             <Route path="categories" element={<AdminOnly><Categories /></AdminOnly>} />
             <Route path="roles" element={<AdminOnly><Roles /></AdminOnly>} />
+            <Route path="uploads" element={<AdminOnly><Uploads /></AdminOnly>} />
             <Route path="permissions" element={<AdminOnly><Permissions /></AdminOnly>} />
             <Route path="reports" element={<Reports />} />
             <Route path="providers" element={<AdminOnly><Providers /></AdminOnly>} />
