@@ -86,3 +86,12 @@
 @media (max-width: 800px) {
   .side { position: fixed; top: 76px; left: 0; bottom: 0; height: auto; width: min(280px, 86vw); z-index: 25; }
 }
+
+/* Foldable sidebar groups and a tighter list */
+.headingBtn { display: flex; align-items: center; justify-content: space-between; width: 100%; background: transparent; border: 0; padding: 6px 12px; cursor: pointer; font: inherit; font-size: .75rem; font-weight: 700; text-transform: uppercase; letter-spacing: .06em; color: var(--c-muted); }
+.headingBtn:disabled { cursor: default; opacity: 1; }
+.headingBtn svg { transition: transform .15s; }
+.headingBtn[aria-expanded="true"] svg { transform: rotate(90deg); }
+.side { padding: 12px 10px; }
+.group { margin-bottom: 8px; }
+.side a { margin-bottom: 1px; padding: 7px 12px; font-size: .92rem; }

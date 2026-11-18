@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { NavLink, Link, Outlet, Navigate } from "react-router-dom";
+import { NavLink, Link, Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import type { Role } from "../types";
 import { Icon, type IconName } from "./Icon";
@@ -83,6 +83,16 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
 export function StaffLayout() {
   const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
+  const { pathname } = useLocation();
+  // Sidebar groups fold away; the one holding the current page is open, and so is "Complaints".
+  const [folded, setFolded] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("nav-folded") ?? "{}"); } catch { return {}; }
+  });
+  const toggle = (name: string, isOpen: boolean) => setFolded((f) => {
+    const next = { ...f, [name]: isOpen };
+    try { localStorage.setItem("nav-folded", JSON.stringify(next)); } catch { /* storage unavailable */ }
+    return next;
+  });
   if (loading) return <p className="container">Loading…</p>;
   if (!user) return <Navigate to="/staff" replace />;
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.roles || i.roles.includes(user.base_role)) && (!i.perm || user.permissions?.includes(i.perm))) })).filter((g) => g.items.length);
@@ -96,12 +106,21 @@ export function StaffLayout() {
       </header>
       <div className={css.body}>
         <nav id="sidebar" aria-label="Staff" className={`${css.side} ${open ? css.sideOpen : ""}`} onClick={() => setOpen(false)}>
-          {groups.map((g, i) => (
+          {groups.map((g, i) => {
+            const hasCurrent = g.items.some((n) => pathname.startsWith(n.to.split("?")[0]));
+            const isOpen = !g.heading || hasCurrent || (folded[g.heading] ?? g.heading === "Complaints");
+            return (
             <div key={i} className={css.group}>
-              {g.heading && <div className={css.heading}>{g.heading}</div>}
-              {g.items.map((n) => <NavLink key={n.to} to={n.to} end={n.to.startsWith("/staff/complaints")} className={({ isActive }) => (isActive && (n.to.includes("?") === window.location.search.includes("scope=triage")) ? "active" : "")}><Icon name={n.icon} />{n.label}</NavLink>)}
+              {g.heading && (
+                <button type="button" className={css.headingBtn} aria-expanded={isOpen} disabled={hasCurrent}
+                  onClick={(e) => { e.stopPropagation(); toggle(g.heading!, !isOpen); }}>
+                  <span>{g.heading}</span><Icon name="chev" size={14} />
+                </button>
+              )}
+              {isOpen && g.items.map((n) => <NavLink key={n.to} to={n.to} end={n.to.startsWith("/staff/complaints")} className={({ isActive }) => (isActive && (n.to.includes("?") === window.location.search.includes("scope=triage")) ? "active" : "")}><Icon name={n.icon} />{n.label}</NavLink>)}
             </div>
-          ))}
+            );
+          })}
         </nav>
         <main id="main" className={css.main}><Outlet /></main>
       </div>
