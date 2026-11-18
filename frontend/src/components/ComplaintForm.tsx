@@ -229,7 +229,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
           <span className="supporting-documents-copy"><strong>Upload supporting files</strong><span>Choose documents, photos or recordings for your complaint.</span></span>
           <span className="supporting-documents-browse">Choose files</span>
         </label>
-        <div className="supporting-documents-hint" id="supporting-documents-hint"><span>PDF, images, Word, Excel, text, audio or video</span><strong>Up to 5 files · 5 MB each</strong></div>
+        <div className="supporting-documents-hint" id="supporting-documents-hint"><span>PDF, images, Word, Excel, text, audio or video</span><strong>Up to {meta.limits.upload_max_files} files · {meta.limits.upload_max_mb} MB each</strong></div>
         {f("files") && <p className="error" role="alert">{f("files")}</p>}
         {files.length > 0 && <div className="supporting-documents-selected"><p aria-live="polite">{files.length} {files.length === 1 ? "file" : "files"} selected</p><ul>{files.map((file, index) => <li key={`${file.name}-${index}`}><span className="supporting-documents-file-icon"><Icon name="complaint" size={20} /></span><span className="supporting-documents-file-name"><strong>{file.name}</strong><small>{Math.ceil(file.size / 1024)} KB</small></span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}><Icon name="close" size={16} /></button></li>)}</ul></div>}
       </div>

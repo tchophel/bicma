@@ -1,12 +1,14 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
-import type { ComplaintDetail } from "../types";
+import { useList } from "../useList";
+import type { ComplaintDetail, Meta } from "../types";
 import { Icon } from "./Icon";
 import { PanelTitle } from "./ui";
 
 /** Sidebar box on the case page: every document on the case, with an upload form for staff who may add to it. */
 export function Documents({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
   const canUpload = c.permissions.note || c.permissions.message;
+  const limits = useList<Meta>("/meta/").data?.limits;
   const [files, setFiles] = useState<File[]>([]);
   const [visibility, setVisibility] = useState("internal");
   const [busy, setBusy] = useState(false);
@@ -39,7 +41,7 @@ export function Documents({ c, onDone }: { c: ComplaintDetail; onDone: () => voi
           {err && <p className="error" role="alert">{err}</p>}
           <label className="field"><span>Upload documents</span>
             <input key={key} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt,.mp3,.mp4" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
-            <small>Up to 5 files of 5 MB each.</small></label>
+            <small>Up to {limits ? `${limits.upload_max_files} files of ${limits.upload_max_mb} MB each` : "the allowed number of files"}.</small></label>
           {c.permissions.message && (
             <label className="field"><span>Who can see them</span>
               <select value={visibility} onChange={(e) => setVisibility(e.target.value)}><option value="internal">Internal only</option><option value="public">Shared with the complainant</option></select></label>

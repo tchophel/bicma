@@ -454,3 +454,33 @@ class RoleDefViewSet(AuditedModelViewSet):
     entity_type = "role"
     filter_backends = [SearchFilter]
     search_fields = ["name", "code"]
+
+
+class ProfilePhotoView(APIView):
+    def get(self, request):
+        from django.http import FileResponse, Http404
+        if not request.user.profile_photo:
+            raise Http404
+        response = FileResponse(request.user.profile_photo.open("rb"))
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
+
+    def post(self, request):
+        import uuid
+        from .serializers import ProfilePhotoSerializer
+        serializer = ProfilePhotoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        photo = serializer.validated_data["photo"]
+        extension = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp"}[photo.image.format]
+        user = request.user
+        previous = user.profile_photo.name
+        user.profile_photo.save(f"{uuid.uuid4().hex}.{extension}", photo, save=False)
+        user.save(update_fields=["profile_photo"])
+        if previous:
+            user.profile_photo.storage.delete(previous)
+        return Response(UserSerializer(user).data)
+
+    def delete(self, request):
+        request.user.profile_photo.delete(save=True)
+        return Response(UserSerializer(request.user).data)

@@ -73,6 +73,7 @@ export function NotificationBell() {
 
 export function UserMenu() {
   const { user, logout } = useAuth();
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const { open, setOpen, ref } = usePopover();
   const nav = useNavigate();
   if (!user) return null;
@@ -84,7 +85,7 @@ export function UserMenu() {
   return (
     <div className={css.pop} ref={ref}>
       <button className={css.userBtn} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span className={css.avatar} aria-hidden="true">{initials}</span>
+        <span className={css.avatar} aria-hidden="true">{user.profile_photo && failedPhoto !== user.profile_photo ? <img src={user.profile_photo} alt="" onError={() => setFailedPhoto(user.profile_photo)} /> : initials}</span>
         <span className={css.who}><strong>{name}</strong><small>{user.role_display}{user.division_name ? ` · ${user.division_name}` : ""}</small></span>
         <Icon name="chev" size={14} />
       </button>

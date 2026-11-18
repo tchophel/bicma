@@ -102,7 +102,7 @@ export function Track() {
               {res.can_reply && (
                 <form onSubmit={sendReply} style={{ marginTop: 16 }}>
                   <Field label="Your reply" required><textarea required rows={4} value={reply} onChange={(e) => setReply(e.target.value)} /></Field>
-                  <Field label="Attach documents" hint="Optional. Up to 5 files of 5 MB each."><input type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} /></Field>
+                  <Field label="Attach documents" hint="Optional. Large files may be rejected; try 5 MB or less per file."><input type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} /></Field>
                   <button className="btn" disabled={busy}><Icon name="send" />{busy ? "Sending…" : "Send reply"}</button>
                 </form>
               )}

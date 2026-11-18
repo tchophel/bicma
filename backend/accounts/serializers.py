@@ -45,12 +45,16 @@ class UserSerializer(serializers.ModelSerializer):
     division_name = serializers.CharField(source="division.name", read_only=True, default=None)
     role_display = serializers.CharField(source="role_name", read_only=True)
     base_role = serializers.CharField(read_only=True)
+    profile_photo = serializers.SerializerMethodField()
+
+    def get_profile_photo(self, obj):
+        return f"/api/auth/me/photo/?v={obj.profile_photo.name}" if obj.profile_photo else None
 
     class Meta:
         model = User
         fields = [
             "id", "email", "employee_id", "cid", "designation", "first_name", "last_name", "phone", "role", "role_display", "base_role",
-            "division", "division_name", "is_active", "last_login",
+            "division", "division_name", "is_active", "last_login", "profile_photo",
         ]
         read_only_fields = ["last_login"]
 
@@ -145,3 +149,16 @@ class UserWriteSerializer(UserSerializer):
             instance.set_password(password)
         instance.save()
         return instance
+
+
+class ProfilePhotoSerializer(serializers.Serializer):
+    photo = serializers.ImageField()
+
+    def validate_photo(self, value):
+        from core.limits import get_limits
+        kb = get_limits()["photo_max_kb"]
+        if value.size > kb * 1024:
+            raise serializers.ValidationError(f"Choose a photo up to {kb} KB.")
+        if value.image.format not in ("JPEG", "PNG", "WEBP"):
+            raise serializers.ValidationError("Choose a JPG, PNG or WebP photo.")
+        return value

@@ -50,6 +50,7 @@ class MetaView(APIView):
             ],
             "divisions": list(Division.objects.filter(is_active=True).values("id", "name")),
             "declaration_text": SystemConfiguration.get("declaration_text", DEFAULT_DECLARATION),
+            "limits": __import__("core.limits", fromlist=["get_limits"]).get_limits(),
             "provider_types": list(ProviderType.objects.filter(is_active=True).values("id", "name")),
             "providers": list(Provider.objects.filter(is_active=True).values("id", "name", "provider_type")),
             "priorities": list(Priority.objects.filter(is_active=True).values("id", "name", "response_days", "resolution_days")),
@@ -166,30 +167,49 @@ class NotificationReadView(APIView):
 
 
 class SettingsView(APIView):
-    """System settings (Super Administrator). Whitelisted keys only."""
+    """System settings (Administrator). Whitelisted keys only; every change is audited."""
 
     permission_classes = [IsSuperAdmin]
 
+    def _current(self):
+        from .limits import get_limits
+        return {"reference_prefix": SystemConfiguration.get("reference_prefix", "BICMA-CMS"),
+                "declaration_text": SystemConfiguration.get("declaration_text", DEFAULT_DECLARATION), **get_limits()}
+
     def get(self, request):
-        return Response({"reference_prefix": SystemConfiguration.get("reference_prefix", "BICMA-CMS"),
-                         "declaration_text": SystemConfiguration.get("declaration_text", DEFAULT_DECLARATION)})
+        return Response(self._current())
 
     def patch(self, request):
-        if "declaration_text" in request.data:
-            text = str(request.data["declaration_text"]).strip()
-            if not 20 <= len(text) <= 3000:
-                return Response({"declaration_text": ["Enter the declaration (20 to 3000 characters)."]}, status=status.HTTP_400_BAD_REQUEST)
-            SystemConfiguration.objects.update_or_create(key="declaration_text", defaults={"value": text, "description": "Public form declaration"})
-            audit.log(request, "settings.update", entity_type="settings", entity_id="declaration_text", detail={"length": len(text)})
-            if "reference_prefix" not in request.data:
-                return Response({"reference_prefix": SystemConfiguration.get("reference_prefix", "BICMA-CMS"), "declaration_text": text})
-        prefix = str(request.data.get("reference_prefix", "")).strip().upper()
-        if not re.fullmatch(r"[A-Z0-9][A-Z0-9-]{1,19}", prefix):
-            return Response({"reference_prefix": ["Use 2-20 letters, numbers or hyphens (e.g. BICMA-CMS)."]}, status=status.HTTP_400_BAD_REQUEST)
-        SystemConfiguration.objects.update_or_create(
-            key="reference_prefix", defaults={"value": prefix, "description": "Prefix of complaint reference numbers"})
-        audit.log(request, "settings.update", entity_type="settings", entity_id="reference_prefix", detail={"reference_prefix": prefix})
-        return Response({"reference_prefix": prefix})
+        from . import limits
+        d, errors, changed = request.data, {}, {}
+        if "reference_prefix" in d:
+            prefix = str(d["reference_prefix"]).strip().upper()
+            if re.fullmatch(r"[A-Z0-9][A-Z0-9-]{1,19}", prefix):
+                changed["reference_prefix"] = prefix
+            else:
+                errors["reference_prefix"] = ["Use 2-20 letters, numbers or hyphens (e.g. BICMA-CMS)."]
+        if "declaration_text" in d:
+            text = str(d["declaration_text"]).strip()
+            if 20 <= len(text) <= 3000:
+                changed["declaration_text"] = text
+            else:
+                errors["declaration_text"] = ["Enter the declaration (20 to 3000 characters)."]
+        lim = {k: d[k] for k in limits.BOUNDS if k in d}
+        for k, msg in limits.validate_limits(lim).items():
+            errors[k] = [msg]
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        for key, desc in (("reference_prefix", "Prefix of complaint reference numbers"), ("declaration_text", "Public form declaration")):
+            if key in changed:
+                SystemConfiguration.objects.update_or_create(key=key, defaults={"value": changed[key], "description": desc})
+        if lim:
+            before = limits.get_limits()
+            limits.save_limits(lim)
+            changed.update({k: {"before": before[k], "after": v} for k, v in lim.items() if before[k] != v})
+        if changed:
+            audit.log(request, "settings.update", entity_type="settings", entity_id="settings",
+                      detail={k: (v if k != "declaration_text" else {"length": len(v)}) for k, v in changed.items()})
+        return Response(self._current())
 
 
 class FAQAdminViewSet(AuditedModelViewSet):

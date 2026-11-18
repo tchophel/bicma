@@ -114,3 +114,30 @@ class UserCreationEmailTests(APITestCase):
         response = self.client.patch(f"/api/admin/users/{user.pk}/", {"first_name": "Updated"})
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(mail.outbox), 2)
+
+
+class ProfilePhotoTests(APITestCase):
+    def test_upload_read_remove_and_reject_invalid_image(self):
+        import tempfile
+        from io import BytesIO
+        from PIL import Image
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        user = User.objects.create_user("photo@example.org", "Strong-photo-pass-321!", role=Role.SUPERVISOR)
+        self.assertIn(self.client.get("/api/auth/me/photo/").status_code, (401, 403))
+        self.client.force_authenticate(user)
+        with tempfile.TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory):
+            invalid = self.client.post("/api/auth/me/photo/", {"photo": SimpleUploadedFile("bad.png", b"not an image", content_type="image/png")}, format="multipart")
+            self.assertEqual(invalid.status_code, 400)
+            image = BytesIO()
+            Image.new("RGB", (20, 20)).save(image, "PNG")
+            response = self.client.post("/api/auth/me/photo/", {"photo": SimpleUploadedFile("photo.png", image.getvalue(), content_type="image/png")}, format="multipart")
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertIn("/api/auth/me/photo/", response.data["profile_photo"])
+            user.refresh_from_db()
+            name = user.profile_photo.name
+            photo = self.client.get("/api/auth/me/photo/")
+            self.assertEqual(photo.status_code, 200)
+            self.assertEqual(b"".join(photo.streaming_content), image.getvalue())
+            self.assertEqual(self.client.delete("/api/auth/me/photo/").status_code, 200)
+            self.assertFalse(user.profile_photo.storage.exists(name))
+            self.assertEqual(self.client.get("/api/auth/me/photo/").status_code, 404)

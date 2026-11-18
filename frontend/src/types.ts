@@ -3,6 +3,7 @@ export type Role = "supervisor" | "super_admin" | "focal" | "investigator";
 
 export interface User {
   id: string;
+  profile_photo: string | null;
   first_name: string;
   last_name: string;
   email: string;
@@ -38,6 +39,7 @@ export interface Meta {
   outcomes: Named[];
   closure_reasons: Named[];
   declaration_text: string;
+  limits: { upload_max_mb: number; upload_max_files: number; photo_max_kb: number };
 }
 export interface DzongkhagRow { id: string; name: string; is_active: boolean; gewog_count: number }
 export interface GewogRow { id: string; dzongkhag: string; dzongkhag_name: string; name: string; is_active: boolean }

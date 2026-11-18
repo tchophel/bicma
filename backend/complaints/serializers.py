@@ -286,8 +286,10 @@ MAGIC = {
 
 def validate_uploads(files):
     """Type, size and count limits (configurable in settings). Returns unsaved Attachment objects."""
-    max_files = getattr(settings, "ATTACHMENT_MAX_FILES", 5)
-    max_bytes = getattr(settings, "ATTACHMENT_MAX_MB", 5) * 1024 * 1024
+    from core.limits import get_limits
+    limits = get_limits()
+    max_files = limits["upload_max_files"]
+    max_bytes = limits["upload_max_mb"] * 1024 * 1024
     if len(files) > max_files:
         raise serializers.ValidationError({"files": [f"Attach at most {max_files} files."]})
     out = []

@@ -57,6 +57,7 @@ class User(UUIDModel, AbstractUser):
     division = models.ForeignKey(
         Division, null=True, blank=True, on_delete=models.PROTECT, related_name="users"
     )
+    profile_photo = models.ImageField(upload_to="profile_photos/%Y/%m/", blank=True)
     phone = models.CharField(max_length=30, blank=True)
     employee_id = models.CharField(max_length=30, unique=True, null=True, blank=True)
     designation = models.CharField(max_length=120, blank=True)

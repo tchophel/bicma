@@ -95,3 +95,6 @@
 .side { padding: 12px 10px; }
 .group { margin-bottom: 8px; }
 .side a { margin-bottom: 1px; padding: 7px 12px; font-size: .92rem; }
+
+.avatar { overflow: hidden; flex-shrink: 0; }
+.avatar img { width: 100%; height: 100%; object-fit: cover; display: block; }

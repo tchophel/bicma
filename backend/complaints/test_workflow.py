@@ -567,3 +567,48 @@ class CaseUploadTests(WorkflowBase):
         self.assertEqual(r.status_code, 400)
         r = self.login(self.inv1).post(f"/api/complaints/{self.c.pk}/upload/", {}, format="multipart")
         self.assertEqual(r.status_code, 400)
+
+
+class UploadLimitSettingsTests(Base):
+    URL = "/api/admin/settings/"
+
+    def test_admin_changes_limits_and_they_apply(self):
+        a = self.login(self.admin)
+        self.assertEqual(a.get(self.URL).data["upload_max_mb"], 5)
+        r = a.patch(self.URL, {"upload_max_mb": 1, "upload_max_files": 2}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self.client.get("/api/meta/").data["limits"]["upload_max_mb"], 1)
+        big = SimpleUploadedFile("big.pdf", b"%PDF-1.4" + b"0" * (1024 * 1024 + 10), content_type="application/pdf")
+        r = self.client.post("/api/public/complaints/", {**self.payload(), "files": [big]}, format="multipart")
+        self.assertEqual(r.status_code, 400)
+        three = [SimpleUploadedFile(f"{i}.pdf", b"%PDF-1.4 x") for i in range(3)]
+        r = self.client.post("/api/public/complaints/", {**self.payload(), "files": three}, format="multipart")
+        self.assertEqual(r.status_code, 400)
+        ok = SimpleUploadedFile("ok.pdf", b"%PDF-1.4 x")
+        r = self.client.post("/api/public/complaints/", {**self.payload(), "files": [ok]}, format="multipart")
+        self.assertEqual(r.status_code, 201, r.content)
+
+    def test_limits_are_validated_and_admin_only(self):
+        a = self.login(self.admin)
+        for bad in ({"upload_max_mb": 0}, {"upload_max_mb": 99}, {"upload_max_files": 11}, {"photo_max_kb": 10}, {"upload_max_mb": "5"}):
+            self.assertEqual(a.patch(self.URL, bad, format="json").status_code, 400, bad)
+        r = a.patch(self.URL, {"upload_max_mb": 20, "upload_max_files": 5}, format="json")  # 100 MB total
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("upload_max_files", r.data)
+        self.assertEqual(self.login(self.focal1).patch(self.URL, {"upload_max_mb": 3}, format="json").status_code, 403)
+
+    def test_photo_limit_in_kb_is_enforced(self):
+        import io
+        from PIL import Image
+        buf = io.BytesIO()
+        import os
+        Image.frombytes("RGB", (300, 300), os.urandom(300 * 300 * 3)).save(buf, "PNG")
+        data = buf.getvalue()
+        self.login(self.admin).patch(self.URL, {"photo_max_kb": 50}, format="json")
+        up = SimpleUploadedFile("p.png", data, content_type="image/png")
+        r = self.login(self.inv1).post("/api/auth/me/photo/", {"photo": up}, format="multipart")
+        self.assertGreater(len(data), 50 * 1024)
+        self.assertEqual(r.status_code, 400, r.content)
+        self.login(self.admin).patch(self.URL, {"photo_max_kb": 5120}, format="json")
+        up = SimpleUploadedFile("p.png", data, content_type="image/png")
+        self.assertEqual(self.login(self.inv1).post("/api/auth/me/photo/", {"photo": up}, format="multipart").status_code, 200)
