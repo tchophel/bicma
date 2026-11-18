@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { useToast } from "../../components/Toast";
 import { useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
 import { Field, PageHeader, initials } from "../../components/ui";
@@ -9,13 +10,13 @@ import "../../styles/Users.css";
 
 
 export function Users() {
+  const toast = useToast();
   const { data, err, loading, reload } = useList<Page<User>>("/admin/users/?page_size=100");
   const divs = useList<Page<Division>>("/admin/divisions/");
   const roles = useList<Page<{ id: string; code: string; name: string; base: string; is_active: boolean }>>("/admin/roles/?page_size=200");
   const blank = { employee_id: "", designation: "", first_name: "", last_name: "", email: "", phone: "", role: "investigator", division: "" };
   const [form, setForm] = useState(blank);
   const [msg, setMsg] = useState<ApiError | null>(null);
-  const [success, setSuccess] = useState("");
   const dialogRef = useRef<HTMLDialogElement>(null);
   const openDialog = () => { setMsg(null); dialogRef.current?.showModal(); };
   const closeDialog = () => { dialogRef.current?.close(); };
@@ -25,19 +26,19 @@ export function Users() {
   async function create(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
-    setMsg(null); setSuccess(""); setBusy(true);
+    setMsg(null); setBusy(true);
     try {
       await api("/admin/users/", { json: { ...form, division: form.division || null } });
-      setSuccess(`Account created. An initial password has been emailed to ${form.email}.`);
+      toast.success(`Account created. An initial password has been emailed to ${form.email}.`);
       setForm(blank); reload(); closeDialog();
     } catch (x) { setMsg(x as ApiError); }
     finally { setBusy(false); }
   }
   async function toggle(u: User) {
     if (!confirm(`${u.is_active ? "Deactivate" : "Activate"} ${u.email}?`)) return;
-    setMsg(null); setSuccess("");
-    try { await api(`/admin/users/${u.id}/`, { method: "PATCH", json: { is_active: !u.is_active } }); reload(); }
-    catch (x) { setMsg(x as ApiError); }
+    setMsg(null);
+    try { await api(`/admin/users/${u.id}/`, { method: "PATCH", json: { is_active: !u.is_active } }); reload(); toast.success(`${u.email} is now ${u.is_active ? "inactive" : "active"}.`); }
+    catch (x) { toast.error((x as ApiError).message); }
   }
   const chosen = roles.data?.results.find((r) => r.code === form.role);
   const needsDiv = ["focal", "investigator"].includes(chosen?.base ?? form.role);
@@ -50,7 +51,6 @@ export function Users() {
       </PageHeader>
       {err && <p className="error" role="alert">{err}</p>}
       {msg && <p className="error" role="alert">{msg.message}</p>}
-      {success && <p className="users-success" role="status"><Icon name="check" />{success}</p>}
       <section className="card users-directory" aria-labelledby="directory-title">
         <div className="users-toolbar">
           <div><h2 id="directory-title">Staff directory <span className="chip">{data?.count ?? "—"}</span></h2><p className="muted">Manage account access and responsibilities.</p></div>

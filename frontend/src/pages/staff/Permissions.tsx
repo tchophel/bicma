@@ -1,4 +1,5 @@
 import { Fragment, useState } from "react";
+import { useToast } from "../../components/Toast";
 import { api, ApiError } from "../../api";
 import { Icon } from "../../components/Icon";
 import { PageHeader } from "../../components/ui";
@@ -13,6 +14,7 @@ interface Data {
 
 /** Administrator screen: switch each permission on or off per role. Changes apply at once and are audited. */
 export function Permissions() {
+  const toast = useToast();
   const { data, err, reload } = useList<Data>("/admin/permissions/");
   const [matrix, setMatrix] = useState<Record<string, string[]> | null>(null);
   const [msg, setMsg] = useState("");
@@ -21,15 +23,15 @@ export function Permissions() {
 
   async function toggle(role: string, code: string, on: boolean) {
     setMsg(""); setBusy(`${role}:${code}`);
-    try { setMatrix((await api<{ matrix: Record<string, string[]> }>("/admin/permissions/", { method: "PUT", json: { role, code, allowed: on } })).matrix); }
-    catch (x) { setMsg((x as ApiError).message); }
+    try { { setMatrix((await api<{ matrix: Record<string, string[]> }>("/admin/permissions/", { method: "PUT", json: { role, code, allowed: on } })).matrix); toast.success(on ? "Permission turned on." : "Permission turned off."); } }
+    catch (x) { toast.error((x as ApiError).message); }
     finally { setBusy(""); }
   }
   async function reset(role: string, label: string) {
     if (!confirm(`Reset ${label} to the recommended defaults?`)) return;
     setMsg("");
-    try { setMatrix((await api<{ matrix: Record<string, string[]> }>(`/admin/permissions/?role=${role}`, { method: "DELETE" })).matrix); reload(); }
-    catch (x) { setMsg((x as ApiError).message); }
+    try { setMatrix((await api<{ matrix: Record<string, string[]> }>(`/admin/permissions/?role=${role}`, { method: "DELETE" })).matrix); reload(); toast.success("Reset to the recommended defaults."); }
+    catch (x) { toast.error((x as ApiError).message); }
   }
   const groups = [...new Set(data?.permissions.map((p) => p.group))];
   return (

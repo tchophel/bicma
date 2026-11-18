@@ -4,6 +4,7 @@ import { api, ApiError } from "../../api";
 import { Field, PageHeader, StatusBadge, fmt } from "../../components/ui";
 import { Icon, type IconName } from "../../components/Icon";
 import "../../styles/Track.css";
+import { useToast } from "../../components/Toast";
 
 interface PublicMessage { kind: string; body: string; from: string; created_at: string }
 interface Tracked {
@@ -23,6 +24,7 @@ function stageOf(status: string): { index: number; end: "" | "ok" | "bad" } {
 }
 
 export function Track() {
+  const toast = useToast();
   const pre = (useLocation().state as { reference?: string } | null)?.reference ?? "";
   const [ref, setRef] = useState(pre);
   const [contact, setContact] = useState("");
@@ -49,7 +51,7 @@ export function Track() {
     files.forEach((f) => fd.append("files", f));
     try {
       await api("/public/track/reply/", { form: fd });
-      setReply(""); setFiles([]); setSent("Your reply has been sent to BICMA.");
+      setReply(""); setFiles([]); toast.success("Your reply has been sent to BICMA.");
       await lookup();
     } catch (x) { setErr((x as ApiError).message); }
     finally { setBusy(false); }

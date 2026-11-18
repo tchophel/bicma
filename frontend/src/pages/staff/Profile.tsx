@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { useToast } from "../../components/Toast";
 import "../../styles/Profile.css";
 import { useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
@@ -8,6 +9,7 @@ import { type Meta, type User } from "../../types";
 import { useList } from "../../useList";
 
 export function Profile() {
+  const toast = useToast();
   const { user, setUser } = useAuth();
   const [f, setF] = useState({ first_name: user?.first_name ?? "", last_name: user?.last_name ?? "", phone: user?.phone ?? "" });
   const [pw, setPw] = useState({ current_password: "", new_password: "", confirm: "" });
@@ -27,13 +29,14 @@ export function Profile() {
       const form = new FormData();
       if (file) form.append("photo", file);
       setUser(await api<User>("/auth/me/photo/", remove ? { method: "DELETE" } : { form }));
-    } catch (x) { setPhotoMsg((x as ApiError).message); }
+      toast.success(remove ? "Profile photo removed." : "Profile photo updated.");
+    } catch (x) { setPhotoMsg((x as ApiError).message); toast.error((x as ApiError).message); }
     finally { setUploading(false); }
   }
   if (!user) return null;
   async function save(e: FormEvent) {
     e.preventDefault(); if (saving) return; setMsg({}); setSaving(true);
-    try { setUser(await api<User>("/auth/me/", { method: "PATCH", json: f })); setMsg({ ok: "Profile updated." }); }
+    try { setUser(await api<User>("/auth/me/", { method: "PATCH", json: f })); toast.success("Profile updated."); }
     catch (x) { setMsg({ err: (x as ApiError).message }); }
     finally { setSaving(false); }
   }
@@ -44,7 +47,7 @@ export function Profile() {
     setChanging(true);
     try {
       await api("/auth/change-password/", { json: { current_password: pw.current_password, new_password: pw.new_password } });
-      setPw({ current_password: "", new_password: "", confirm: "" }); setPmsg({ ok: "Password changed. Your other sessions were signed out." });
+      setPw({ current_password: "", new_password: "", confirm: "" }); toast.success("Password changed. Your other sessions were signed out.");
     } catch (x) { setPmsg({ err: (x as ApiError).message }); }
     finally { setChanging(false); }
   }

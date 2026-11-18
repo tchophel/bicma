@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useToast } from "../../components/Toast";
 import { api, ApiError } from "../../api";
 import { Icon, type IconName } from "../../components/Icon";
 import { EmptyState, Field, PageHeader } from "../../components/ui";
@@ -14,6 +15,7 @@ type Row = { id: string; is_active: boolean } & Record<string, unknown>;
 
 /** One generic admin screen for the simple master lists (BRD 5.1): add, edit with a reason, activate/deactivate. */
 export function MasterPage({ title, subtitle, icon, path, fields }: { title: string; subtitle: string; icon: IconName; path: string; fields: FieldDef[] }) {
+  const toast = useToast();
   const [q, setQ] = useState("");
   const { data, err, loading, reload } = useList<Page<Row>>(`/admin/${path}/?page_size=200${q ? `&search=${encodeURIComponent(q)}` : ""}`);
   const [status, setStatus] = useState<"" | "active" | "inactive">("");
@@ -22,7 +24,6 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
   const [editing, setEditing] = useState<string | null>(null);
   const [reason, setReason] = useState("");
   const [msg, setMsg] = useState<ApiError | null>(null);
-  const [ok, setOk] = useState("");
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const set = (k: string) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
@@ -31,22 +32,22 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
   async function save(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
-    setBusy(true); setMsg(null); setOk("");
+    setBusy(true); setMsg(null);
     const body: Record<string, unknown> = { reason };
     for (const f of fields) { const v = form[f.key]; body[f.key] = v === "" && f.type !== "text" && f.type !== "textarea" ? null : f.type === "number" ? Number(v) : v; }
     try {
       if (editing) await api(`/admin/${path}/${editing}/`, { method: "PATCH", json: body });
       else await api(`/admin/${path}/`, { json: body });
-      setOk(editing ? "Changes saved." : "Added."); setForm(blank); setEditing(null); setReason(""); setOpen(false); reload();
+      toast.success(editing ? "Changes saved." : "Added."); setForm(blank); setEditing(null); setReason(""); setOpen(false); reload();
     } catch (x) { setMsg(x as ApiError); }
     finally { setBusy(false); }
   }
   async function toggle(r: Row) {
     const why = prompt(`${r.is_active ? "Deactivate" : "Activate"} this record. Reason for the change:`);
     if (why === null) return;
-    setMsg(null); setOk("");
-    try { await api(`/admin/${path}/${r.id}/`, { method: "PATCH", json: { is_active: !r.is_active, reason: why } }); reload(); }
-    catch (x) { setMsg(x as ApiError); }
+    setMsg(null);
+    try { await api(`/admin/${path}/${r.id}/`, { method: "PATCH", json: { is_active: !r.is_active, reason: why } }); reload(); toast.success(r.is_active ? "Deactivated." : "Activated."); }
+    catch (x) { toast.error((x as ApiError).message); }
   }
   function edit(r: Row) {
     setEditing(r.id);
@@ -61,7 +62,6 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
       </PageHeader>
       {err && <p className="error" role="alert">{err}</p>}
       {msg && <p className="error" role="alert">{msg.message}</p>}
-      {ok && <p className="notice" role="status">{ok}</p>}
       <section className="card">
         <div className="filter-bar" style={{ gridTemplateColumns: "2fr 1fr", padding: 0, boxShadow: "none", border: 0 }}>
           <label><span>Search</span><div className="search-wrap"><Icon name="search" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name" /></div></label>

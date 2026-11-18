@@ -1,6 +1,7 @@
 import { PasswordRecovery } from "./pages/staff/PasswordRecovery";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
+import { ToastProvider } from "./components/Toast";
 import { PublicLayout, StaffLayout } from "./components/Layout";
 import { Help } from "./pages/staff/Help";
 import { Home } from "./pages/public/Home";
@@ -32,6 +33,7 @@ function AdminOnly({ children }: { children: JSX.Element }) {
 
 export default function App() {
   return (
+    <ToastProvider>
     <AuthProvider>
       <BrowserRouter>
         <Routes>
@@ -75,5 +77,6 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </ToastProvider>
   );
 }

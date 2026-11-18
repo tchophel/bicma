@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { useToast } from "../../components/Toast";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../../api";
@@ -10,10 +11,10 @@ import "../../styles/Directory.css";
 import "../../styles/Locations.css";
 
 export function Dzongkhags() {
+  const toast = useToast();
   const { data, err, loading, reload } = useList<Page<DzongkhagRow>>("/admin/dzongkhags/?page_size=100");
   const [name, setName] = useState("");
   const [msg, setMsg] = useState("");
-  const [success, setSuccess] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
@@ -22,20 +23,20 @@ export function Dzongkhags() {
   async function add(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
-    setMsg(""); setSuccess(""); setBusy(true);
+    setMsg(""); setBusy(true);
     try {
       await api("/admin/dzongkhags/", { json: { name: name.trim() } });
-      setSuccess(`${name.trim()} has been added.`); setName(""); reload();
+      toast.success(`${name.trim()} has been added.`); setName(""); reload();
     } catch (x) { setMsg((x as ApiError).message); }
     finally { setBusy(false); }
   }
   async function toggle(d: DzongkhagRow) {
     if (changing !== null) return;
-    setChanging(d.id); setMsg(""); setSuccess("");
+    setChanging(d.id); setMsg("");
     try {
       await api(`/admin/dzongkhags/${d.id}/`, { method: "PATCH", json: { is_active: !d.is_active } });
-      setSuccess(`${d.name} is now ${d.is_active ? "inactive" : "active"}.`); reload();
-    } catch (x) { setMsg((x as ApiError).message); }
+      toast.success(`${d.name} is now ${d.is_active ? "inactive" : "active"}.`); reload();
+    } catch (x) { toast.error((x as ApiError).message); }
     finally { setChanging(null); }
   }
   const rows = data?.results ?? [];
@@ -51,7 +52,6 @@ export function Dzongkhags() {
       </PageHeader>
       {err && <p className="error" role="alert">{err}</p>}
       {msg && <p className="error" role="alert">{msg}</p>}
-      {success && <p className="users-success" role="status"><Icon name="check" />{success}</p>}
       <div className="locations-layout">
         <section className="card users-directory" aria-labelledby="dzongkhag-directory">
           <div className="users-toolbar">

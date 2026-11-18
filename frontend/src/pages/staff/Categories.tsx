@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { useToast } from "../../components/Toast";
 import { useState } from "react";
 import { api, ApiError } from "../../api";
 import { Field, PageHeader } from "../../components/ui";
@@ -7,13 +8,14 @@ import { type Category, type Division, type Named, type Page } from "../../types
 import { useList } from "../../useList";
 
 export function Categories() {
+  const toast = useToast();
   const { data, err, reload } = useList<Page<Category>>("/admin/categories/?page_size=200");
   const divs = useList<Page<Division>>("/admin/divisions/?page_size=200").data?.results ?? [];
   const prios = useList<Page<Named>>("/admin/priorities/?page_size=200").data?.results ?? [];
   const [addCat, setAddCat] = useState(false);
   const [subFor, setSubFor] = useState<Category | null>(null);
   const [name, setName] = useState(""); const [msg, setMsg] = useState(""); const [sub, setSub] = useState("");
-  const run = async (fn: () => Promise<unknown>) => { setMsg(""); try { await fn(); reload(); } catch (x) { setMsg((x as ApiError).message); } };
+  const run = async (fn: () => Promise<unknown>) => { setMsg(""); try { await fn(); reload(); toast.success("Saved."); } catch (x) { setMsg((x as ApiError).message); toast.error((x as ApiError).message); } };
   const patch = (c: Category, body: Record<string, unknown>) => run(() => api(`/admin/categories/${c.id}/`, { method: "PATCH", json: { ...body, reason: prompt("Reason for this change:") ?? "" } }));
   const sel = (c: Category, key: "default_division" | "urban_division" | "rural_division" | "default_priority", label: string, options: Named[]) => (
     <Field label={label}><select value={c[key] ?? ""} onChange={(e) => patch(c, { [key]: e.target.value || null })}><option value="">None</option>{options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></Field>

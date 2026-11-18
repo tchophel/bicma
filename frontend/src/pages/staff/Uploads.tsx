@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useToast } from "../../components/Toast";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../../api";
 import { Icon } from "../../components/Icon";
@@ -30,6 +31,7 @@ function SizeField({ label, hint, kb, onChange, minKb, maxKb }: { label: string;
 
 /** Administration > Uploads: the upload limits, how much is stored, and every uploaded document. */
 export function Uploads() {
+  const toast = useToast();
   const [q, setQ] = useState("");
   const [vis, setVis] = useState("");
   const [page, setPage] = useState(1);
@@ -43,8 +45,8 @@ export function Uploads() {
     if (!cur) return;
     try {
       await api("/admin/settings/", { method: "PATCH", json: { upload_max_kb: cur.upload_max_kb, upload_max_files: cur.upload_max_files, photo_max_kb: cur.photo_max_kb, upload_types: cur.upload_types } });
-      setLim({}); reload(); setMsg({ ok: "Upload settings saved." });
-    } catch (x) { setMsg({ err: (x as ApiError).message }); }
+      setLim({}); reload(); toast.success("Upload settings saved.");
+    } catch (x) { setMsg({ err: (x as ApiError).message }); toast.error((x as ApiError).message); }
   }
   const toggleType = (key: string, on: boolean) => cur && setLim({ ...lim, upload_types: on ? [...cur.upload_types, key] : cur.upload_types.filter((k) => k !== key) });
   return (

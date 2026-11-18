@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { useToast } from "../../components/Toast";
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
 import { Field, PageHeader } from "../../components/ui";
@@ -10,32 +11,32 @@ import "../../styles/Locations.css";
 import { FocalRegistration } from "./FocalRegistration";
 
 export function Divisions() {
+  const toast = useToast();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const { data, err, loading, reload } = useList<Page<Division>>(`/admin/divisions/?page=${page}&page_size=10&search=${encodeURIComponent(query)}`);
   const all = useList<Page<Division>>("/admin/divisions/?page_size=200");
   const [name, setName] = useState(""); const [code, setCode] = useState(""); const [msg, setMsg] = useState("");
-  const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
   const [adding, setAdding] = useState(false);
   const [changing, setChanging] = useState<string | null>(null);
   async function add(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
-    setMsg(""); setSuccess(""); setBusy(true);
+    setMsg(""); setBusy(true);
     try {
       await api("/admin/divisions/", { json: { name: name.trim(), code: code.trim() } });
-      setSuccess(`${name.trim()} has been added.`); setName(""); setCode(""); reload(); all.reload(); setAdding(false);
+      toast.success(`${name.trim()} has been added.`); setName(""); setCode(""); reload(); all.reload(); setAdding(false);
     } catch (x) { setMsg((x as ApiError).message); }
     finally { setBusy(false); }
   }
   async function toggle(d: Division) {
     if (changing !== null) return;
-    setChanging(d.id); setMsg(""); setSuccess("");
+    setChanging(d.id); setMsg("");
     try {
       await api(`/admin/divisions/${d.id}/`, { method: "PATCH", json: { is_active: !d.is_active } });
-      setSuccess(`${d.name} is now ${d.is_active ? "inactive" : "active"}.`); reload();
-    } catch (x) { setMsg((x as ApiError).message); }
+      toast.success(`${d.name} is now ${d.is_active ? "inactive" : "active"}.`); reload();
+    } catch (x) { toast.error((x as ApiError).message); }
     finally { setChanging(null); }
   }
   return (
@@ -44,7 +45,6 @@ export function Divisions() {
         <button type="button" className="btn" onClick={() => { setMsg(""); setAdding(true); }}><Icon name="plus" />Add division</button>
       </PageHeader>
       {err && <p className="error" role="alert">{err}</p>}{msg && <p className="error" role="alert">{msg}</p>}
-      {success && <p className="users-success" role="status"><Icon name="check" />{success}</p>}
       <FocalRegistration divisions={all.data?.results ?? []} onDone={() => { reload(); all.reload(); }} />
       <div className="locations-layout">
         <section className="card users-directory" aria-labelledby="division-directory">

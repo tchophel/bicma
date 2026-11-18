@@ -4,10 +4,19 @@ import { useList } from "../useList";
 import type { ComplaintDetail, Meta } from "../types";
 import { Field, PanelTitle } from "./ui";
 import { Icon } from "./Icon";
+import { useToast } from "./Toast";
+
+const DONE: Record<string, string> = {
+  triage: "Triage confirmed.", assign: "Officer assigned.", refer: "Complaint referred.", "not-in-mandate": "Closed as not within BICMA jurisdiction.",
+  start: "Investigation started.", "save-findings": "Findings saved.", "request-info": "Information requested from the complainant.", resume: "Investigation resumed.",
+  resolve: "Resolution sent to the Division Head.", approve: "Complaint approved and closed.", reject: "Returned to the officer.", reopen: "Complaint reopened.",
+  "public-message": "Message sent to the complainant.", "internal-note": "Note added.", "stakeholder-review": "Notice sent to the provider.",
+};
 
 function useDo(c: ComplaintDetail, onDone: () => void) {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<ApiError | null>(null);
+  const toast = useToast();
   async function run(name: string, body: Record<string, unknown> | FormData) {
     if (busy) return false;
     setBusy(true); setErr(null);
@@ -15,8 +24,9 @@ function useDo(c: ComplaintDetail, onDone: () => void) {
       const path = `/complaints/${c.id}/${name}/`;
       await (body instanceof FormData ? api(path, { form: body }) : api(path, { json: body }));
       onDone();
+      toast.success(DONE[name] ?? "Done.");
       return true;
-    } catch (x) { setErr(x as ApiError); return false; }
+    } catch (x) { setErr(x as ApiError); toast.error((x as ApiError).message); return false; }
     finally { setBusy(false); }
   }
   return { busy, err, run, f: (k: string) => err?.fields[k] };

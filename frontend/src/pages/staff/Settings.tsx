@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from "react";
+import { useToast } from "../../components/Toast";
 import { api, ApiError } from "../../api";
 import { Field, PageHeader, PanelTitle } from "../../components/ui";
 import { useList } from "../../useList";
 
 export function SettingsPage() {
+  const toast = useToast();
   const { data, err, reload } = useList<{ reference_prefix: string; declaration_text: string}>("/admin/settings/");
   const [prefix, setPrefix] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
@@ -12,8 +14,8 @@ export function SettingsPage() {
   const declValue = decl ?? data?.declaration_text ?? "";
   async function save(e: FormEvent) {
     e.preventDefault(); setMsg({});
-    try { await api("/admin/settings/", { method: "PATCH", json: { reference_prefix: value, declaration_text: declValue } }); setPrefix(null); setDecl(null); reload(); setMsg({ ok: "Settings saved." }); }
-    catch (x) { setMsg({ err: (x as ApiError).message }); }
+    try { await api("/admin/settings/", { method: "PATCH", json: { reference_prefix: value, declaration_text: declValue } }); setPrefix(null); setDecl(null); reload(); toast.success("Settings saved."); }
+    catch (x) { setMsg({ err: (x as ApiError).message }); toast.error((x as ApiError).message); }
   }
   return (<>
     <PageHeader icon="gear" title="Settings" subtitle="System-wide configuration." />{err && <p className="error">{err}</p>}

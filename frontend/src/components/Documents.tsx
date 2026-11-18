@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { useToast } from "./Toast";
 import { api, ApiError } from "../api";
 import { useList } from "../useList";
 import type { ComplaintDetail, Meta } from "../types";
@@ -7,6 +8,7 @@ import { PanelTitle, humanKb } from "./ui";
 
 /** Sidebar box on the case page: every document on the case, with an upload form for staff who may add to it. */
 export function Documents({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
+  const toast = useToast();
   const canUpload = c.permissions.note || c.permissions.message;
   const limits = useList<Meta>("/meta/").data?.limits;
   const [files, setFiles] = useState<File[]>([]);
@@ -22,8 +24,8 @@ export function Documents({ c, onDone }: { c: ComplaintDetail; onDone: () => voi
     const fd = new FormData();
     files.forEach((f) => fd.append("files", f));
     fd.append("visibility", visibility);
-    try { await api(`/complaints/${c.id}/upload/`, { form: fd }); setFiles([]); setKey((k) => k + 1); onDone(); }
-    catch (x) { setErr((x as ApiError).message); }
+    try { await api(`/complaints/${c.id}/upload/`, { form: fd }); setFiles([]); setKey((k) => k + 1); onDone(); toast.success("Documents uploaded."); }
+    catch (x) { setErr((x as ApiError).message); toast.error((x as ApiError).message); }
     finally { setBusy(false); }
   }
   return (
