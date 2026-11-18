@@ -3,7 +3,7 @@ import { api, ApiError } from "../api";
 import { useList } from "../useList";
 import type { ComplaintDetail, Meta } from "../types";
 import { Icon } from "./Icon";
-import { PanelTitle } from "./ui";
+import { PanelTitle, humanKb } from "./ui";
 
 /** Sidebar box on the case page: every document on the case, with an upload form for staff who may add to it. */
 export function Documents({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
@@ -40,8 +40,8 @@ export function Documents({ c, onDone }: { c: ComplaintDetail; onDone: () => voi
         <form onSubmit={submit}>
           {err && <p className="error" role="alert">{err}</p>}
           <label className="field"><span>Upload documents</span>
-            <input key={key} type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt,.mp3,.mp4" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
-            <small>Up to {limits ? `${limits.upload_max_files} files of ${limits.upload_max_mb} MB each` : "the allowed number of files"}.</small></label>
+            <input key={key} type="file" multiple accept={limits?.allowed_extensions.map((x) => `.${x}`).join(",")} onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+            <small>Up to {limits ? `${limits.upload_max_files} files of ${humanKb(limits.upload_max_kb)} each` : "the allowed number of files"}.</small></label>
           {c.permissions.message && (
             <label className="field"><span>Who can see them</span>
               <select value={visibility} onChange={(e) => setVisibility(e.target.value)}><option value="internal">Internal only</option><option value="public">Shared with the complainant</option></select></label>

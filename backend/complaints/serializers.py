@@ -277,28 +277,28 @@ class PublicTrackSerializer(serializers.ModelSerializer):
 
 
 # ------------------------------------------------------------- file validation
-ALLOWED_EXTENSIONS = {"pdf", "jpg", "jpeg", "png", "doc", "docx", "xls", "xlsx", "txt", "mp3", "mp4"}
 MAGIC = {
     "pdf": (b"%PDF",), "jpg": (b"\xff\xd8\xff",), "jpeg": (b"\xff\xd8\xff",), "png": (b"\x89PNG",),
-    "docx": (b"PK\x03\x04",), "xlsx": (b"PK\x03\x04",), "doc": (b"\xd0\xcf\x11\xe0",), "xls": (b"\xd0\xcf\x11\xe0",),
+    "docx": (b"PK\x03\x04",), "xlsx": (b"PK\x03\x04",), "pptx": (b"PK\x03\x04",), "doc": (b"\xd0\xcf\x11\xe0",), "xls": (b"\xd0\xcf\x11\xe0",), "ppt": (b"\xd0\xcf\x11\xe0",),
 }
 
 
 def validate_uploads(files):
     """Type, size and count limits (configurable in settings). Returns unsaved Attachment objects."""
-    from core.limits import get_limits
+    from core.limits import get_limits, human
     limits = get_limits()
     max_files = limits["upload_max_files"]
-    max_bytes = limits["upload_max_mb"] * 1024 * 1024
+    max_bytes = limits["upload_max_kb"] * 1024
+    allowed = set(limits["allowed_extensions"])
     if len(files) > max_files:
         raise serializers.ValidationError({"files": [f"Attach at most {max_files} files."]})
     out = []
     for f in files:
         ext = f.name.rsplit(".", 1)[-1].lower() if "." in f.name else ""
-        if ext not in ALLOWED_EXTENSIONS:
-            raise serializers.ValidationError({"files": [f"{f.name}: this file type is not allowed."]})
+        if ext not in allowed:
+            raise serializers.ValidationError({"files": [f"{f.name}: this file type is not allowed. Accepted: {', '.join(sorted(allowed))}."]})
         if f.size > max_bytes:
-            raise serializers.ValidationError({"files": [f"{f.name}: larger than {max_bytes // (1024 * 1024)} MB."]})
+            raise serializers.ValidationError({"files": [f"{f.name}: larger than {human(limits['upload_max_kb'])}."]})
         head = f.read(8)
         f.seek(0)
         if ext in MAGIC and not any(head.startswith(m) for m in MAGIC[ext]):

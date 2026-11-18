@@ -2,15 +2,31 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../../api";
 import { Icon } from "../../components/Icon";
-import { EmptyState, Field, PageHeader, PanelTitle, fmt } from "../../components/ui";
+import { EmptyState, Field, PageHeader, PanelTitle, fmt, humanKb } from "../../components/ui";
+import type { Limits } from "../../types";
 import { useList } from "../../useList";
 
 interface Data {
   count: number; total_bytes: number; matches: number; page: number; pages: number;
-  limits: { upload_max_mb: number; upload_max_files: number; photo_max_kb: number };
+  limits: Limits;
   results: { id: string; name: string; size: number; visibility: string; created_at: string; complaint: string; reference: string; uploaded_by: string }[];
 }
 const size = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+
+/** A size limit entered as a number with a KB or MB unit; the value is kept in KB. */
+function SizeField({ label, hint, kb, onChange, minKb, maxKb }: { label: string; hint: string; kb: number; onChange: (kb: number) => void; minKb: number; maxKb: number }) {
+  const [unit, setUnit] = useState<"KB" | "MB">(kb % 1024 === 0 && kb >= 1024 ? "MB" : "KB");
+  const shown = unit === "MB" ? Number((kb / 1024).toFixed(2)) : kb;
+  const set = (n: number, u = unit) => onChange(Math.round(n * (u === "MB" ? 1024 : 1)));
+  return (
+    <Field label={label} required hint={`${hint} (${humanKb(minKb)} to ${humanKb(maxKb)}).`}>
+      <div style={{ display: "flex", gap: 8 }}>
+        <input type="number" step={unit === "MB" ? "0.1" : "1"} min={0} required value={Number.isNaN(shown) ? "" : shown} onChange={(e) => set(Number(e.target.value))} />
+        <select aria-label={`${label} unit`} style={{ width: 90 }} value={unit} onChange={(e) => { const u = e.target.value as "KB" | "MB"; setUnit(u); set(u === "MB" ? kb / 1024 : kb, u); }}><option>KB</option><option>MB</option></select>
+      </div>
+    </Field>
+  );
+}
 
 /** Administration > Uploads: the upload limits, how much is stored, and every uploaded document. */
 export function Uploads() {
@@ -18,17 +34,19 @@ export function Uploads() {
   const [vis, setVis] = useState("");
   const [page, setPage] = useState(1);
   const { data, err, loading, reload } = useList<Data>(`/admin/uploads/?page=${page}${q ? `&q=${encodeURIComponent(q)}` : ""}${vis ? `&visibility=${vis}` : ""}`);
-  const [lim, setLim] = useState<Record<string, string>>({});
+  const [lim, setLim] = useState<Partial<Limits>>({});
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
-  const val = (k: "upload_max_mb" | "upload_max_files" | "photo_max_kb") => lim[k] ?? String(data?.limits[k] ?? "");
+  const cur = (data ? { ...data.limits, ...lim } : null) as Limits | null;
 
   async function save(e: FormEvent) {
     e.preventDefault(); setMsg({});
+    if (!cur) return;
     try {
-      await api("/admin/settings/", { method: "PATCH", json: { upload_max_mb: Number(val("upload_max_mb")), upload_max_files: Number(val("upload_max_files")), photo_max_kb: Number(val("photo_max_kb")) } });
-      setLim({}); reload(); setMsg({ ok: "Upload limits saved." });
+      await api("/admin/settings/", { method: "PATCH", json: { upload_max_kb: cur.upload_max_kb, upload_max_files: cur.upload_max_files, photo_max_kb: cur.photo_max_kb, upload_types: cur.upload_types } });
+      setLim({}); reload(); setMsg({ ok: "Upload settings saved." });
     } catch (x) { setMsg({ err: (x as ApiError).message }); }
   }
+  const toggleType = (key: string, on: boolean) => cur && setLim({ ...lim, upload_types: on ? [...cur.upload_types, key] : cur.upload_types.filter((k) => k !== key) });
   return (
     <>
       <PageHeader icon="complaint" title="Uploads" subtitle="Upload limits, storage used and every document attached to a complaint." />
@@ -37,16 +55,30 @@ export function Uploads() {
         <div className="card stat"><span className="stat-icon" aria-hidden="true"><Icon name="complaint" size={24} /></span><div><div className="stat-num">{data?.count ?? "—"}</div><div className="stat-label">Documents stored</div></div></div>
         <div className="card stat"><span className="stat-icon" aria-hidden="true"><Icon name="chart" size={24} /></span><div><div className="stat-num">{data ? size(data.total_bytes) : "—"}</div><div className="stat-label">Space used</div></div></div>
       </div>
-      <form className="card" onSubmit={save} style={{ marginBottom: 16 }}>
-        <PanelTitle icon="gear">Upload limits</PanelTitle>
-        <div className="row">
-          <Field label="Largest document (MB)" required hint="1 to 20 MB per file."><input type="number" min={1} max={20} required value={val("upload_max_mb")} onChange={(e) => setLim({ ...lim, upload_max_mb: e.target.value })} /></Field>
-          <Field label="Files per upload" required hint="1 to 10. Size times files may not exceed 40 MB."><input type="number" min={1} max={10} required value={val("upload_max_files")} onChange={(e) => setLim({ ...lim, upload_max_files: e.target.value })} /></Field>
-          <Field label="Largest profile photo (KB)" required hint="50 to 5120 KB (5120 KB = 5 MB)."><input type="number" min={50} max={5120} required value={val("photo_max_kb")} onChange={(e) => setLim({ ...lim, photo_max_kb: e.target.value })} /></Field>
-        </div>
-        {msg.err && <p className="error" role="alert">{msg.err}</p>}{msg.ok && <p className="notice" role="status">{msg.ok}</p>}
-        <button className="btn"><Icon name="check" />Save limits</button>
-      </form>
+      {cur && (
+        <form className="card" onSubmit={save} style={{ marginBottom: 16 }}>
+          <PanelTitle icon="gear">Upload limits</PanelTitle>
+          <div className="row">
+            <SizeField key={`d${data?.limits.upload_max_kb}`} label="Largest document" hint="Per file" kb={cur.upload_max_kb} onChange={(kb) => setLim({ ...lim, upload_max_kb: kb })} minKb={50} maxKb={20480} />
+            <Field label="Files per upload" required hint="1 to 10. Size times files may not exceed 40 MB."><input type="number" min={1} max={10} required value={cur.upload_max_files} onChange={(e) => setLim({ ...lim, upload_max_files: Number(e.target.value) })} /></Field>
+            <SizeField key={`p${data?.limits.photo_max_kb}`} label="Largest profile photo" hint="Per photo" kb={cur.photo_max_kb} onChange={(kb) => setLim({ ...lim, photo_max_kb: kb })} minKb={50} maxKb={5120} />
+          </div>
+          <fieldset style={{ border: 0, padding: 0, margin: "8px 0 16px" }}>
+            <legend style={{ fontWeight: 700, marginBottom: 8 }}>Kinds of document people may upload</legend>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(230px, 1fr))", gap: 8 }}>
+              {cur.type_catalog.map((t) => (
+                <label key={t.key} style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input type="checkbox" style={{ width: 18, height: 18, minHeight: 0 }} checked={cur.upload_types.includes(t.key)} onChange={(e) => toggleType(t.key, e.target.checked)} />
+                  <span>{t.label} <small className="muted">.{t.extensions.join(" .")}</small></span>
+                </label>
+              ))}
+            </div>
+            <small className="muted">Profile photos are always JPG, PNG or WebP.</small>
+          </fieldset>
+          {msg.err && <p className="error" role="alert">{msg.err}</p>}{msg.ok && <p className="notice" role="status">{msg.ok}</p>}
+          <button className="btn"><Icon name="check" />Save upload settings</button>
+        </form>
+      )}
       <section className="card">
         <PanelTitle icon="search">All documents</PanelTitle>
         <div className="filter-bar" style={{ gridTemplateColumns: "2fr 1fr", padding: 0, boxShadow: "none", border: 0 }}>

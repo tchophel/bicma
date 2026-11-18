@@ -44,3 +44,6 @@ export function EmptyState({ icon = "complaint", children }: { icon?: IconName; 
 }
 
 export const initials = (first: string, last: string, email: string) => ((first?.[0] ?? email[0]) + (last?.[0] ?? "")).toUpperCase();
+
+/** 5120 -> "5 MB", 300 -> "300 KB" */
+export const humanKb = (kb: number) => (kb >= 1024 ? `${Number((kb / 1024).toFixed(1))} MB` : `${kb} KB`);

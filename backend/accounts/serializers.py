@@ -155,10 +155,10 @@ class ProfilePhotoSerializer(serializers.Serializer):
     photo = serializers.ImageField()
 
     def validate_photo(self, value):
-        from core.limits import get_limits
+        from core.limits import get_limits, human
         kb = get_limits()["photo_max_kb"]
         if value.size > kb * 1024:
-            raise serializers.ValidationError(f"Choose a photo up to {kb} KB.")
+            raise serializers.ValidationError(f"Choose a photo up to {human(kb)}.")
         if value.image.format not in ("JPEG", "PNG", "WEBP"):
             raise serializers.ValidationError("Choose a JPG, PNG or WebP photo.")
         return value

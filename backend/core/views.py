@@ -194,7 +194,7 @@ class SettingsView(APIView):
                 changed["declaration_text"] = text
             else:
                 errors["declaration_text"] = ["Enter the declaration (20 to 3000 characters)."]
-        lim = {k: d[k] for k in limits.BOUNDS if k in d}
+        lim = {k: d[k] for k in (*limits.BOUNDS, "upload_types") if k in d}
         for k, msg in limits.validate_limits(lim).items():
             errors[k] = [msg]
         if errors:

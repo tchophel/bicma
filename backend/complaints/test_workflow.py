@@ -574,10 +574,10 @@ class UploadLimitSettingsTests(Base):
 
     def test_admin_changes_limits_and_they_apply(self):
         a = self.login(self.admin)
-        self.assertEqual(a.get(self.URL).data["upload_max_mb"], 5)
-        r = a.patch(self.URL, {"upload_max_mb": 1, "upload_max_files": 2}, format="json")
+        self.assertEqual(a.get(self.URL).data["upload_max_kb"], 5120)
+        r = a.patch(self.URL, {"upload_max_kb": 1024, "upload_max_files": 2}, format="json")
         self.assertEqual(r.status_code, 200, r.content)
-        self.assertEqual(self.client.get("/api/meta/").data["limits"]["upload_max_mb"], 1)
+        self.assertEqual(self.client.get("/api/meta/").data["limits"]["upload_max_kb"], 1024)
         big = SimpleUploadedFile("big.pdf", b"%PDF-1.4" + b"0" * (1024 * 1024 + 10), content_type="application/pdf")
         r = self.client.post("/api/public/complaints/", {**self.payload(), "files": [big]}, format="multipart")
         self.assertEqual(r.status_code, 400)
@@ -590,12 +590,12 @@ class UploadLimitSettingsTests(Base):
 
     def test_limits_are_validated_and_admin_only(self):
         a = self.login(self.admin)
-        for bad in ({"upload_max_mb": 0}, {"upload_max_mb": 99}, {"upload_max_files": 11}, {"photo_max_kb": 10}, {"upload_max_mb": "5"}):
+        for bad in ({"upload_max_kb": 0}, {"upload_max_kb": 99999}, {"upload_max_files": 11}, {"photo_max_kb": 10}, {"upload_max_kb": "5"}, {"upload_types": []}, {"upload_types": ["exe"]}):
             self.assertEqual(a.patch(self.URL, bad, format="json").status_code, 400, bad)
-        r = a.patch(self.URL, {"upload_max_mb": 20, "upload_max_files": 5}, format="json")  # 100 MB total
+        r = a.patch(self.URL, {"upload_max_kb": 20480, "upload_max_files": 5}, format="json")  # 100 MB total
         self.assertEqual(r.status_code, 400)
         self.assertIn("upload_max_files", r.data)
-        self.assertEqual(self.login(self.focal1).patch(self.URL, {"upload_max_mb": 3}, format="json").status_code, 403)
+        self.assertEqual(self.login(self.focal1).patch(self.URL, {"upload_max_kb": 3000}, format="json").status_code, 403)
 
     def test_photo_limit_in_kb_is_enforced(self):
         import io
@@ -622,7 +622,32 @@ class AdminUploadsPageTests(WorkflowBase):
         d = self.login(self.admin).get("/api/admin/uploads/").data
         self.assertEqual((d["count"], d["results"][0]["name"], d["results"][0]["reference"]), (1, "evidence.pdf", self.c.reference))
         self.assertGreater(d["total_bytes"], 0)
-        self.assertEqual(d["limits"]["upload_max_mb"], 5)
+        self.assertEqual(d["limits"]["upload_max_kb"], 5120)
         self.assertEqual(self.login(self.admin).get("/api/admin/uploads/?q=nomatch").data["matches"], 0)
         for u in (self.focal1, self.inv1, self.sup):
             self.assertEqual(self.login(u).get("/api/admin/uploads/").status_code, 403)
+
+
+class AllowedFileTypeTests(Base):
+    URL = "/api/admin/settings/"
+
+    def test_admin_chooses_which_kinds_of_file_are_accepted(self):
+        a = self.login(self.admin)
+        word = SimpleUploadedFile("a.docx", b"PK\x03\x04 x")
+        pdf = lambda: SimpleUploadedFile("a.pdf", b"%PDF-1.4 x", content_type="application/pdf")
+        post = lambda f: self.client.post("/api/public/complaints/", {**self.payload(), "files": [f]}, format="multipart")
+        self.assertEqual(post(word).status_code, 201)
+        r = a.patch(self.URL, {"upload_types": ["pdf"]}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self.client.get("/api/meta/").data["limits"]["allowed_extensions"], ["pdf"])
+        bad = post(SimpleUploadedFile("b.docx", b"PK\x03\x04 x"))
+        self.assertEqual(bad.status_code, 400)
+        self.assertIn("not allowed", str(bad.data))
+        self.assertEqual(post(pdf()).status_code, 201)
+
+    def test_size_message_uses_kb_below_one_mb(self):
+        self.login(self.admin).patch(self.URL, {"upload_max_kb": 100}, format="json")
+        big = SimpleUploadedFile("big.pdf", b"%PDF-1.4" + b"0" * (150 * 1024), content_type="application/pdf")
+        r = self.client.post("/api/public/complaints/", {**self.payload(), "files": [big]}, format="multipart")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("100 KB", str(r.data))

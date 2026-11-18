@@ -39,7 +39,7 @@ export interface Meta {
   outcomes: Named[];
   closure_reasons: Named[];
   declaration_text: string;
-  limits: { upload_max_mb: number; upload_max_files: number; photo_max_kb: number };
+  limits: Limits;
 }
 export interface DzongkhagRow { id: string; name: string; is_active: boolean; gewog_count: number }
 export interface GewogRow { id: string; dzongkhag: string; dzongkhag_name: string; name: string; is_active: boolean }
@@ -118,3 +118,9 @@ export interface Dashboard {
 }
 
 export interface AppNotification { id: string; message: string; link: string; read: boolean; created_at: string }
+
+export interface Limits {
+  upload_max_kb: number; upload_max_files: number; photo_max_kb: number;
+  upload_types: string[]; allowed_extensions: string[];
+  type_catalog: { key: string; label: string; extensions: string[] }[];
+}

@@ -4,7 +4,7 @@ import { Field, PageHeader, PanelTitle } from "../../components/ui";
 import { useList } from "../../useList";
 
 export function SettingsPage() {
-  const { data, err, reload } = useList<{ reference_prefix: string; declaration_text: string; upload_max_mb: number; upload_max_files: number; photo_max_kb: number }>("/admin/settings/");
+  const { data, err, reload } = useList<{ reference_prefix: string; declaration_text: string}>("/admin/settings/");
   const [prefix, setPrefix] = useState<string | null>(null);
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
   const value = prefix ?? data?.reference_prefix ?? "";

@@ -3,7 +3,7 @@ import "./Profile.css";
 import { useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
 import { useAuth } from "../../auth";
-import { Field, PageHeader, PanelTitle, fmt } from "../../components/ui";
+import { Field, PageHeader, PanelTitle, fmt, humanKb } from "../../components/ui";
 import { type Meta, type User } from "../../types";
 import { useList } from "../../useList";
 
@@ -21,7 +21,7 @@ export function Profile() {
   const photoKb = useList<Meta>("/meta/").data?.limits.photo_max_kb ?? 5120;
   async function updatePhoto(file?: File, remove = false) {
     if (uploading || (!file && !remove)) return;
-    if (file && file.size > photoKb * 1024) { setPhotoMsg(`Choose a photo up to ${photoKb} KB.`); return; }
+    if (file && file.size > photoKb * 1024) { setPhotoMsg(`Choose a photo up to ${humanKb(photoKb)}.`); return; }
     setUploading(true); setPhotoMsg("");
     try {
       const form = new FormData();
@@ -56,7 +56,7 @@ export function Profile() {
           <div className="profile-avatar">{user.profile_photo ? <img src={user.profile_photo} alt="Your profile" /> : <span aria-hidden="true">{((user.first_name?.[0] ?? user.email[0]) + (user.last_name?.[0] ?? "")).toUpperCase()}</span>}</div>
           <div className="profile-name"><span className="profile-eyebrow">YOUR ACCOUNT</span><h2>{[user.first_name, user.last_name].filter(Boolean).join(" ") || "Add your name below"}</h2><div className="profile-badges"><span className="badge">{user.role_display}</span><span className={`badge ${user.is_active ? "ok" : "bad"}`}>{user.is_active ? "Active" : "Inactive"}</span></div></div>
         </div>
-        <div className="profile-photo-controls"><button type="button" className="profile-photo-upload" disabled={uploading} onClick={() => photoInput.current?.click()}><Icon name="plus" />{uploading ? "Uploading…" : user.profile_photo ? "Change photo" : "Upload profile photo"}</button><input ref={photoInput} hidden style={{ display: "none" }} aria-label="Upload profile photo" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(e) => { void updatePhoto(e.target.files?.[0]); e.target.value = ""; }} />{user.profile_photo && <button type="button" className="profile-remove" disabled={uploading} onClick={() => updatePhoto(undefined, true)}>Remove</button>}<small>JPG, PNG or WebP · Up to {photoKb >= 1024 ? `${photoKb / 1024} MB` : `${photoKb} KB`}</small>{photoMsg && <p className="error" role="alert">{photoMsg}</p>}</div>
+        <div className="profile-photo-controls"><button type="button" className="profile-photo-upload" disabled={uploading} onClick={() => photoInput.current?.click()}><Icon name="plus" />{uploading ? "Uploading…" : user.profile_photo ? "Change photo" : "Upload profile photo"}</button><input ref={photoInput} hidden style={{ display: "none" }} aria-label="Upload profile photo" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(e) => { void updatePhoto(e.target.files?.[0]); e.target.value = ""; }} />{user.profile_photo && <button type="button" className="profile-remove" disabled={uploading} onClick={() => updatePhoto(undefined, true)}>Remove</button>}<small>JPG, PNG or WebP · Up to {humanKb(photoKb)}</small>{photoMsg && <p className="error" role="alert">{photoMsg}</p>}</div>
         <dl className="profile-account-details"><div><dt><Icon name="mail" size={15} />Email</dt><dd>{user.email}</dd></div><div><dt><Icon name="division" size={15} />Division</dt><dd>{user.division_name ?? "Not tied to a division"}</dd></div><div><dt>Phone</dt><dd>{user.phone || "—"}</dd></div><div><dt><Icon name="clock" size={15} />Last sign-in</dt><dd>{user.last_login ? fmt(user.last_login) : "—"}</dd></div></dl>
       </section>
     <div className="profile-forms">

@@ -2,7 +2,7 @@ import { Icon } from "./Icon";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import type { Meta } from "../types";
-import { Field } from "./ui";
+import { Field, humanKb } from "./ui";
 import "./ComplaintForm.css";
 
 export interface FormResult { reference: string; id?: string; draft?: boolean }
@@ -224,12 +224,12 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       <div className="supporting-documents">
         <div className="supporting-documents-heading"><h3>Supporting documents</h3><span>Optional</span></div>
         <label className="supporting-documents-picker">
-          <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt,.mp3,.mp4" aria-label="Choose supporting documents" aria-describedby="supporting-documents-hint" aria-invalid={!!f("files")} onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+          <input type="file" multiple accept={meta.limits.allowed_extensions.map((x) => `.${x}`).join(",")} aria-label="Choose supporting documents" aria-describedby="supporting-documents-hint" aria-invalid={!!f("files")} onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
           <span className="supporting-documents-icon"><Icon name="plus" size={24} /></span>
           <span className="supporting-documents-copy"><strong>Upload supporting files</strong><span>Choose documents, photos or recordings for your complaint.</span></span>
           <span className="supporting-documents-browse">Choose files</span>
         </label>
-        <div className="supporting-documents-hint" id="supporting-documents-hint"><span>PDF, images, Word, Excel, text, audio or video</span><strong>Up to {meta.limits.upload_max_files} files · {meta.limits.upload_max_mb} MB each</strong></div>
+        <div className="supporting-documents-hint" id="supporting-documents-hint"><span>{meta.limits.allowed_extensions.map((x) => x.toUpperCase()).join(", ")}</span><strong>Up to {meta.limits.upload_max_files} files · {humanKb(meta.limits.upload_max_kb)} each</strong></div>
         {f("files") && <p className="error" role="alert">{f("files")}</p>}
         {files.length > 0 && <div className="supporting-documents-selected"><p aria-live="polite">{files.length} {files.length === 1 ? "file" : "files"} selected</p><ul>{files.map((file, index) => <li key={`${file.name}-${index}`}><span className="supporting-documents-file-icon"><Icon name="complaint" size={20} /></span><span className="supporting-documents-file-name"><strong>{file.name}</strong><small>{Math.ceil(file.size / 1024)} KB</small></span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}><Icon name="close" size={16} /></button></li>)}</ul></div>}
       </div>
