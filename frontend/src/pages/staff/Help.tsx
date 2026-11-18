@@ -4,7 +4,7 @@ import { useList } from "../../useList";
 import type { Page } from "../../types";
 import { Icon } from "../../components/Icon";
 import { Field, PageHeader, PanelTitle } from "../../components/ui";
-import "./Help.css";
+import "../../styles/Help.css";
 
 type FAQ = { id: string; question: string; answer: string; position: number; is_active: boolean };
 const blank = { question: "", answer: "", position: 0, is_active: true };

@@ -4,7 +4,7 @@ import { useAuth } from "../../auth";
 import { EmptyState, PageHeader, PanelTitle, StatusBadge, fmtDate } from "../../components/ui";
 import { type Dashboard, type Meta, type StatItem } from "../../types";
 import { useList } from "../../useList";
-import "./Dashboard.css";
+import "../../styles/Dashboard.css";
 
 function BarList({ title, icon, items, link }: { title: string; icon: IconName; items: StatItem[]; link?: boolean }) {
   const max = Math.max(1, ...items.map((i) => i.count));

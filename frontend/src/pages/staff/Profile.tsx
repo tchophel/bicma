@@ -1,5 +1,5 @@
 import { Icon } from "../../components/Icon";
-import "./Profile.css";
+import "../../styles/Profile.css";
 import { useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
 import { useAuth } from "../../auth";

@@ -6,7 +6,7 @@ import { EmptyState, PageHeader, StatusBadge, fmtDate } from "../../components/u
 import { type ComplaintRow, type Meta, type Page } from "../../types";
 import { useList } from "../../useList";
 import { ComplaintPanel } from "./ComplaintPopup";
-import "./Complaints.css";
+import "../../styles/Complaints.css";
 
 export function Complaints() {
   const { user } = useAuth();

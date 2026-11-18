@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { StatusBadge, fmt } from "../../components/ui";
 import { type ComplaintDetail } from "../../types";
 import { useList } from "../../useList";
-import "./ComplaintPopup.css";
+import "../../styles/ComplaintPopup.css";
 
 export function ComplaintPanel({ id, onClose }: { id: string; onClose: () => void }) {
   const { data: c, err } = useList<ComplaintDetail>(`/complaints/${id}/`);

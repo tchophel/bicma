@@ -6,9 +6,9 @@ import { Field, PageHeader } from "../../components/ui";
 import { Modal } from "../../components/Modal";
 import { type DzongkhagRow, type GewogRow, type Page } from "../../types";
 import { useList } from "../../useList";
-import "./Directory.css";
-import "./Locations.css";
-import "./Gewogs.css";
+import "../../styles/Directory.css";
+import "../../styles/Locations.css";
+import "../../styles/Gewogs.css";
 
 export function Gewogs() {
   const [sp, setSp] = useSearchParams();

@@ -4,7 +4,7 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import type { AppNotification } from "../types";
 import { Icon } from "./Icon";
-import css from "./Layout.module.css";
+import css from "../styles/Layout.module.css";
 
 /** Closes on outside click and Escape. */
 function usePopover() {

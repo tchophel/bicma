@@ -4,8 +4,8 @@ import { api, ApiError } from "../../api";
 import { Field, PageHeader, initials } from "../../components/ui";
 import { type Division, type Page, type User } from "../../types";
 import { useList } from "../../useList";
-import "./Directory.css";
-import "./Users.css";
+import "../../styles/Directory.css";
+import "../../styles/Users.css";
 
 
 export function Users() {

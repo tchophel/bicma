@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Icon, type IconName } from "../../components/Icon";
-import css from "./Home.module.css";
+import css from "../../styles/Home.module.css";
 
 export function Home() {
   const features: { icon: IconName; title: string; text: string; ok?: boolean }[] = [

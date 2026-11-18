@@ -5,8 +5,8 @@ import { Field, PageHeader } from "../../components/ui";
 import { Modal } from "../../components/Modal";
 import { type Division, type Page } from "../../types";
 import { useList } from "../../useList";
-import "./Directory.css";
-import "./Locations.css";
+import "../../styles/Directory.css";
+import "../../styles/Locations.css";
 import { FocalRegistration } from "./FocalRegistration";
 
 export function Divisions() {

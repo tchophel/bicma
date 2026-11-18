@@ -5,7 +5,7 @@ import { Documents } from "../../components/Documents";
 import { PanelTitle, StatusBadge, fmt, fmtDate } from "../../components/ui";
 import { type ComplaintDetail } from "../../types";
 import { useList } from "../../useList";
-import "./ComplaintDetail.css";
+import "../../styles/ComplaintDetail.css";
 
 const SLA: Record<string, [string, string]> = { overdue: ["bad", "Overdue"], due_soon: ["warn", "Due soon"], paused: ["warn", "Clock paused"], ok: ["ok", "On track"] };
 

@@ -3,7 +3,7 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { api, ApiError } from "../api";
 import type { Meta } from "../types";
 import { Field, humanKb } from "./ui";
-import "./ComplaintForm.css";
+import "../styles/ComplaintForm.css";
 
 export interface FormResult { reference: string; id?: string; draft?: boolean }
 

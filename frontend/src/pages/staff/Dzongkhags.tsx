@@ -6,8 +6,8 @@ import { Field, PageHeader } from "../../components/ui";
 import { Modal } from "../../components/Modal";
 import { type DzongkhagRow, type Page } from "../../types";
 import { useList } from "../../useList";
-import "./Directory.css";
-import "./Locations.css";
+import "../../styles/Directory.css";
+import "../../styles/Locations.css";
 
 export function Dzongkhags() {
   const { data, err, loading, reload } = useList<Page<DzongkhagRow>>("/admin/dzongkhags/?page_size=100");

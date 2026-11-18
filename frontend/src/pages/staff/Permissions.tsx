@@ -3,7 +3,7 @@ import { api, ApiError } from "../../api";
 import { Icon } from "../../components/Icon";
 import { PageHeader } from "../../components/ui";
 import { useList } from "../../useList";
-import "./Permissions.css";
+import "../../styles/Permissions.css";
 
 interface Data {
   roles: { value: string; label: string }[];

@@ -1,6 +1,6 @@
 import { useEffect, useRef, type ReactNode } from "react";
 import { Icon, type IconName } from "./Icon";
-import "./Modal.css";
+import "../styles/Modal.css";
 
 /** Popup dialog for create/edit forms. Closes on Esc, the close button or a click outside (unless `busy`). */
 export function Modal({ open, onClose, title, icon = "plus", busy = false, wide = false, children }: {

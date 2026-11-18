@@ -3,7 +3,7 @@ import { useLocation } from "react-router-dom";
 import { api, ApiError } from "../../api";
 import { Field, PageHeader, StatusBadge, fmt } from "../../components/ui";
 import { Icon, type IconName } from "../../components/Icon";
-import "./Track.css";
+import "../../styles/Track.css";
 
 interface PublicMessage { kind: string; body: string; from: string; created_at: string }
 interface Tracked {

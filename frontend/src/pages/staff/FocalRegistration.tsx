@@ -4,7 +4,7 @@ import { Icon } from "../../components/Icon";
 import { PanelTitle } from "../../components/ui";
 import { Modal } from "../../components/Modal";
 import type { Division } from "../../types";
-import "./FocalRegistration.css";
+import "../../styles/FocalRegistration.css";
 
 type Row = { email: string; first_name: string; last_name: string };
 type Result = { created: number; invites_sent: number; results: { email: string; division: string; invite_sent: boolean }[] };

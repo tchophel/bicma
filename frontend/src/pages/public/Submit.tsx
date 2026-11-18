@@ -1,7 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ComplaintForm, type FormResult } from "../../components/ComplaintForm";
 import { Icon } from "../../components/Icon";
-import "./Submit.css";
+import "../../styles/Submit.css";
 
 export function Submit() {
   const nav = useNavigate();

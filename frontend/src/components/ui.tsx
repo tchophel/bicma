@@ -1,6 +1,6 @@
 import { Icon, type IconName } from "./Icon";
 import type { ReactNode } from "react";
-import "./ui.css";
+import "../styles/ui.css";
 
 export function Field({ label, required, hint, error, children }: {
   label: string; required?: boolean; hint?: string; error?: string; children: ReactNode;

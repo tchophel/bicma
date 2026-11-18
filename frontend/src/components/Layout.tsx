@@ -3,8 +3,8 @@ import { NavLink, Link, Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import type { Role } from "../types";
 import { Icon, type IconName } from "./Icon";
-import css from "./Layout.module.css";
-import pub from "./Public.module.css";
+import css from "../styles/Layout.module.css";
+import pub from "../styles/Public.module.css";
 import { NotificationBell, UserMenu } from "./Menus";
 
 export function PublicLayout() {
