@@ -79,3 +79,10 @@
 @media (max-width: 800px) { .userBtn .who, .userBtn > svg:last-child { display: none; } .userBtn { padding: 4px; } .panel { position: fixed; top: 76px; right: 12px; } }
 
 .main:has(:global(.register-page)) { max-width: none; }
+
+/* Fixed chrome: the top bar and the sidebar stay in place while the page content scrolls. */
+.top { position: sticky; top: 0; z-index: 30; box-sizing: border-box; height: 76px; }
+.side { position: sticky; top: 76px; align-self: flex-start; height: calc(100vh - 76px); height: calc(100dvh - 76px); overflow-y: auto; overscroll-behavior: contain; z-index: 20; }
+@media (max-width: 800px) {
+  .side { position: fixed; top: 76px; left: 0; bottom: 0; height: auto; width: min(280px, 86vw); z-index: 25; }
+}

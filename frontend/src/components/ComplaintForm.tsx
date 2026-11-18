@@ -221,10 +221,18 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       <Field label="Complaint description" required error={f("description")}><textarea required rows={7} placeholder={t("Describe what happened and any steps you have already taken.", "Record what the complainant reported.")} value={v.description as string} onChange={set("description")} /></Field>
       <Field label="Remedy sought" required error={f("remedy_sought")}><textarea required rows={3} placeholder="What outcome do you want?" value={v.remedy_sought as string} onChange={set("remedy_sought")} /></Field>
       <Field label="Additional notes" error={f("additional_info")}><textarea rows={3} value={v.additional_info as string} onChange={set("additional_info")} /></Field>
-      <Field label="Supporting documents" error={f("files")} hint="Optional. PDF, images, Word, Excel, text, audio or video. Up to 5 files of 5 MB each.">
-        <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt,.mp3,.mp4" onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
-      </Field>
-      {files.length > 0 && <ul className="muted">{files.map((f) => <li key={f.name}>{f.name} ({Math.ceil(f.size / 1024)} KB)</li>)}</ul>}
+      <div className="supporting-documents">
+        <div className="supporting-documents-heading"><h3>Supporting documents</h3><span>Optional</span></div>
+        <label className="supporting-documents-picker">
+          <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.txt,.mp3,.mp4" aria-label="Choose supporting documents" aria-describedby="supporting-documents-hint" aria-invalid={!!f("files")} onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+          <span className="supporting-documents-icon"><Icon name="plus" size={24} /></span>
+          <span className="supporting-documents-copy"><strong>Upload supporting files</strong><span>Choose documents, photos or recordings for your complaint.</span></span>
+          <span className="supporting-documents-browse">Choose files</span>
+        </label>
+        <div className="supporting-documents-hint" id="supporting-documents-hint"><span>PDF, images, Word, Excel, text, audio or video</span><strong>Up to 5 files · 5 MB each</strong></div>
+        {f("files") && <p className="error" role="alert">{f("files")}</p>}
+        {files.length > 0 && <div className="supporting-documents-selected"><p aria-live="polite">{files.length} {files.length === 1 ? "file" : "files"} selected</p><ul>{files.map((file, index) => <li key={`${file.name}-${index}`}><span className="supporting-documents-file-icon"><Icon name="complaint" size={20} /></span><span className="supporting-documents-file-name"><strong>{file.name}</strong><small>{Math.ceil(file.size / 1024)} KB</small></span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}><Icon name="close" size={16} /></button></li>)}</ul></div>}
+      </div>
       </section>
 
       {!offline && (
