@@ -270,14 +270,14 @@ class LogListView(APIView):
         qs = model.objects.all()
         p = request.query_params
         if kind == "api":
-            if p.get("direction") in ("in", "out"):
-                qs = qs.filter(direction=p["direction"])
+            if p.get("service") in ("dcrc", "zest"):
+                qs = qs.filter(service=p["service"])
             if p.get("result") == "errors":
                 qs = qs.filter(Q(status__gte=400) | Q(status=0))
             elif p.get("result") == "ok":
                 qs = qs.filter(status__gte=200, status__lt=400)
             if p.get("q"):
-                qs = qs.filter(Q(path__icontains=p["q"]) | Q(user_email__icontains=p["q"]))
+                qs = qs.filter(Q(path__icontains=p["q"]) | Q(error__icontains=p["q"]))
         else:
             if p.get("result") in ("sent", "failed"):
                 qs = qs.filter(status=p["result"])
@@ -298,3 +298,23 @@ class LogListView(APIView):
         for r in rows:
             r["id"] = str(r["id"])
         return Response({"count": total, "page": page, "pages": max(1, -(-total // size)), "results": rows})
+
+
+class ApiStatusView(APIView):
+    """Administrator: state, uptime and history of the external APIs; POST runs a check now."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        from . import apihealth
+        try:
+            hours = min(24 * 30, max(1, int(request.query_params.get("hours", 24))))
+        except ValueError:
+            hours = 24
+        return Response({"hours": hours, "services": apihealth.summary(hours)})
+
+    def post(self, request):
+        from . import apihealth
+        results = apihealth.check_all()
+        audit.log(request, "api_status.check", entity_type="api", detail={"services": [c.service for c in results]})
+        return self.get(request)

@@ -1,0 +1,20 @@
+# Background jobs without CronJobs: one small pod runs `manage.py run_scheduler`
+# (API health checks and email retries every 5 minutes, SLA alerts hourly, log cleanup daily).
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: cms-scheduler, namespace: bcs }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: cms-scheduler } }
+  template:
+    metadata: { labels: { app: cms-scheduler } }
+    spec:
+      imagePullSecrets: [{ name: harbor-secret }]
+      containers:
+        - name: scheduler
+          image: dev-harbor.systems.gov.bt/bcs/cms-backend:v4
+          command: [python, manage.py, run_scheduler]
+          envFrom: [{ configMapRef: { name: cms-config } }, { secretRef: { name: cms-secrets } }]
+          env: [{ name: HOME, value: /tmp }]
+          resources: { requests: { cpu: 25m, memory: 128Mi }, limits: { memory: 384Mi } }

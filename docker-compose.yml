@@ -50,6 +50,41 @@ services:
       db:
         condition: service_healthy
 
+  scheduler:
+    build: ./backend
+    command: sh -c "sleep 15 && python manage.py run_scheduler"
+    volumes:
+      - ./backend:/app
+    environment:
+      DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-change-me}
+      DJANGO_DEBUG: ${DJANGO_DEBUG:-1}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,backend}
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173}
+      POSTGRES_DB: ${POSTGRES_DB:-cms}
+      POSTGRES_USER: ${POSTGRES_USER:-cms}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cms}
+      POSTGRES_HOST: db
+      BICMA_ADMIN_PASSWORD: ${BICMA_ADMIN_PASSWORD:-}
+      BICMA_ADMIN_EMAIL: ${BICMA_ADMIN_EMAIL:-}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      BCRS_API_URL: ${BCRS_API_URL:-}
+      BCRS_API_METHOD: ${BCRS_API_METHOD:-GET}
+      BCRS_AUTH_HEADER: ${BCRS_AUTH_HEADER:-Authorization}
+      BCRS_API_TOKEN: ${BCRS_API_TOKEN:-}
+      BCRS_TOKEN_URL: ${BCRS_TOKEN_URL:-}
+      BCRS_CLIENT_ID: ${BCRS_CLIENT_ID:-}
+      BCRS_CLIENT_SECRET: ${BCRS_CLIENT_SECRET:-}
+      EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
+      EMAIL_HOST: ${EMAIL_HOST:-localhost}
+      EMAIL_PORT: ${EMAIL_PORT:-587}
+      EMAIL_HOST_USER: ${EMAIL_HOST_USER:-}
+      EMAIL_HOST_PASSWORD: ${EMAIL_HOST_PASSWORD:-}
+      EMAIL_USE_TLS: ${EMAIL_USE_TLS:-1}
+      DEFAULT_FROM_EMAIL: ${DEFAULT_FROM_EMAIL:-noreply@example.org}
+    depends_on:
+      db:
+        condition: service_healthy
+
   frontend:
     build: ./frontend
     command: npm run dev -- --host 0.0.0.0

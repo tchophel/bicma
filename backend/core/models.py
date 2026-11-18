@@ -250,10 +250,11 @@ class NotificationLog(UUIDModel):
 
 
 class ApiLog(UUIDModel):
-    """Every API request the system serves (direction "in") and every call it makes to another system ("out").
+    """Every call this system makes to an external API (DCRC citizen details, ZESt). Inbound requests are not logged.
     No request or response bodies, no query values and no tokens are stored."""
 
-    direction = models.CharField(max_length=3, default="in")
+    direction = models.CharField(max_length=3, default="out")
+    service = models.CharField(max_length=10, blank=True, db_index=True, help_text="dcrc | zest")
     method = models.CharField(max_length=8)
     path = models.CharField(max_length=300)
     status = models.PositiveSmallIntegerField(default=0)  # 0 = no response (network error)
@@ -296,3 +297,18 @@ class SmsLog(UUIDModel):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+class ApiHealthCheck(UUIDModel):
+    """One reachability check of an external API, used for the up/down graph."""
+
+    service = models.CharField(max_length=10, db_index=True)
+    ok = models.BooleanField()
+    status = models.PositiveSmallIntegerField(default=0)
+    latency_ms = models.PositiveIntegerField(default=0)
+    error = models.CharField(max_length=300, blank=True)
+    checked_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-checked_at"]
+        indexes = [models.Index(fields=["service", "checked_at"])]

@@ -3,7 +3,7 @@ import datetime as dt
 from django.core.management.base import BaseCommand
 from django.utils import timezone
 
-from core.models import ApiLog, EmailLog, SmsLog
+from core.models import ApiHealthCheck, ApiLog, EmailLog, SmsLog
 
 
 class Command(BaseCommand):
@@ -18,4 +18,6 @@ class Command(BaseCommand):
         for model in (ApiLog, EmailLog, SmsLog):
             n, _ = model.objects.filter(created_at__lt=cutoff).delete()
             total += n
+        n, _ = ApiHealthCheck.objects.filter(checked_at__lt=cutoff).delete()
+        total += n
         self.stdout.write(f"Deleted {total} log rows older than {opts['days']} days.")

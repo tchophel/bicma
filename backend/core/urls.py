@@ -23,5 +23,6 @@ urlpatterns = [
     path("notifications/<uuid:pk>/read/", views.NotificationReadView.as_view()),
     path("admin/settings/", views.SettingsView.as_view()),
     path("admin/logs/<str:kind>/", views.LogListView.as_view()),
+    path("admin/api-status/", views.ApiStatusView.as_view()),
     path("admin/", include(router.urls)),
 ]

@@ -65,7 +65,7 @@ def _timed_open(req, label):
         raise
     finally:
         parsed = urllib.parse.urlsplit(req.full_url)
-        logs.api_call("out", req.get_method(), f"{parsed.netloc}{parsed.path}", status, (time.monotonic() - start) * 1000, error=f"{label} {error}".strip())
+        logs.api_call("dcrc", req.get_method(), f"{parsed.netloc}{parsed.path}", status, (time.monotonic() - start) * 1000, error=f"{label} {error}".strip())
 
 
 def _access_token(force=False):

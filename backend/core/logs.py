@@ -8,7 +8,6 @@ from .models import ApiLog, EmailLog
 
 log = logging.getLogger(__name__)
 
-SKIP_PREFIXES = ("/api/notifications/", "/api/auth/csrf/", "/api/admin/logs/")  # background polling and the log viewer itself
 _UUID = re.compile(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}")
 _LONG_DIGITS = re.compile(r"\d{9,}")
 
@@ -18,11 +17,11 @@ def clean_path(path):
     return _LONG_DIGITS.sub(lambda m: "*" * (len(m.group()) - 4) + m.group()[-4:], path.split("?")[0])[:300]
 
 
-def api_call(direction, method, path, status, duration_ms, user_email="", ip=None, error=""):
+def api_call(service, method, path, status, duration_ms, error=""):
     try:
         with transaction.atomic():
-            ApiLog.objects.create(direction=direction, method=method[:8], path=clean_path(path), status=status or 0,
-                                  duration_ms=max(0, int(duration_ms)), user_email=user_email[:254], ip_address=ip, error=error[:300])
+            ApiLog.objects.create(direction="out", service=service[:10], method=method[:8], path=clean_path(path), status=status or 0,
+                                  duration_ms=max(0, int(duration_ms)), error=error[:300])
     except Exception:  # pragma: no cover
         log.exception("Could not write the API log")
 

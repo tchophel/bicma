@@ -107,16 +107,18 @@ export function StaffLayout() {
         <div className={css.actions}><NotificationBell /><UserMenu /></div>
       </header>
       <div className={css.body}>
-        <nav id="sidebar" aria-label="Staff" className={`${css.side} ${open ? css.sideOpen : ""}`} onClick={() => setOpen(false)}>
+        {open && <button type="button" className={css.sideBackdrop} aria-label="Close navigation" onClick={() => setOpen(false)} />}
+        <nav id="sidebar" aria-label="Staff" className={`${css.side} ${open ? css.sideOpen : ""}`} onClick={(e) => { if ((e.target as HTMLElement).closest("a")) setOpen(false); }}>
+          <div className={css.workspace}><span className={css.workspaceIcon}><Icon name="division" size={20} /></span><div><strong>{[user.first_name, user.last_name].filter(Boolean).join(" ") || user.email}</strong><small>{user.role_display}</small></div></div>
           {groups.map((g, i) => {
-            const hasCurrent = g.items.some((n) => pathname.startsWith(n.to.split("?")[0]));
+            const hasCurrent = g.items.some((n) => pathname === n.to.split("?")[0] || pathname.startsWith(n.to.split("?")[0] + "/"));
             const isOpen = !g.heading || hasCurrent || (folded[g.heading] ?? g.heading === "Complaints");
             return (
-            <div key={i} className={css.group}>
+            <div key={i} className={`${css.group} ${g.heading ? css.navSection : ""}`}>
               {g.heading && (
                 <button type="button" className={css.headingBtn} aria-expanded={isOpen} disabled={hasCurrent}
                   onClick={(e) => { e.stopPropagation(); toggle(g.heading!, !isOpen); }}>
-                  <span>{g.heading}</span><Icon name="chev" size={14} />
+                  <span>{g.heading}</span><span className={css.headingMeta}><small>{g.items.length}</small><Icon name="chev" size={12} /></span>
                 </button>
               )}
               {isOpen && g.items.map((n) => {
