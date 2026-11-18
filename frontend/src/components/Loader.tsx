@@ -2,18 +2,19 @@ import { useEffect, useRef, useState } from "react";
 import { pendingCount, subscribePending } from "../api";
 import "../styles/Loader.css";
 
-/** The BICMA logo in a circle, turning clockwise. Use `size` for tables and buttons, the default for pages. */
+/** Placeholder that holds the space while data loads. The spinner itself is the one big centred GlobalLoader below,
+ *  so a screen never shows two. */
 export function Loader({ label = "Loading", size = 56, block = true }: { label?: string; size?: number; block?: boolean }) {
   return (
-    <div className={block ? "loader loader-block" : "loader"} role="status" aria-live="polite">
-      <span className="loader-spin" style={{ width: size, height: size }}><img src="/bicma-logo.png" alt="" width={size} height={size} /></span>
+    <div className={block ? "loader loader-block" : "loader"} role="status" aria-live="polite" style={{ minHeight: block ? Math.max(size, 120) : size }}>
       <span className="sr-only">{label}…</span>
     </div>
   );
 }
 
-/** Spinner shown while any request is waiting on the server. It appears at once and stays at least half a second
- *  so it is always seen, and it sits in the browser's top layer so it also shows above popup dialogs. */
+/** The one loading spinner: big, in the middle of the screen, while any request is waiting on the server. It appears
+ *  at once and stays at least half a second so it is always seen, and it sits in the browser's top layer so it also
+ *  shows above popup dialogs. */
 export function GlobalLoader() {
   const [busy, setBusy] = useState(false);
   const box = useRef<HTMLDivElement>(null);
@@ -43,7 +44,7 @@ export function GlobalLoader() {
   }, [busy]);
   return (
     <div ref={box} className="global-loader" role="status" aria-label="Working" hidden={!busy}>
-      <span className="loader-spin" style={{ width: 48, height: 48 }}><img src="/bicma-logo.png" alt="" width={48} height={48} /></span>
+      <span className="loader-spin" style={{ width: 104, height: 104 }}><img src="/bicma-logo.png" alt="" width={104} height={104} /></span>
     </div>
   );
 }
