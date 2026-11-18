@@ -1,7 +1,7 @@
 import { Icon } from "../../components/Icon";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { ApiError } from "../../api";
+import { api, ApiError } from "../../api";
 import { useAuth } from "../../auth";
 import "./Login.css";
 
@@ -47,6 +47,11 @@ export function Login() {
         <div className="login-options"><label><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />Remember me</label><Link to="/staff/forgot-password">Forgot password?</Link></div>
         {err && <p className="error" role="alert">{err}</p>}
         <button className="btn" disabled={busy} style={{ width: "100%" }}><Icon name="login" />{busy ? "Signing in…" : "Sign in"}</button>
+        <div className="login-or" aria-hidden="true"><span>or</span></div>
+        <button type="button" className="ndi-btn" onClick={async () => { setErr(""); try { const r = await api<{ url?: string }>("/auth/ndi/start/"); if (r.url) window.location.href = r.url; } catch (x) { setErr((x as ApiError).message); } }}>
+          <img src="/ndi-logo.png" alt="" width={34} height={34} />
+          <span>Login with Bhutan NDI</span>
+        </button>
       </form>
     </div>
   );

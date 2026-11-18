@@ -307,3 +307,14 @@ class DivisionListView(APIView):
 
     def get(self, request):
         return Response(DivisionSerializer(Division.objects.filter(is_active=True), many=True).data)
+
+
+class NdiStartView(APIView):
+    """Bhutan NDI sign-in. The verifier connection (credentials, proof request, callback) is not configured yet,
+    so this answers 501 until GovTech provides the integration details."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({"detail": "Bhutan NDI sign-in is not set up yet. Use your Employee ID or email."}, status=status.HTTP_501_NOT_IMPLEMENTED)
