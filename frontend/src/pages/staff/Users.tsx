@@ -1,5 +1,5 @@
 import { Icon } from "../../components/Icon";
-import { useState, type FormEvent } from "react";
+import { useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
 import { Field, PageHeader, initials } from "../../components/ui";
 import { type Division, type Page, type User } from "../../types";
@@ -12,10 +12,13 @@ const ROLES = [["investigator", "Investigating Officer"], ["focal", "Division He
 export function Users() {
   const { data, err, loading, reload } = useList<Page<User>>("/admin/users/?page_size=100");
   const divs = useList<Page<Division>>("/admin/divisions/");
-  const blank = { employee_id: "", designation: "", first_name: "", last_name: "", email: "", phone: "", role: "investigator", division: "", password: "" };
+  const blank = { employee_id: "", designation: "", first_name: "", last_name: "", email: "", phone: "", role: "investigator", division: "" };
   const [form, setForm] = useState(blank);
   const [msg, setMsg] = useState<ApiError | null>(null);
   const [success, setSuccess] = useState("");
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const openDialog = () => { setMsg(null); dialogRef.current?.showModal(); };
+  const closeDialog = () => { dialogRef.current?.close(); };
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
   const set = (k: string) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
@@ -25,8 +28,8 @@ export function Users() {
     setMsg(null); setSuccess(""); setBusy(true);
     try {
       await api("/admin/users/", { json: { ...form, division: form.division || null } });
-      setSuccess(`Account created for ${form.email}.`);
-      setForm(blank); reload();
+      setSuccess(`Account created. An initial password has been emailed to ${form.email}.`);
+      setForm(blank); reload(); closeDialog();
     } catch (x) { setMsg(x as ApiError); }
     finally { setBusy(false); }
   }
@@ -42,7 +45,7 @@ export function Users() {
   return (
     <div className="users-page">
       <PageHeader icon="users" title="Users" subtitle="Create and manage officials who can sign in.">
-        <a href="#create-user" className="btn"><Icon name="plus" />Create user</a>
+        <button type="button" className="btn" onClick={openDialog}><Icon name="plus" />Create user</button>
       </PageHeader>
       {err && <p className="error" role="alert">{err}</p>}
       {msg && <p className="error" role="alert">{msg.message}</p>}
@@ -68,9 +71,12 @@ export function Users() {
         </table></div>
         <div className="users-directory-footer">Showing {visible.length} of {data?.count ?? 0} accounts</div>
       </section>
+      <dialog ref={dialogRef} className="users-dialog" aria-labelledby="create-user-title" onClick={(e) => { if (e.target === dialogRef.current && !busy) closeDialog(); }}>
       <section className="card users-create" id="create-user" aria-labelledby="create-user-title">
+        <button type="button" className="users-dialog-close icon-btn" aria-label="Close" disabled={busy} onClick={closeDialog}><Icon name="close" size={18} /></button>
         <div className="users-create-intro"><span className="icon-tile"><Icon name="users" size={26} /></span><h2 id="create-user-title">Create user</h2><p>Give an official access to the complaint management system.</p><div className="users-create-note"><Icon name="lock" /><span>Choose their role and division to set the appropriate access.</span></div></div>
         <form onSubmit={create} className="users-create-form" aria-busy={busy}>
+          {msg && <p className="error" role="alert">{msg.message}</p>}
           <p className="users-form-note"><span className="req">*</span> Required fields</p>
           <fieldset disabled={busy}>
             <legend>Personal details</legend>
@@ -90,11 +96,12 @@ export function Users() {
               <Field label="Division" required={needsDiv} hint={needsDiv ? "Required for this role." : "Optional for this role."}><select required={needsDiv} value={form.division} onChange={set("division")}><option value="">{needsDiv ? "Select a division" : "No division"}</option>{divs.data?.results.filter((d) => d.is_active).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></Field>
             </div>
             {divs.err && <p className="error" role="alert">Could not load divisions. Refresh the page to try again.</p>}
-            <Field label="Initial password" required hint="At least 10 characters. Avoid common passwords or numbers only."><input required minLength={10} type="password" placeholder="Create a secure initial password" autoComplete="new-password" value={form.password} onChange={set("password")} /></Field>
+            <p className="muted"><Icon name="lock" /> A secure initial password will be generated automatically and emailed to the user.</p>
           </fieldset>
-          <div className="users-form-footer"><span className="muted">Review the details before creating the account.</span><button className="btn" disabled={busy}><Icon name="plus" />{busy ? "Creating…" : "Create user"}</button></div>
+          <div className="users-form-footer"><span className="muted">Review the details before creating the account.</span><button type="button" className="btn secondary" disabled={busy} onClick={closeDialog}>Cancel</button><button className="btn" disabled={busy}><Icon name="plus" />{busy ? "Creating…" : "Create user"}</button></div>
         </form>
       </section>
+      </dialog>
     </div>
   );
 }

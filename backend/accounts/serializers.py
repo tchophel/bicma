@@ -116,8 +116,6 @@ class UserWriteSerializer(UserSerializer):
         division = attrs.get("division", getattr(self.instance, "division", None))
         if role in DIVISIONAL_ROLES and not division:
             raise serializers.ValidationError({"division": "A division is required for this role."})
-        if self.instance is None and not attrs.get("password"):
-            raise serializers.ValidationError({"password": "A password is required."})
         request = self.context.get("request")
         if self.instance and request and self.instance.pk == request.user.pk:
             if attrs.get("is_active") is False:
@@ -127,7 +125,7 @@ class UserWriteSerializer(UserSerializer):
         return attrs
 
     def create(self, validated):
-        password = validated.pop("password")
+        password = validated.pop("password", None)
         return User.objects.create_user(password=password, **validated)
 
     def update(self, instance, validated):

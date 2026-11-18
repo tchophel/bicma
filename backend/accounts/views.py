@@ -217,6 +217,27 @@ class UserViewSet(AuditedModelViewSet):
     def get_serializer_class(self):
         return UserWriteSerializer if self.action in ("create", "update", "partial_update") else UserSerializer
 
+    def perform_create(self, serializer):
+        password = serializer.validated_data.get("password") or secrets.token_urlsafe(18)
+        with transaction.atomic():
+            user = serializer.save(password=password)
+            try:
+                sent = send_mail(
+                    "Your BICMA Complaint Management System account",
+                    f"A BICMA account has been created for you.\n\n"
+                    f"Sign in: {settings.FRONTEND_URL.rstrip('/')}/staff\n"
+                    f"Email: {user.email}\n"
+                    f"Initial password: {password}\n\n"
+                    "Please change your password after signing in. Keep your password private.",
+                    settings.DEFAULT_FROM_EMAIL, [user.email],
+                )
+                if sent != 1:
+                    raise OSError("Email was not accepted for delivery")
+            except Exception:
+                raise serializers.ValidationError({"email": ["Could not send the initial password. The account was not created. Please try again."]}) from None
+            audit.log(self.request, "user.create", entity_type="user", entity_id=user.pk,
+                      detail={"reason": str(self.request.data.get("reason", ""))[:300]})
+
 
 class DivisionViewSet(AuditedModelViewSet):
     filter_backends = [SearchFilter]
