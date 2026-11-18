@@ -100,7 +100,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "core.pagination.StandardPagination",
     "PAGE_SIZE": 25,
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"public_submit": "10/hour", "track": "30/hour", "login": "10/minute", "captcha": "60/hour", "password_reset": "5/hour"},
+    "DEFAULT_THROTTLE_RATES": {"public_submit": "10/hour", "track": "30/hour", "login": "10/minute", "captcha": "60/hour", "password_reset": "5/hour", "cid_lookup": "20/hour"},
 }
 
 # --- Security ---
@@ -117,6 +117,12 @@ if not DEBUG:
     SECURE_HSTS_SECONDS = 31536000
     SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
     SECURE_SSL_REDIRECT = os.environ.get("DJANGO_SSL_REDIRECT", "1") == "1"
+
+# BCRS (citizen registry) lookup used to fill the complainant's name from the CID. See core/bcrs.py.
+BCRS_API_URL = os.environ.get("BCRS_API_URL", "")
+BCRS_API_METHOD = os.environ.get("BCRS_API_METHOD", "GET")
+BCRS_AUTH_HEADER = os.environ.get("BCRS_AUTH_HEADER", "Authorization")
+BCRS_API_TOKEN = os.environ.get("BCRS_API_TOKEN", "")
 
 # Account recovery and persistent sign-in.
 REMEMBER_ME_AGE = 30 * 24 * 3600

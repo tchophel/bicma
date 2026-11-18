@@ -9,6 +9,7 @@ router.register("complaints", views.ComplaintViewSet, basename="complaint")
 urlpatterns = [
     path("public/complaints/", views.PublicSubmitView.as_view()),
     path("dashboard/", dashboard.DashboardView.as_view()),
+    path("public/cid-lookup/", views.PublicCidLookupView.as_view()),
     path("public/captcha/", views.PublicCaptchaView.as_view()),
     path("public/track/", views.PublicTrackView.as_view()),
     path("public/track/reply/", views.PublicReplyView.as_view()),

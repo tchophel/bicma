@@ -60,6 +60,30 @@ class PublicSubmitView(APIView):
         return Response({"reference": complaint.reference}, status=status.HTTP_201_CREATED)
 
 
+class PublicCidLookupView(APIView):
+    """Fills the complainant's name from BCRS. Returns the name only, and is tightly rate limited because it
+    reveals who a CID belongs to."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "cid_lookup"
+
+    def post(self, request):
+        from core import bcrs
+        cid = str(request.data.get("cid", "")).strip()
+        if not re.fullmatch(r"\d{11}", cid):
+            return Response({"cid": ["The CID must be 11 digits."]}, status=400)
+        try:
+            found = bcrs.lookup(cid)
+        except bcrs.NotConfigured:
+            return Response({"detail": "CID lookup is not available."}, status=503)
+        except Exception:
+            return Response({"detail": "The citizen registry could not be reached. Enter the name by hand."}, status=502)
+        if found is None:
+            return Response({"detail": "No record found for this CID."}, status=404)
+        return Response(found)
+
+
 class PublicCaptchaView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]

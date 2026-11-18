@@ -365,3 +365,40 @@ class DashboardMetricTests(WorkflowBase):
         self.assertEqual(filtered["cards"][0]["count"], 0)
         # division heads see only their own division
         self.assertEqual(self.login(self.focal2).get("/api/dashboard/").data["cards"][0]["count"], 0)
+
+
+class CidLookupTests(Base):
+    def post(self, cid="10101010101"):
+        return self.client.post("/api/public/cid-lookup/", {"cid": cid}, format="json")
+
+    def test_unconfigured_returns_503_and_bad_cid_400(self):
+        self.assertEqual(self.post().status_code, 503)
+        self.assertEqual(self.post("123").status_code, 400)
+
+    def test_name_is_assembled_and_null_middle_name_skipped(self):
+        from unittest import mock
+        from django.test import override_settings
+        body = b'{"data": {"firstName": "Tshering", "middleName": null, "lastName": "Dorji"}}'
+        resp = mock.MagicMock()
+        resp.read.return_value = body
+        resp.__enter__.return_value = resp
+        with override_settings(BCRS_API_URL="https://bcrs.test/citizen/{cid}", BCRS_API_TOKEN="Bearer x"), \
+                mock.patch("core.bcrs.urllib.request.urlopen", return_value=resp) as op:
+            r = self.post()
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.data["full_name"], "Tshering Dorji")
+        req = op.call_args[0][0]
+        self.assertEqual(req.full_url, "https://bcrs.test/citizen/10101010101")
+        self.assertEqual(req.get_header("Authorization"), "Bearer x")
+
+    def test_with_middle_name_and_not_found(self):
+        from unittest import mock
+        from django.test import override_settings
+        from core import bcrs
+        resp = mock.MagicMock()
+        resp.read.return_value = b'{"firstName": "A", "middleName": "B", "lastName": "C"}'
+        resp.__enter__.return_value = resp
+        with override_settings(BCRS_API_URL="https://bcrs.test/x"), mock.patch("core.bcrs.urllib.request.urlopen", return_value=resp):
+            self.assertEqual(bcrs.lookup("10101010101")["full_name"], "A B C")
+            resp.read.return_value = b'{}'
+            self.assertEqual(self.post().status_code, 404)

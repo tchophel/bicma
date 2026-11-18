@@ -25,6 +25,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   const [err, setErr] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
+  const [cidState, setCidState] = useState<"" | "loading" | "found" | "missing" | "unavailable">("");
   const [dups, setDups] = useState<{ id: string; reference: string; subject: string }[] | null>(null);
   const [cap, setCap] = useState<{ token: string; svg: string } | null>(null);
   const [capAnswer, setCapAnswer] = useState("");
@@ -47,6 +48,22 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   const set = (k: string) => (e: { target: { value: string } }) =>
     setV((p) => ({ ...p, [k]: e.target.value, ...(k === "category" ? { subcategory: "" } : {}), ...(k === "dzongkhag" ? { gewog: "" } : {}),
       ...(k === "provider" ? { platform: meta?.providers.find((p) => p.id === e.target.value)?.name ?? "" } : {}) }));
+  async function lookupCid(cid: string) {
+    if (!/^\d{11}$/.test(cid)) { setCidState(""); return; }
+    setCidState("loading");
+    try {
+      const r = await api<{ full_name: string }>("/public/cid-lookup/", { json: { cid } });
+      setV((p) => (p.cid === cid ? { ...p, complainant_name: r.full_name } : p));
+      setCidState("found");
+    } catch (x) {
+      setCidState((x as ApiError).status === 404 ? "missing" : "unavailable");
+    }
+  }
+  const onCid = (e: { target: { value: string } }) => {
+    const cid = e.target.value.replace(/\D/g, "").slice(0, 11);
+    setV((p) => ({ ...p, cid }));
+    if (cid.length === 11) lookupCid(cid); else setCidState("");
+  };
   const check = (k: string) => (e: { target: { checked: boolean } }) => setV((p) => ({ ...p, [k]: e.target.checked }));
   const f = (k: string) => err?.fields[k];
   const gewogs = meta?.dzongkhags.find((d) => String(d.id) === v.dzongkhag)?.gewogs ?? [];
@@ -124,8 +141,8 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       <section className="form-section" aria-labelledby="about-you-heading">
       <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="users" size={23} /></span><div><span className="form-section-step">SECTION {offline ? "02" : "01"}</span><h2 id="about-you-heading">{offline ? "Complainant" : "About you"}</h2><p className="section-description">{t("Tell us who is making the complaint and how we can contact you.", "Enter the details of the person who made the complaint and how BICMA can contact them.")}</p></div></div>
       <div className="row">
-        <Field label="CID number" required={!offline} error={f("cid")} hint="11 digits"><input required={!offline} inputMode="numeric" pattern="\d{11}" maxLength={11} placeholder="11-digit CID" value={v.cid as string} onChange={set("cid")} /></Field>
-        <Field label="Full name" required error={f("complainant_name")}><input required placeholder={t("Enter your full name", "Enter the complainant’s full name")} value={v.complainant_name as string} onChange={set("complainant_name")} autoComplete="name" /></Field>
+        <Field label="CID number" required={!offline} error={f("cid")} hint={cidState === "loading" ? "Looking up your name…" : cidState === "found" ? "Name filled from the citizen registry." : cidState === "missing" ? "No registry record found. Enter the name by hand." : cidState === "unavailable" ? "Registry lookup is unavailable. Enter the name by hand." : "11 digits. Your name is filled in automatically."}><input required={!offline} inputMode="numeric" pattern="\d{11}" maxLength={11} placeholder="11-digit CID" value={v.cid as string} onChange={onCid} autoComplete="off" /></Field>
+        <Field label="Full name" required error={f("complainant_name")}><input required readOnly={cidState === "found"} placeholder={cidState === "loading" ? "Looking up…" : t("Enter your full name", "Enter the complainant’s full name")} value={v.complainant_name as string} onChange={set("complainant_name")} autoComplete="name" /></Field>
         <Field label="Phone number" required={!offline} error={f("phone")} hint="8-digit Bhutan number"><input required={!offline} type="tel" pattern="(\+975)?\d{8}" placeholder="17123456" value={v.phone as string} onChange={set("phone")} autoComplete="tel" /></Field>
         <Field label="Email address" required={!offline} error={f("email")} hint={offline ? "Leave empty if the complainant has none." : "Used for the acknowledgement and updates."}><input required={!offline} type="email" placeholder="you@example.com" value={v.email as string} onChange={set("email")} autoComplete="email" /></Field>
         <Field label="Preferred communication" required>

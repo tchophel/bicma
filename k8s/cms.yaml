@@ -52,6 +52,9 @@ data:
   EMAIL_HOST: smtp.gmail.com
   EMAIL_PORT: "587"
   EMAIL_USE_TLS: "1"
+  BCRS_API_METHOD: GET
+  BCRS_AUTH_HEADER: Authorization
+  # BCRS_API_URL and BCRS_API_TOKEN go in the cms-secrets secret
 ---
 apiVersion: apps/v1
 kind: Deployment
