@@ -109,7 +109,6 @@ export function StaffLayout() {
       <div className={css.body}>
         {open && <button type="button" className={css.sideBackdrop} aria-label="Close navigation" onClick={() => setOpen(false)} />}
         <nav id="sidebar" aria-label="Staff" className={`${css.side} ${open ? css.sideOpen : ""}`} onClick={(e) => { if ((e.target as HTMLElement).closest("a")) setOpen(false); }}>
-          <div className={css.workspace}><span className={css.workspaceIcon}><Icon name="division" size={20} /></span><div><strong>{[user.first_name, user.last_name].filter(Boolean).join(" ") || user.email}</strong><small>{user.role_display}</small></div></div>
           {groups.map((g, i) => {
             const hasCurrent = g.items.some((n) => pathname === n.to.split("?")[0] || pathname.startsWith(n.to.split("?")[0] + "/"));
             const isOpen = !g.heading || hasCurrent || (folded[g.heading] ?? g.heading === "Complaints");

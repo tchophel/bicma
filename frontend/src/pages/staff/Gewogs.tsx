@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { IconBtn } from "../../components/IconBtn";
 import { Loader } from "../../components/Loader";
 import { useToast } from "../../components/Toast";
 import { useState } from "react";
@@ -45,7 +46,7 @@ export function Gewogs() {
     <div className="table-wrap"><table><thead><tr><th>Gewog</th><th>Dzongkhag</th><th>Status</th><th className="users-actions-cell">Actions</th></tr></thead>
       <tbody>{pageRows.map((g) => <tr key={g.id}><td><div className="location-name"><span className="icon-tile"><Icon name="pin" size={16} /></span><strong>{g.name}</strong></div></td><td><span className="chip">{g.dzongkhag_name}</span></td>
         <td>{g.is_active ? <span className="badge ok"><span className="status-dot" />Active</span> : <span className="badge bad"><span className="status-dot" />Inactive</span>}</td>
-        <td className="users-actions-cell"><button disabled={busy} className="btn secondary" onClick={() => run(async () => { await api(`/admin/gewogs/${g.id}/`, { method: "PATCH", json: { is_active: !g.is_active } }); })}><Icon name="power" size={14} />{g.is_active ? "Deactivate" : "Activate"}</button></td></tr>)}
+        <td className="users-actions-cell"><IconBtn icon="power" tone={g.is_active ? "danger" : "ok"} disabled={busy} onClick={() => run(async () => { await api(`/admin/gewogs/${g.id}/`, { method: "PATCH", json: { is_active: !g.is_active } }); })} label={`${g.is_active ? "Deactivate" : "Activate"} ${g.name}`} /></td></tr>)}
         {loading && <tr><td colSpan={4}><Loader size={40} label="Loading Gewogs" /></td></tr>}
         {!loading && rows.length === 0 && <tr><td colSpan={4} className="users-empty"><span className="icon-tile lg"><Icon name="pin" size={26} /></span><h3>{query ? "No matching Gewogs" : "No Gewogs yet"}</h3><p>{query ? "Try a different search." : "Use the form above to add Gewogs to this Dzongkhag."}</p></td></tr>}</tbody></table></div>
     <div className="users-directory-footer location-pagination"><span>{rows.length ? `Showing ${(currentPage - 1) * 10 + 1}–${Math.min(currentPage * 10, rows.length)} of ${rows.length} Gewogs` : "No Gewogs to show"}</span><nav aria-label="Gewog pages"><button className="btn secondary" disabled={loading || currentPage === 1} onClick={() => setPage(currentPage - 1)}><Icon name="left" size={14} />Previous</button><span aria-live="polite">{currentPage} / {totalPages}</span><button className="btn secondary" disabled={loading || currentPage === totalPages} onClick={() => setPage(currentPage + 1)}>Next<Icon name="right" size={14} /></button></nav></div>

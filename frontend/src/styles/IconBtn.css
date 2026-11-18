@@ -1,0 +1,10 @@
+/* Small icon-only buttons for table and card actions */
+.icon-action { display: inline-grid; place-items: center; width: 32px; height: 32px; min-height: 0; padding: 0; border-radius: 8px; border: 1px solid var(--c-border); background: var(--c-surface, #fff); color: var(--c-primary-dark, #8a3c0c); cursor: pointer; line-height: 0; transition: background .12s, border-color .12s, color .12s; }
+.icon-action:hover:not(:disabled) { background: var(--c-primary-soft, #fdeede); border-color: var(--c-primary, #b4470a); }
+.icon-action:focus-visible { outline: 3px solid var(--c-brand-orange, #f08a24); outline-offset: 2px; }
+.icon-action:disabled { opacity: .5; cursor: not-allowed; }
+.icon-action-danger { color: #b3261e; }
+.icon-action-danger:hover:not(:disabled) { background: #fdecea; border-color: #b3261e; }
+.icon-action-ok { color: #1f7a4d; }
+.icon-action-ok:hover:not(:disabled) { background: #e8f6ee; border-color: #1f7a4d; }
+.icon-actions { display: inline-flex; gap: 6px; align-items: center; }

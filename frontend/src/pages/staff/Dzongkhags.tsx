@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { IconBtn } from "../../components/IconBtn";
 import { Loader } from "../../components/Loader";
 import { useToast } from "../../components/Toast";
 import { useState, type FormEvent } from "react";
@@ -65,7 +66,7 @@ export function Dzongkhags() {
               <td><div className="location-name"><span className="icon-tile"><Icon name="pin" size={17} /></span><strong>{d.name}</strong></div></td>
               <td><Link className="gewog-count" to={`/staff/gewogs?dzongkhag=${d.id}`} aria-label={`Manage ${d.gewog_count} Gewogs in ${d.name}`}><Icon name="map" size={15} />{d.gewog_count}<Icon name="right" size={14} /></Link></td>
               <td><span className={`badge ${d.is_active ? "ok" : "bad"}`}><span className="status-dot" />{d.is_active ? "Active" : "Inactive"}</span></td>
-              <td className="users-actions-cell"><button className="btn secondary" disabled={changing !== null} onClick={() => toggle(d)} aria-label={`${d.is_active ? "Deactivate" : "Activate"} ${d.name}`}><Icon name="power" />{changing === d.id ? "Updating…" : d.is_active ? "Deactivate" : "Activate"}</button></td>
+              <td className="users-actions-cell"><IconBtn icon="power" tone={d.is_active ? "danger" : "ok"} disabled={changing !== null} onClick={() => toggle(d)} label={`${d.is_active ? "Deactivate" : "Activate"} ${d.name}`} /></td>
             </tr>)}
             {loading && <tr><td colSpan={4}><Loader size={40} label="Loading Dzongkhags" /></td></tr>}
             {!loading && visible.length === 0 && <tr><td colSpan={4} className="users-empty"><Icon name="map" size={28} /><p>{query ? "No Dzongkhags match your search." : "No Dzongkhags yet. Add one to get started."}</p></td></tr>}

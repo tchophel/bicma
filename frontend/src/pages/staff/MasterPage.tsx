@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { IconBtn } from "../../components/IconBtn";
 import { Loader } from "../../components/Loader";
 import { useToast } from "../../components/Toast";
 import { api, ApiError } from "../../api";
@@ -76,8 +77,10 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
                 {fields.filter((f) => f.type !== "textarea").map((f) => <td key={f.key}>{label(f, r[f.key])}</td>)}
                 <td><span className={`badge ${r.is_active ? "ok" : "bad"}`}>{r.is_active ? "Active" : "Inactive"}</span></td>
                 <td style={{ whiteSpace: "nowrap" }}>
-                  <button className="btn secondary" onClick={() => edit(r)}><Icon name="edit" />Edit</button>{" "}
-                  <button className="btn secondary" onClick={() => toggle(r)}><Icon name="power" />{r.is_active ? "Deactivate" : "Activate"}</button>
+                  <span className="icon-actions">
+                    <IconBtn icon="edit" label="Edit" onClick={() => edit(r)} />
+                    <IconBtn icon="power" tone={r.is_active ? "danger" : "ok"} label={r.is_active ? "Deactivate" : "Activate"} onClick={() => toggle(r)} />
+                  </span>
                 </td>
               </tr>
             ))}

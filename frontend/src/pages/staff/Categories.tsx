@@ -1,4 +1,5 @@
 import "../../styles/Categories.css";
+import { IconBtn } from "../../components/IconBtn";
 import { Icon } from "../../components/Icon";
 import { useToast } from "../../components/Toast";
 import { useState } from "react";
@@ -33,7 +34,7 @@ export function Categories() {
       <div className="card category-card" key={c.id}>
         <div className="category-card-heading"><div className="category-card-name">
         <strong>{c.name}</strong> {!c.is_active && <span className="badge bad">Inactive</span>}</div><div className="category-card-actions">
-        <button className="btn secondary" onClick={() => patch(c, { is_active: !c.is_active })}><Icon name="power" />{c.is_active ? "Deactivate" : "Activate"}</button>
+        <IconBtn icon="power" tone={c.is_active ? "danger" : "ok"} label={`${c.is_active ? "Deactivate" : "Activate"} ${c.name}`} onClick={() => patch(c, { is_active: !c.is_active })} />
         <button type="button" className="category-delete" onClick={() => remove("categories", c.id, c.name)}>Delete</button></div></div>
         <div className="category-fields">
           {sel(c, "default_division", "Division", divs)}
@@ -42,7 +43,7 @@ export function Categories() {
           {sel(c, "rural_division", "Rural areas go to", divs)}
         </div>
         <div className="category-subcategories"><span className="category-subheading">Subcategories <span>{c.subcategories.length}</span></span><ul>{c.subcategories.map((s) => <li key={s.id}><span>{s.name}</span><button type="button" aria-label={`Delete ${s.name}`} title={`Delete ${s.name}`} onClick={() => remove("subcategories", s.id, s.name)}><Icon name="close" size={13} /></button></li>)}</ul>
-        <button type="button" className="btn secondary" onClick={() => setSubFor(c)}><Icon name="plus" />Add subcategory</button></div>
+        <IconBtn icon="plus" label={`Add subcategory to ${c.name}`} onClick={() => setSubFor(c)} /></div>
       </div>))}
     <Modal open={addCat} onClose={() => setAddCat(false)} title="Add category" icon="category">
       <form onSubmit={(e) => { e.preventDefault(); run(async () => { await api("/admin/categories/", { json: { name } }); setName(""); setAddCat(false); }); }}>

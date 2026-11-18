@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { IconBtn } from "../../components/IconBtn";
 import { Loader } from "../../components/Loader";
 import { useToast } from "../../components/Toast";
 import { useRef, useState, type FormEvent } from "react";
@@ -65,7 +66,7 @@ export function Users() {
               <td><span className="chip">{u.role_display}</span></td>
               <td><span className={u.division_name ? "" : "muted"}>{u.division_name ?? "No division"}</span></td>
               <td><span className={`badge ${u.is_active ? "ok" : "bad"}`}><span className="status-dot" />{u.is_active ? "Active" : "Inactive"}</span></td>
-              <td className="users-actions-cell"><button className="btn secondary" onClick={() => toggle(u)} aria-label={`${u.is_active ? "Deactivate" : "Activate"} ${u.email}`}><Icon name="power" />{u.is_active ? "Deactivate" : "Activate"}</button></td>
+              <td className="users-actions-cell"><IconBtn icon="power" tone={u.is_active ? "danger" : "ok"} onClick={() => toggle(u)} label={`${u.is_active ? "Deactivate" : "Activate"} ${u.email}`} /></td>
             </tr>))}
             {loading && <tr><td colSpan={5}><Loader size={40} label="Loading staff accounts" /></td></tr>}
             {!loading && visible.length === 0 && <tr><td colSpan={5} className="users-empty"><Icon name="users" size={28} /><p>{query ? "No users match your search." : "No staff accounts yet. Create your first user below."}</p></td></tr>}
