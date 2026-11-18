@@ -64,7 +64,23 @@ class MetaView(APIView):
         })
 
 
-class CategoryAdminViewSet(AuditedModelViewSet):
+class AuditedCategoryDeletionMixin:
+    def destroy(self, request, *args, **kwargs):
+        from django.db import transaction
+        from django.db.models.deletion import ProtectedError
+        obj = self.get_object()
+        entity_id, name = obj.pk, obj.name
+        try:
+            with transaction.atomic():
+                obj.delete()
+                audit.log(request, f"{self.entity_type}.delete", entity_type=self.entity_type,
+                          entity_id=entity_id, detail={"name": name})
+        except ProtectedError:
+            return Response({"detail": "This item is still linked to complaints or subcategories. Remove unused subcategories first, or deactivate the category to preserve complaint history."}, status=status.HTTP_409_CONFLICT)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CategoryAdminViewSet(AuditedCategoryDeletionMixin, AuditedModelViewSet):
     queryset = Category.objects.prefetch_related("subcategories")
     serializer_class = CategorySerializer
     entity_type = "category"
@@ -80,7 +96,7 @@ class CategoryAdminViewSet(AuditedModelViewSet):
         return CategorySerializer if self.action in ("list", "retrieve") else Writable
 
 
-class SubcategoryAdminViewSet(AuditedModelViewSet):
+class SubcategoryAdminViewSet(AuditedCategoryDeletionMixin, AuditedModelViewSet):
     queryset = Subcategory.objects.select_related("category")
     serializer_class = SubcategorySerializer
     entity_type = "subcategory"

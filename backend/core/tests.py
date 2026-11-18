@@ -38,3 +38,30 @@ class FAQAdminTests(APITestCase):
         response = self.client.get("/api/admin/faqs/")
         positions = [item["position"] for item in response.data["results"]]
         self.assertEqual(positions, sorted(positions))
+
+
+class CategoryDeletionTests(APITestCase):
+    def setUp(self):
+        from .models import Category, Subcategory
+        self.admin = User.objects.create_user("category-admin@example.org", "Secure-admin-pass-243!", role=Role.SUPER_ADMIN)
+        self.category = Category.objects.create(name="Deletion test")
+        self.subcategory = Subcategory.objects.create(category=self.category, name="Child")
+        self.client.force_authenticate(self.admin)
+
+    def test_protected_category_and_audited_deletion(self):
+        from .models import Category, Subcategory
+        category_url = f"/api/admin/categories/{self.category.pk}/"
+        self.assertEqual(self.client.delete(category_url).status_code, 409)
+        self.assertTrue(Category.objects.filter(pk=self.category.pk).exists())
+        self.assertFalse(AuditLog.objects.filter(action="category.delete", entity_id=str(self.category.pk)).exists())
+        self.assertEqual(self.client.delete(f"/api/admin/subcategories/{self.subcategory.pk}/").status_code, 204)
+        self.assertFalse(Subcategory.objects.filter(pk=self.subcategory.pk).exists())
+        self.assertEqual(self.client.delete(category_url).status_code, 204)
+        self.assertTrue(AuditLog.objects.filter(action="category.delete", entity_id=str(self.category.pk)).exists())
+        self.assertTrue(AuditLog.objects.filter(action="subcategory.delete", entity_id=str(self.subcategory.pk)).exists())
+
+    def test_only_admin_can_delete(self):
+        for user in (None, User.objects.create_user("category-staff@example.org", "Secure-staff-pass-243!", role=Role.SUPERVISOR)):
+            self.client.force_authenticate(user)
+            for url in (f"/api/admin/categories/{self.category.pk}/", f"/api/admin/subcategories/{self.subcategory.pk}/"):
+                self.assertIn(self.client.delete(url).status_code, (401, 403))

@@ -1,3 +1,4 @@
+import { useToast } from "../../components/Toast";
 import { Icon } from "../../components/Icon";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate } from "react-router-dom";
@@ -7,6 +8,7 @@ import "../../styles/Login.css";
 
 export function Login() {
   const { user, login } = useAuth();
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [p, setP] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -17,7 +19,7 @@ export function Login() {
   async function go(e: FormEvent) {
     e.preventDefault();
     setBusy(true); setErr("");
-    try { await login(email, p, rememberMe); } catch (x) { setErr((x as ApiError).message); } finally { setBusy(false); }
+    try { await login(email, p, rememberMe); } catch (x) { setErr((x as ApiError).message); toast.error((x as ApiError).message); } finally { setBusy(false); }
   }
   return (
     <div className="container staff-login">

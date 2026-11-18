@@ -1,0 +1,22 @@
+.category-card { padding: 16px 20px; margin-bottom: 12px; }
+.category-card-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 14px; border-bottom: 1px solid var(--c-border); }
+.category-card-name { display: flex; align-items: center; gap: 8px; font-size: .9rem; }
+.category-card-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+.category-card .btn { font-size: .74rem; min-height: 30px; padding: 5px 10px; gap: 5px; }
+.category-card .btn .icon { width: 14px; height: 14px; }
+.category-delete { color: #b53630; background: #fff4f2; border: 1px solid #f0d4d0; border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: .74rem; }
+.category-delete:hover { background: #ffe7e3; }
+.category-fields { display: grid; grid-template-columns: 1.4fr .8fr 1.2fr 1.2fr; gap: 12px; margin-top: 14px; }
+.category-fields .field { min-width: 0; margin-bottom: 12px; }
+.category-fields .field > span { font-size: .72rem; color: var(--c-muted); margin-bottom: 5px; }
+.category-fields select { min-height: 35px; padding: 7px 26px 7px 9px; font-size: .78rem; border-radius: 7px; }
+.category-subcategories { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+.category-subheading { font-size: .72rem; color: var(--c-muted); }
+.category-subheading > span { margin-left: 3px; }
+.category-subcategories ul { display: flex; flex-wrap: wrap; gap: 6px; padding: 0; margin: 0; list-style: none; }
+.category-subcategories li { display: flex; align-items: center; gap: 6px; background: #f5f6f8; border: 1px solid var(--c-border); border-radius: 6px; padding: 4px 6px 4px 9px; font-size: .73rem; }
+.category-subcategories li button { display: grid; place-items: center; border: 0; border-radius: 4px; width: 22px; height: 22px; background: transparent; color: var(--c-muted); cursor: pointer; }
+.category-subcategories li button:hover { color: #b53630; background: #ffe7e3; }
+.category-subcategories > .btn { margin-left: auto; }
+@media (max-width: 1000px) { .category-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .category-card { padding: 14px; } .category-card-heading { align-items: flex-start; flex-direction: column; gap: 10px; } .category-fields { grid-template-columns: minmax(0, 1fr); gap: 0; } .category-subcategories > .btn { margin-left: 0; } }

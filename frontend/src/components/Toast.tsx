@@ -1,4 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Icon } from "./Icon";
 import "../styles/Toast.css";
 
@@ -13,15 +14,30 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Item[]>([]);
   const next = useRef(1);
   const region = useRef<HTMLDivElement>(null);
-  useEffect(() => { region.current?.setAttribute("popover", "manual"); }, []);
-  // Show the region in the browser's top layer so toasts also appear above popup dialogs.
+  // Reopen after dialogs change the browser's top layer; keep a fixed-position fallback.
   useEffect(() => {
-    const el = region.current as (HTMLDivElement & { showPopover?: () => void; hidePopover?: () => void }) | null;
-    if (!el?.showPopover) return;
-    try {
-      if (el.matches(":popover-open")) el.hidePopover?.();
-      if (items.length) el.showPopover();
-    } catch { /* popover API unavailable: the fixed position still works */ }
+    const el = region.current;
+    if (!el) return;
+    const show = () => {
+      if (!items.length) { el.removeAttribute("popover"); return; }
+      if (typeof el.showPopover !== "function") return;
+      try {
+        el.setAttribute("popover", "manual");
+        if (!el.matches(":popover-open")) el.showPopover();
+      } catch {
+        el.removeAttribute("popover");
+      }
+    };
+    show();
+    let frame = 0;
+    const refresh = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(show); };
+    document.addEventListener("close", refresh, true);
+    el.addEventListener("toggle", refresh);
+    return () => {
+      cancelAnimationFrame(frame);
+      document.removeEventListener("close", refresh, true);
+      el.removeEventListener("toggle", refresh);
+    };
   }, [items]);
   const dismiss = useCallback((id: number) => setItems((l) => l.filter((t) => t.id !== id)), []);
   const push = useCallback((kind: Kind, message: string) => {
@@ -34,7 +50,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={api}>
       {children}
-      <div ref={region} className="toast-region"  aria-label="Notifications">
+      {createPortal(<div ref={region} className="toast-region" aria-label="Notifications" aria-live="polite" aria-relevant="additions">
         {items.map((t) => (
           <div key={t.id} className={`toast toast-${t.kind}`} role={t.kind === "error" ? "alert" : "status"}>
             <Icon name={t.kind === "success" ? "check" : t.kind === "error" ? "alert" : "help"} size={20} />
@@ -42,7 +58,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             <button type="button" className="toast-close" aria-label="Dismiss" onClick={() => dismiss(t.id)}><Icon name="close" size={16} /></button>
           </div>
         ))}
-      </div>
+      </div>, document.body)}
     </Ctx.Provider>
   );
 }

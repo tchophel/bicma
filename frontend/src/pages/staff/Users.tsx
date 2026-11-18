@@ -32,7 +32,7 @@ export function Users() {
       await api("/admin/users/", { json: { ...form, division: form.division || null } });
       toast.success(`Account created. An initial password has been emailed to ${form.email}.`);
       setForm(blank); reload(); closeDialog();
-    } catch (x) { setMsg(x as ApiError); }
+    } catch (x) { setMsg(x as ApiError); toast.error((x as ApiError).message); }
     finally { setBusy(false); }
   }
   async function toggle(u: User) {
