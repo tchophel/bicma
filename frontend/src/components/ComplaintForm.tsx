@@ -48,7 +48,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   const set = (k: string) => (e: { target: { value: string } }) =>
     setV((p) => ({ ...p, [k]: e.target.value, ...(k === "category" ? { subcategory: "" } : {}), ...(k === "dzongkhag" ? { gewog: "" } : {}),
       ...(k === "provider" ? { platform: meta?.providers.find((p) => p.id === e.target.value)?.name ?? "" } : {}) }));
-  const individual = v.complainant_type === "individual";
+  const individual = true; // the complainant is always a person on this form
   async function lookupCid(cid: string) {
     if (!individual || !/^\d{11}$/.test(cid)) { setCidState(""); return; }
     setCidState("loading");
@@ -142,11 +142,6 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       <section className="form-section" aria-labelledby="about-you-heading">
       <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="users" size={23} /></span><div><span className="form-section-step">SECTION {offline ? "02" : "01"}</span><h2 id="about-you-heading">{offline ? "Complainant" : "About you"}</h2><p className="section-description">{t("Tell us who is making the complaint and how we can contact you.", "Enter the details of the person who made the complaint and how BICMA can contact them.")}</p></div></div>
       <div className="row">
-        <Field label="Complainant type" required error={f("complainant_type")}>
-          <select required value={v.complainant_type as string} onChange={(e) => { setCidState(""); setV((p) => ({ ...p, complainant_type: e.target.value, cid: "", complainant_name: "" })); }}>
-            <option value="individual">Individual</option><option value="firm">Firm</option><option value="institute">Institute</option><option value="agency">Agency</option>
-          </select>
-        </Field>
         <Field label={individual ? "CID number" : "Registration / licence number"} required={!offline} error={f("cid")} hint={!individual ? "Enter the number the organisation is registered under." : cidState === "loading" ? "Looking up your name…" : cidState === "found" ? "Name filled from the citizen registry." : cidState === "missing" ? "No registry record found. Enter the name by hand." : cidState === "unavailable" ? "Registry lookup is unavailable. Enter the name by hand." : "11 digits. Your name is filled in automatically."}><input required={!offline} inputMode={individual ? "numeric" : "text"} pattern={individual ? "\\d{11}" : undefined} maxLength={individual ? 11 : 20} placeholder={individual ? "11-digit CID" : "Registration number"} value={v.cid as string} onChange={onCid} autoComplete="off" /></Field>
         <Field label={individual ? "Full name" : "Name of the organisation"} required error={f("complainant_name")}><input required readOnly={cidState === "found"} placeholder={cidState === "loading" ? "Looking up…" : t("Enter your full name", "Enter the complainant’s full name")} value={v.complainant_name as string} onChange={set("complainant_name")} autoComplete="name" /></Field>
         <Field label="Phone number" required={!offline} error={f("phone")} hint="8-digit Bhutan number"><input required={!offline} type="tel" pattern="(\+975)?\d{8}" placeholder="17123456" value={v.phone as string} onChange={set("phone")} autoComplete="tel" /></Field>
