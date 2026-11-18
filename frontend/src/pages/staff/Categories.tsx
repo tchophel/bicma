@@ -23,7 +23,7 @@ export function Categories() {
   return (<>
     <PageHeader icon="category" title="Complaint categories" subtitle="Each category maps to a division and a default priority. Changes are audited with before and after values.">
       <button type="button" className="btn" onClick={() => setAddCat(true)}><Icon name="plus" />Add category</button>
-    </PageHeader>{err && <p className="error">{err}</p>}{msg && <p className="error" role="alert">{msg}</p>}
+    </PageHeader>{err && <p className="error">{err}</p>}
     {data?.results.map((c) => (
       <div className="card" key={c.id} style={{ marginBottom: 12 }}>
         <strong>{c.name}</strong> {!c.is_active && <span className="badge bad">Inactive</span>}{" "}

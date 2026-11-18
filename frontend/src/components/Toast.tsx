@@ -1,4 +1,4 @@
-import { createContext, useCallback, useContext, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Icon } from "./Icon";
 import "../styles/Toast.css";
 
@@ -12,6 +12,17 @@ const Ctx = createContext<Api | null>(null);
 export function ToastProvider({ children }: { children: ReactNode }) {
   const [items, setItems] = useState<Item[]>([]);
   const next = useRef(1);
+  const region = useRef<HTMLDivElement>(null);
+  useEffect(() => { region.current?.setAttribute("popover", "manual"); }, []);
+  // Show the region in the browser's top layer so toasts also appear above popup dialogs.
+  useEffect(() => {
+    const el = region.current as (HTMLDivElement & { showPopover?: () => void; hidePopover?: () => void }) | null;
+    if (!el?.showPopover) return;
+    try {
+      if (el.matches(":popover-open")) el.hidePopover?.();
+      if (items.length) el.showPopover();
+    } catch { /* popover API unavailable: the fixed position still works */ }
+  }, [items]);
   const dismiss = useCallback((id: number) => setItems((l) => l.filter((t) => t.id !== id)), []);
   const push = useCallback((kind: Kind, message: string) => {
     if (!message) return;
@@ -23,7 +34,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
   return (
     <Ctx.Provider value={api}>
       {children}
-      <div className="toast-region" aria-label="Notifications">
+      <div ref={region} className="toast-region"  aria-label="Notifications">
         {items.map((t) => (
           <div key={t.id} className={`toast toast-${t.kind}`} role={t.kind === "error" ? "alert" : "status"}>
             <Icon name={t.kind === "success" ? "check" : t.kind === "error" ? "alert" : "help"} size={20} />
