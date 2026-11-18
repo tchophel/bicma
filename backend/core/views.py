@@ -10,7 +10,10 @@ from accounts.views import AuditedModelViewSet
 from rest_framework import status
 from rest_framework.decorators import action
 
-from .models import FAQ, AuditLog, Category, Dzongkhag, Gewog, Notification, Subcategory, SystemConfiguration
+from .models import (
+    FAQ, AuditLog, Category, ClosureReason, Dzongkhag, EmailTemplate, Gewog, Holiday, Notification, Outcome, Priority,
+    Provider, ProviderType, Subcategory, SystemConfiguration,
+)
 from .serializers import (
     FAQSerializer, AuditLogSerializer, CategorySerializer, DzongkhagSerializer, GewogSerializer, SubcategorySerializer,
 )
@@ -29,7 +32,7 @@ class MetaView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        cats = Category.objects.filter(is_active=True).prefetch_related("subcategories")
+        cats = Category.objects.filter(is_active=True).select_related("default_division").prefetch_related("subcategories")
         dzongkhags = Dzongkhag.objects.filter(is_active=True).prefetch_related("gewogs")
         return Response({
             "dzongkhags": [
@@ -37,6 +40,11 @@ class MetaView(APIView):
                 for d in dzongkhags
             ],
             "divisions": list(Division.objects.filter(is_active=True).values("id", "name")),
+            "provider_types": list(ProviderType.objects.filter(is_active=True).values("id", "name")),
+            "providers": list(Provider.objects.filter(is_active=True).values("id", "name", "provider_type")),
+            "priorities": list(Priority.objects.filter(is_active=True).values("id", "name", "response_days", "resolution_days")),
+            "outcomes": list(Outcome.objects.filter(is_active=True).values("id", "name")),
+            "closure_reasons": list(ClosureReason.objects.filter(is_active=True).values("id", "name")),
             "categories": CategorySerializer(cats, many=True).data,
             "channels": [
                 {"value": v, "label": l} for v, l in __import__("complaints.models", fromlist=["Channel"]).Channel.choices
@@ -56,7 +64,7 @@ class CategoryAdminViewSet(AuditedModelViewSet):
         class Writable(serializers.ModelSerializer):
             class Meta:
                 model = Category
-                fields = ["id", "name", "is_active"]
+                fields = ["id", "name", "is_active", "default_division", "urban_division", "rural_division", "default_priority"]
 
         return CategorySerializer if self.action in ("list", "retrieve") else Writable
 
@@ -169,3 +177,23 @@ class FAQAdminViewSet(AuditedModelViewSet):
     queryset = FAQ.objects.all()
     serializer_class = FAQSerializer
     entity_type = "faq"
+
+
+def _master(model, fields, entity, search=("name",)):
+    from rest_framework import serializers as drf
+    from rest_framework.filters import SearchFilter
+
+    ser = type(f"{model.__name__}Serializer", (drf.ModelSerializer,), {
+        "Meta": type("Meta", (), {"model": model, "fields": ["id", *fields, "is_active"]})})
+    return type(f"{model.__name__}AdminViewSet", (AuditedModelViewSet,), {
+        "queryset": model.objects.all(), "serializer_class": ser, "entity_type": entity,
+        "filter_backends": [SearchFilter], "search_fields": list(search)})
+
+
+ProviderTypeAdminViewSet = _master(ProviderType, ["name"], "provider_type")
+ProviderAdminViewSet = _master(Provider, ["name", "provider_type", "licence_number", "contact_email"], "provider", ("name", "licence_number"))
+PriorityAdminViewSet = _master(Priority, ["name", "rank", "response_days", "resolution_days"], "priority")
+OutcomeAdminViewSet = _master(Outcome, ["name"], "outcome")
+ClosureReasonAdminViewSet = _master(ClosureReason, ["name"], "closure_reason")
+HolidayAdminViewSet = _master(Holiday, ["date", "name"], "holiday", ("name",))
+EmailTemplateAdminViewSet = _master(EmailTemplate, ["event", "name", "recipient", "subject", "body"], "email_template")

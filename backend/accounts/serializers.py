@@ -1,4 +1,6 @@
 from django.contrib.auth.password_validation import validate_password
+import re
+
 from rest_framework import serializers
 
 from .models import DIVISIONAL_ROLES, Division, Role, User
@@ -11,7 +13,7 @@ class DivisionSerializer(serializers.ModelSerializer):
 
 
 class DivisionAdminSerializer(DivisionSerializer):
-    """Admin view of a division, including who its active Divisional Focal is."""
+    """Admin view of a division, including who its active Division Head is."""
 
     focal = serializers.SerializerMethodField()
 
@@ -46,7 +48,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "id", "email", "first_name", "last_name", "phone", "role", "role_display",
+            "id", "email", "employee_id", "designation", "first_name", "last_name", "phone", "role", "role_display",
             "division", "division_name", "is_active", "last_login",
         ]
         read_only_fields = ["last_login"]
@@ -77,6 +79,23 @@ class UserWriteSerializer(UserSerializer):
 
     def validate_password(self, value):
         validate_password(value)
+        return value
+
+    def validate_employee_id(self, value):
+        value = (value or "").strip()
+        if not value:
+            return None
+        qs = User.objects.filter(employee_id__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A user with this Employee ID already exists.")
+        return value
+
+    def validate_phone(self, value):
+        value = (value or "").strip()
+        if value and not re.fullmatch(r"(\+975)?\d{8}", value):
+            raise serializers.ValidationError("Enter a valid 8-digit phone number.")
         return value
 
     def validate(self, attrs):

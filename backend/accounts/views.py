@@ -53,14 +53,19 @@ class LoginView(APIView):
         email = str(request.data.get("email", "")).strip().lower()
         password = str(request.data.get("password", ""))
         key = f"login_fail:{email}"
+        if email and "@" not in email:  # BRD: the username is the Employee ID
+            match = User.objects.filter(employee_id__iexact=email).values_list("email", flat=True).first()
+            email_for_auth = match or email
+        else:
+            email_for_auth = email
         if cache.get(key, 0) >= MAX_FAILURES:
             audit.log(request, "auth.login_locked", detail={"email": email[:254]})
             return Response({"detail": "Too many failed attempts. Try again later."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
-        user = authenticate(request, username=email, password=password)
+        user = authenticate(request, username=email_for_auth, password=password)
         if user is None or not user.is_active:
             cache.set(key, cache.get(key, 0) + 1, LOCKOUT_SECONDS)
             audit.log(request, "auth.login_failed", detail={"email": email[:254]})
-            return Response({"detail": "Invalid email or password."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Invalid username or password."}, status=status.HTTP_400_BAD_REQUEST)
         cache.delete(key)
         login(request, user)
         request.session.set_expiry(settings.REMEMBER_ME_AGE if request.data.get("remember_me") is True else 0)
@@ -182,15 +187,25 @@ class AuditedModelViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mi
     permission_classes = [IsSuperAdmin]
     entity_type = ""
 
+    SENSITIVE = {"password"}
+
     def perform_create(self, serializer):
         obj = serializer.save()
-        audit.log(self.request, f"{self.entity_type}.create", entity_type=self.entity_type, entity_id=obj.pk)
+        audit.log(self.request, f"{self.entity_type}.create", entity_type=self.entity_type, entity_id=obj.pk,
+                  detail={"reason": str(self.request.data.get("reason", ""))[:300]})
 
     def perform_update(self, serializer):
+        before = {}
+        if serializer.instance is not None:
+            for k in serializer.validated_data:
+                if k not in self.SENSITIVE and hasattr(serializer.instance, k):
+                    before[k] = str(getattr(serializer.instance, k))[:200]
         obj = serializer.save()
+        changes = {k: {"before": before[k], "after": str(getattr(obj, k))[:200]} for k in before if before[k] != str(getattr(obj, k))[:200]}
         audit.log(
             self.request, f"{self.entity_type}.update", entity_type=self.entity_type, entity_id=obj.pk,
-            detail={"fields": sorted(k for k in serializer.validated_data if k != "password"),
+            detail={"fields": sorted(k for k in serializer.validated_data if k not in self.SENSITIVE), "changes": changes,
+                    "reason": str(self.request.data.get("reason", ""))[:300],
                     "password_changed": "password" in serializer.validated_data},
         )
 
@@ -215,7 +230,7 @@ class DivisionViewSet(AuditedModelViewSet):
 
 
 class RegisterFocalsView(APIView):
-    """Register the Divisional Focal of several divisions at once (all-or-nothing).
+    """Register the Division Head of several divisions at once (all-or-nothing).
 
     Each new account gets a random, unknown password and an emailed link to choose its own
     (the same one-time link used by "Forgot password"), so no password is ever shared.
@@ -244,7 +259,7 @@ class RegisterFocalsView(APIView):
             busy_divs = set(User.objects.filter(role=Role.FOCAL, is_active=True, division__in=[r["division"] for r in ser.validated_data]).values_list("division_id", flat=True))
             for i, row in enumerate(ser.validated_data):
                 if row["division"].pk in busy_divs:
-                    rows[i]["division"] = ["This division already has an active Divisional Focal."]
+                    rows[i]["division"] = ["This division already has an active Division Head."]
                 elif row["division"].pk in seen_div:
                     rows[i]["division"] = ["This division appears more than once."]
                 if row["email"] in existing_emails:
@@ -276,7 +291,7 @@ class RegisterFocalsView(APIView):
         try:
             send_mail(
                 "Your BICMA Complaint Management System account",
-                f"A BICMA account has been created for you as Divisional Focal ({user.division.name}).\n\n"
+                f"A BICMA account has been created for you as Division Head ({user.division.name}).\n\n"
                 f"Open this link to choose your password:\n{url}\n\n"
                 "The link expires in one hour and can be used once. If it has expired, use \"Forgot password\" on the sign-in page.",
                 settings.DEFAULT_FROM_EMAIL, [user.email],

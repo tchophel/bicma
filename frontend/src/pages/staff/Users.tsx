@@ -7,12 +7,12 @@ import { useList } from "../../useList";
 import "./Directory.css";
 import "./Users.css";
 
-const ROLES = [["supervisor", "Supervisor (Director)"], ["super_admin", "Super Administrator"], ["focal", "Divisional Focal"], ["investigator", "Investigating Official"]];
+const ROLES = [["investigator", "Investigating Officer"], ["focal", "Division Head"], ["super_admin", "Administrator"], ["supervisor", "Management Viewer (read-only)"]];
 
 export function Users() {
   const { data, err, loading, reload } = useList<Page<User>>("/admin/users/?page_size=100");
   const divs = useList<Page<Division>>("/admin/divisions/");
-  const blank = { first_name: "", last_name: "", email: "", phone: "", role: "investigator", division: "", password: "" };
+  const blank = { employee_id: "", designation: "", first_name: "", last_name: "", email: "", phone: "", role: "investigator", division: "", password: "" };
   const [form, setForm] = useState(blank);
   const [msg, setMsg] = useState<ApiError | null>(null);
   const [success, setSuccess] = useState("");
@@ -56,7 +56,7 @@ export function Users() {
           <thead><tr><th>Official</th><th>Role</th><th>Division</th><th>Status</th><th className="users-actions-cell">Actions</th></tr></thead>
           <tbody>{visible.map((u) => (
             <tr key={u.id}>
-              <td><div className="cell-user"><span className="avatar-sm" aria-hidden="true">{initials(u.first_name, u.last_name, u.email)}</span><div><strong>{[u.first_name, u.last_name].filter(Boolean).join(" ") || "Staff account"}</strong><span className="users-email">{u.email}</span></div></div></td>
+              <td><div className="cell-user"><span className="avatar-sm" aria-hidden="true">{initials(u.first_name, u.last_name, u.email)}</span><div><strong>{[u.first_name, u.last_name].filter(Boolean).join(" ") || "Staff account"}</strong><span className="users-email">{u.employee_id ? `${u.employee_id} · ` : ""}{u.email}</span></div></div></td>
               <td><span className="chip">{u.role_display}</span></td>
               <td><span className={u.division_name ? "" : "muted"}>{u.division_name ?? "No division"}</span></td>
               <td><span className={`badge ${u.is_active ? "ok" : "bad"}`}><span className="status-dot" />{u.is_active ? "Active" : "Inactive"}</span></td>
@@ -75,10 +75,12 @@ export function Users() {
           <fieldset disabled={busy}>
             <legend>Personal details</legend>
             <div className="row">
+              <Field label="Employee ID" hint="Becomes the username. Staff can also sign in with their email."><input autoComplete="off" value={form.employee_id} onChange={set("employee_id")} /></Field>
+              <Field label="Designation"><input value={form.designation} onChange={set("designation")} /></Field>
               <Field label="First name"><input placeholder="Enter first name" autoComplete="given-name" value={form.first_name} onChange={set("first_name")} /></Field>
               <Field label="Last name"><input placeholder="Enter last name" autoComplete="family-name" value={form.last_name} onChange={set("last_name")} /></Field>
               <Field label="Email address" required hint="Used to sign in."><input required type="email" placeholder="official@example.org" autoComplete="off" value={form.email} onChange={set("email")} /></Field>
-              <Field label="Phone"><input type="tel" placeholder="Enter contact number" autoComplete="off" value={form.phone} onChange={set("phone")} /></Field>
+              <Field label="Contact number" hint="8 digits"><input type="tel" placeholder="17123456" autoComplete="off" value={form.phone} onChange={set("phone")} /></Field>
             </div>
           </fieldset>
           <fieldset disabled={busy}>

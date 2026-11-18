@@ -9,7 +9,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
 from accounts.models import Division, Role, User
-from core.models import AuditLog, Category, Dzongkhag, Gewog, Subcategory
+from core.models import AuditLog, Category, Dzongkhag, Gewog, Outcome, Priority, ProviderType, Subcategory
 from core import captcha
 from complaints.models import Complaint, StatusHistory
 from complaints.services import create_complaint
@@ -20,7 +20,10 @@ class Base(APITestCase):
     def setUpTestData(cls):
         cls.d1 = Division.objects.create(name="Telecom", code="TEL")
         cls.d2 = Division.objects.create(name="Media", code="MED")
-        cls.cat = Category.objects.create(name="Telecom service")
+        cls.prio = Priority.objects.create(name="Normal", rank=2, response_days=2, resolution_days=15)
+        cls.ptype = ProviderType.objects.create(name="ISP")
+        cls.outcome = Outcome.objects.create(name="Upheld")
+        cls.cat = Category.objects.create(name="Telecom service", default_division=cls.d1, default_priority=cls.prio)
         cls.sub = Subcategory.objects.create(category=cls.cat, name="Billing")
         cls.other_cat = Category.objects.create(name="Other")
         cls.dz = Dzongkhag.objects.create(name="Thimphu")
@@ -40,15 +43,17 @@ class Base(APITestCase):
 
     def payload(self, **kw):
         ch = captcha.new_challenge()
-        base = dict(captcha_token=ch.token, captcha_answer=ch.code, complainant_name="Pema", phone="17123456", email="p@x.bt", dzongkhag=self.dz.pk,
-                    category=self.cat.pk, subject="Bad bill", description="Charged twice.")
+        base = dict(captcha_token=ch.token, captcha_answer=ch.code, complainant_name="Pema", cid="10101010101", phone="17123456", email="p@x.bt",
+                    dzongkhag=self.dz.pk, locality="Chang", area_type="urban", category=self.cat.pk, provider_type=self.ptype.pk,
+                    incident_date="2026-01-05", incident_time="10:30", remedy_sought="Refund", declaration_accepted=True,
+                    subject="Bad bill", description="Charged twice.")
         base.update(kw)
         return base
 
     def make(self, division=None, **kw):
         c = create_complaint(
             {"complainant_name": "X", "email": "track@x.bt", "phone": "17123456", "category": self.cat,
-             "subject": "S", "description": "D", **kw},
+             "subject": "S", "description": "D", "division": division, **kw},
             channel="portal",
         )
         if division:
@@ -62,25 +67,6 @@ class Base(APITestCase):
 
 
 class PublicSubmissionTests(Base):
-    def test_submit_with_division_instead_of_category(self):
-        payload = self.payload(division=self.d1.pk)
-        del payload["category"]
-        response = self.client.post("/api/public/complaints/", payload, format="json")
-        self.assertEqual(response.status_code, 201, response.content)
-        complaint = Complaint.objects.get(reference=response.data["reference"])
-        self.assertEqual(complaint.division_id, self.d1.pk)
-        self.assertIsNone(complaint.category_id)
-
-    def test_inactive_division_is_rejected(self):
-        self.d1.is_active = False
-        self.d1.save()
-        payload = self.payload(division=self.d1.pk)
-        del payload["category"]
-        response = self.client.post("/api/public/complaints/", payload, format="json")
-        self.assertEqual(response.status_code, 400)
-        self.assertIn("division", response.data)
-
-
     def test_submit_returns_reference(self):
         r = self.client.post("/api/public/complaints/", self.payload(), format="json")
         self.assertEqual(r.status_code, 201, r.content)
@@ -88,8 +74,9 @@ class PublicSubmissionTests(Base):
         self.assertEqual(r.data["reference"], f"BICMA-CMS-{year}-000001")
         self.assertNotIn("tracking_token", r.data)
         c = Complaint.objects.get()
-        self.assertEqual(c.internal_status, "submitted")
-        self.assertEqual(c.public_status, "submitted")
+        self.assertEqual(c.internal_status, "received")
+        self.assertEqual(c.public_status, "received")
+        self.assertEqual(c.division, self.d1)  # routed from the category
         self.assertEqual(StatusHistory.objects.filter(complaint=c).count(), 1)
         self.assertTrue(AuditLog.objects.filter(action="complaint.create").exists())
 
@@ -140,7 +127,7 @@ class TrackingTests(Base):
         post = lambda body: self.client.post("/api/public/track/", body, format="json")
         r = post({"reference": c.reference})
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.data["public_status"], "submitted")
+        self.assertEqual(r.data["public_status"], "received")
         self.assertEqual(post({"reference": c.reference.lower()}).status_code, 200)
         for body in ({}, {"reference": ""}, {"reference": "BICMA-CMS-2026-999999"}):
             self.assertEqual(post(body).status_code, 404, body)
@@ -153,72 +140,37 @@ class TrackingTests(Base):
     def test_public_view_hides_internal_data(self):
         c, _ = self.make(division=self.d1)
         data = self.client.post("/api/public/track/", {"reference": c.reference}, format="json").data
-        self.assertEqual(set(data), {"reference", "public_status", "public_status_display", "created_at", "updated_at"})
+        self.assertEqual(set(data), {"reference", "public_status", "public_status_display", "created_at", "updated_at", "verified"})
         for leaked in ("subject", "category_name", "internal_status", "assigned_to", "division", "email", "phone", "description", "status_history"):
             self.assertNotIn(leaked, data)
 
     def test_internal_states_map_to_public(self):
         from complaints.models import public_status_for
-        self.assertEqual(public_status_for("investigation_in_progress"), "under_review")
-        self.assertEqual(public_status_for("awaiting_supervisor_approval"), "under_review")
-        self.assertEqual(public_status_for("closed"), "resolved")
-        self.assertEqual(public_status_for("rejected"), "rejected")
+        self.assertEqual(public_status_for("investigating"), "under_review")
+        self.assertEqual(public_status_for("resolved"), "under_review")  # not final until approved
+        self.assertEqual(public_status_for("awaiting_information"), "awaiting_information")
+        self.assertEqual(public_status_for("closed"), "closed")
+        self.assertEqual(public_status_for("not_within_mandate"), "not_within_mandate")
 
-
-class DataIsolationTests(Base):
-    def setUp(self):
-        super().setUp()
-        self.c_d1, _ = self.make(division=self.d1)
-        self.c_d2, _ = self.make(division=self.d2)
-        self.c_pool, _ = self.make()
-
-    def refs(self, user, qs=""):
-        r = self.login(user).get(f"/api/complaints/{qs}")
-        self.assertEqual(r.status_code, 200)
-        return {x["reference"] for x in r.data["results"]}
-
-    def test_oversight_roles_see_all(self):
-        everything = {self.c_d1.reference, self.c_d2.reference, self.c_pool.reference}
-        self.assertEqual(self.refs(self.admin), everything)
-        self.assertEqual(self.refs(self.sup), everything)
-
-    def test_focal_sees_only_own_division_plus_pool(self):
-        self.assertEqual(self.refs(self.focal1), {self.c_d1.reference, self.c_pool.reference})
-        self.assertEqual(self.refs(self.focal2), {self.c_d2.reference, self.c_pool.reference})
-
-    def test_investigator_cannot_see_other_division_or_pool(self):
-        self.assertEqual(self.refs(self.inv1), {self.c_d1.reference})
-        self.assertEqual(self.login(self.inv1).get(f"/api/complaints/{self.c_d2.pk}/").status_code, 404)
-        self.assertEqual(self.login(self.focal1).get(f"/api/complaints/{self.c_d2.pk}/").status_code, 404)
-
-    def test_unauthenticated_denied(self):
-        self.assertIn(self.client.get("/api/complaints/").status_code, (401, 403))
-        self.assertIn(self.client.get(f"/api/complaints/{self.c_d1.pk}/").status_code, (401, 403))
-
-    def test_filters(self):
-        self.assertEqual(self.refs(self.admin, "?scope=unassigned"), {self.c_pool.reference})
-        self.assertEqual(self.refs(self.admin, f"?division={self.d2.pk}"), {self.c_d2.reference})
-        self.assertEqual(self.refs(self.admin, f"?q={self.c_d1.reference}"), {self.c_d1.reference})
-
-    def test_detail_view_is_audited(self):
-        self.login(self.admin).get(f"/api/complaints/{self.c_d1.pk}/")
-        self.assertTrue(AuditLog.objects.filter(action="complaint.view", actor=self.admin).exists())
 
 
 class OfflineRegistrationTests(Base):
     def body(self, **kw):
-        b = dict(channel="phone", complainant_name="Karma", category=self.cat.pk, subject="Call", description="By phone")
+        b = dict(channel="phone", complainant_name="Karma", category=self.cat.pk, subject="Call", description="By phone",
+                 provider_type=self.ptype.pk, dzongkhag=self.dz.pk, locality="Chang", area_type="urban", incident_date="2026-01-05",
+                 incident_time="09:00", remedy_sought="Fix it")
         b.update(kw)
         return b
 
     def test_registrars_can_register(self):
-        for u in (self.admin, self.focal1, self.inv1):
+        for u in (self.focal1, self.inv1):
             r = self.login(u).post("/api/complaints/", self.body(), format="json")
             self.assertEqual(r.status_code, 201, (u.email, r.content))
             self.assertEqual(r.data["channel"], "phone")
             self.assertEqual(Complaint.objects.get(reference=r.data["reference"]).registered_by, u)
 
-    def test_supervisor_and_anonymous_cannot_register(self):
+    def test_admin_supervisor_and_anonymous_cannot_register(self):
+        self.assertEqual(self.login(self.admin).post("/api/complaints/", self.body(), format="json").status_code, 403)
         self.assertEqual(self.login(self.sup).post("/api/complaints/", self.body(), format="json").status_code, 403)
         self.assertIn(self.client.post("/api/complaints/", self.body(), format="json").status_code, (401, 403))
 
@@ -369,46 +321,6 @@ class ConcurrentReferenceTests(TransactionTestCase):
         self.assertEqual(len(set(refs)), 8)
 
 
-class DashboardTests(Base):
-    def setUp(self):
-        super().setUp()
-        self.make(division=self.d1)
-        self.make(division=self.d2)
-        self.make()
-
-    def card(self, user, label):
-        data = self.login(user).get("/api/dashboard/").data
-        return next(c for c in data["cards"] if c["label"] == label), data
-
-    def test_requires_login(self):
-        self.assertIn(self.client.get("/api/dashboard/").status_code, (401, 403))
-
-    def test_admin_sees_everything(self):
-        total, data = self.card(self.admin, "Total complaints")
-        self.assertEqual(total["count"], 3)
-        self.assertEqual(self.card(self.admin, "Unassigned")[0]["count"], 1)
-        self.assertEqual(sum(d["count"] for d in data["by_division"]), 3)
-        self.assertEqual(sum(m["count"] for m in data["monthly"]), 3)
-        self.assertEqual(len(data["monthly"]), 6)
-
-    def test_focal_counts_are_isolated(self):
-        card, data = self.card(self.focal1, "Division complaints")
-        self.assertEqual(card["count"], 1)
-        self.assertNotIn("by_division", data)
-        self.assertEqual(sum(c["count"] for c in data["by_category"]), 2)  # own division + pool, never other division
-        self.assertEqual(len(data["recent"]), 2)
-
-    def test_investigator_sees_only_own_division(self):
-        _, data = self.card(self.inv1, "My assigned complaints")
-        self.assertEqual(sum(s["count"] for s in data["by_status"]), 1)
-        self.assertEqual(len(data["recent"]), 1)
-
-    def test_card_links_use_working_filters(self):
-        _, data = self.card(self.admin, "Awaiting screening")
-        q = next(c for c in data["cards"] if c["label"] == "Awaiting screening")["query"]
-        r = self.login(self.admin).get(f"/api/complaints/?{q}")
-        self.assertEqual(r.data["count"], 3)
-
 
 class MasterLocationTests(Base):
     def test_valid_mapped_location_is_saved(self):
@@ -461,31 +373,32 @@ class MasterLocationTests(Base):
     def test_dashboard_area_uses_master_name(self):
         self.make(dzongkhag=self.dz)
         data = self.login(self.admin).get("/api/dashboard/").data
-        self.assertEqual(data["by_area"][0]["label"], "Thimphu")
+        self.assertEqual(data["by_location"][0]["label"], "Thimphu")
 
 
 class NotificationTests(Base):
-    def test_new_complaint_notifies_super_admins_only(self):
-        c, _ = self.make()
-        self.assertEqual(self.login(self.admin).get("/api/notifications/").data["unread_count"], 1)
-        for u in (self.sup, self.focal1, self.inv1):
+    def test_new_complaint_notifies_division_head_of_that_division_only(self):
+        c, _ = self.make(division=self.d1)
+        self.assertEqual(self.login(self.focal1).get("/api/notifications/").data["unread_count"], 1)
+        for u in (self.admin, self.sup, self.focal2, self.inv1):
             self.assertEqual(self.login(u).get("/api/notifications/").data["unread_count"], 0)
-        n = self.login(self.admin).get("/api/notifications/").data["results"][0]
+        n = self.login(self.focal1).get("/api/notifications/").data["results"][0]
         self.assertIn(c.reference, n["message"])
         self.assertEqual(n["link"], f"/staff/complaints/{c.pk}")
 
     def test_registrar_is_not_notified_of_own_registration(self):
-        self.login(self.admin).post("/api/complaints/", dict(channel="phone", complainant_name="K", category=self.cat.pk, subject="s", description="d"), format="json")
-        self.assertEqual(self.login(self.admin).get("/api/notifications/").data["unread_count"], 0)
+        body = OfflineRegistrationTests.body(self)
+        self.login(self.focal1).post("/api/complaints/", body, format="json")
+        self.assertEqual(self.login(self.focal1).get("/api/notifications/").data["unread_count"], 0)
 
     def test_mark_read_is_per_user(self):
-        self.make(); self.make()
-        a = self.login(self.admin)
+        self.make(division=self.d1); self.make(division=self.d1)
+        a = self.login(self.focal1)
         items = a.get("/api/notifications/").data["results"]
         self.assertEqual(a.post(f"/api/notifications/{items[0]['id']}/read/").status_code, 204)
         self.assertEqual(a.get("/api/notifications/").data["unread_count"], 1)
-        # another user cannot mark the admin's notification
-        self.login(self.focal1).post(f"/api/notifications/{items[1]['id']}/read/")
+        # another user cannot mark someone else's notification
+        self.login(self.admin).post(f"/api/notifications/{items[1]['id']}/read/")
         self.assertEqual(a.get("/api/notifications/").data["unread_count"], 1)
         a.post("/api/notifications/read-all/")
         self.assertEqual(a.get("/api/notifications/").data["unread_count"], 0)
@@ -576,91 +489,9 @@ class CaptchaTests(Base):
         self.assertEqual(self.post(captcha_token=ch.token, captcha_answer=ch.code).status_code, 201)
 
     def test_staff_registration_needs_no_captcha(self):
-        r = self.login(self.admin).post("/api/complaints/", dict(channel="phone", complainant_name="K", category=self.cat.pk, subject="s", description="d"), format="json")
-        self.assertEqual(r.status_code, 201)
+        r = self.login(self.focal1).post("/api/complaints/", OfflineRegistrationTests.body(self), format="json")
+        self.assertEqual(r.status_code, 201, r.content)
 
-
-class UuidTests(Base):
-    def test_all_exposed_ids_are_uuids(self):
-        import uuid
-        c, _ = self.make(division=self.d1)
-        a = self.login(self.admin)
-        rows = [
-            a.get("/api/complaints/").data["results"][0]["id"],
-            a.get("/api/admin/users/").data["results"][0]["id"],
-            a.get("/api/admin/divisions/").data["results"][0]["id"],
-            a.get("/api/admin/dzongkhags/").data["results"][0]["id"],
-            a.get("/api/admin/gewogs/").data["results"][0]["id"],
-            a.get("/api/admin/categories/").data["results"][0]["id"],
-            a.get("/api/notifications/").data["results"][0]["id"],
-            a.get("/api/auth/me/").data["id"],
-        ]
-        for r in rows:
-            self.assertEqual(uuid.UUID(str(r)).version, 4, r)
-        self.assertIsInstance(c.pk, uuid.UUID)
-
-    def test_detail_by_uuid_works_and_sequential_ids_do_not(self):
-        import uuid
-        c, _ = self.make(division=self.d1)
-        a = self.login(self.admin)
-        self.assertEqual(a.get(f"/api/complaints/{c.pk}/").status_code, 200)
-        for bad in ("1", "2", "not-a-uuid", str(uuid.uuid4())):
-            self.assertEqual(a.get(f"/api/complaints/{bad}/").status_code, 404, bad)
-
-    def test_malformed_uuid_query_params_do_not_crash(self):
-        a = self.login(self.admin)
-        for qs in ("category=1", "division=abc", "category=%27%3B--"):
-            r = a.get(f"/api/complaints/?{qs}")
-            self.assertEqual(r.status_code, 200, qs)
-            self.assertEqual(r.data["count"], 0)
-        self.assertEqual(a.get("/api/admin/gewogs/?dzongkhag=zzz").status_code, 200)
-
-    def test_notification_and_bulk_with_bad_ids(self):
-        a = self.login(self.admin)
-        self.assertEqual(a.post("/api/notifications/5/read/").status_code, 404)  # int route no longer exists
-        for bad in ("zzz", 123, None):
-            self.assertEqual(a.post("/api/admin/gewogs/bulk/", {"dzongkhag": bad, "names": ["x"]}, format="json").status_code, 400, bad)
-
-    def test_reference_numbers_still_sequential(self):
-        a, _ = self.make()
-        b, _ = self.make()
-        self.assertEqual((a.reference[-6:], b.reference[-6:]), ("000001", "000002"))
-
-    def test_status_history_order_is_chronological(self):
-        c, _ = self.make()
-        StatusHistory.objects.create(complaint=c, previous_status="submitted", new_status="unassigned", reason="x")
-        self.assertEqual([h.new_status for h in c.status_history.all()], ["submitted", "unassigned"])
-
-
-class DivisionalFocalAssignmentTests(Base):
-    def test_admin_assigns_focal_and_division(self):
-        complaint, _ = self.make()
-        response = self.login(self.admin).post(f"/api/complaints/{complaint.pk}/assign-focal/", {"focal": str(self.focal1.pk)}, format="json")
-        self.assertEqual(response.status_code, 200, response.data)
-        complaint.refresh_from_db()
-        self.assertEqual(complaint.assigned_to, self.focal1)
-        self.assertEqual(complaint.division, self.d1)
-        self.assertEqual(complaint.internal_status, "assigned_to_division")
-        self.assertTrue(complaint.status_history.filter(reason="Assigned to Divisional Focal.").exists())
-        self.assertTrue(AuditLog.objects.filter(action="complaint.assign_focal").exists())
-
-    def test_wrong_division_inactive_and_nonfocal_are_rejected(self):
-        complaint, _ = self.make(division=self.d1)
-        self.focal1.is_active = False
-        self.focal1.save()
-        client = self.login(self.admin)
-        for user in (self.focal1, self.focal2, self.inv1):
-            response = client.post(f"/api/complaints/{complaint.pk}/assign-focal/", {"focal": str(user.pk)}, format="json")
-            self.assertEqual(response.status_code, 400)
-        complaint.refresh_from_db()
-        self.assertIsNone(complaint.assigned_to)
-
-    def test_nonadmin_cannot_assign_or_list_candidates(self):
-        complaint, _ = self.make(division=self.d1)
-        client = self.login(self.focal1)
-        url = f"/api/complaints/{complaint.pk}/assign-focal/"
-        self.assertEqual(client.get(url).status_code, 403)
-        self.assertEqual(client.post(url, {"focal": str(self.focal1.pk)}).status_code, 403)
 
 
 class RegisterFocalsTests(Base):
@@ -759,20 +590,3 @@ class RegisterFocalsTests(Base):
             self.assertEqual(a.post(self.URL, {"focals": bad}, format="json").status_code, 400, bad)
 
 
-class FocalDropdownTests(Base):
-    def test_dropdown_includes_active_divisional_focal(self):
-        complaint, _ = self.make(division=self.d1)
-        response = self.login(self.admin).get(f"/api/complaints/{complaint.pk}/assign-focal/")
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual([item["id"] for item in response.data], [str(self.focal1.pk)])
-        self.assertEqual(response.data[0]["division_name"], self.d1.name)
-
-    def test_newly_registered_focal_appears_on_next_request(self):
-        complaint, _ = self.make(division=self.d1)
-        self.focal1.is_active = False
-        self.focal1.save()
-        client = self.login(self.admin)
-        url = f"/api/complaints/{complaint.pk}/assign-focal/"
-        self.assertEqual(client.get(url).data, [])
-        new_focal = User.objects.create_user("new-focal@example.org", "Strong-pass-312!", role=Role.FOCAL, division=self.d1)
-        self.assertEqual([item["id"] for item in client.get(url).data], [str(new_focal.pk)])

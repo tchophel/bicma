@@ -28,10 +28,10 @@ export function Login() {
       </div>
       <form className="card staff-login-card" onSubmit={go}>
         <div className="field">
-          <label className="login-label" htmlFor="login-email">Email address <span className="req" aria-hidden="true">*</span></label>
+          <label className="login-label" htmlFor="login-email">Employee ID or email <span className="req" aria-hidden="true">*</span></label>
           <div className="input-icon-wrap">
             <Icon name="mail" />
-            <input id="login-email" placeholder="Enter your email address" required type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input id="login-email" placeholder="Employee ID or email address" required type="text" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
         </div>
         <div className="field">

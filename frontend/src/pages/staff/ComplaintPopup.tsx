@@ -1,4 +1,3 @@
-import { FocalAssignment } from "../../components/FocalAssignment";
 import { Icon, type IconName } from "../../components/Icon";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Link } from "react-router-dom";
@@ -7,8 +6,8 @@ import { type ComplaintDetail } from "../../types";
 import { useList } from "../../useList";
 import "./ComplaintPopup.css";
 
-export function ComplaintPanel({ id, onClose, onAssigned }: { id: string; onClose: () => void; onAssigned?: () => void }) {
-  const { data: c, err, reload } = useList<ComplaintDetail>(`/complaints/${id}/`);
+export function ComplaintPanel({ id, onClose }: { id: string; onClose: () => void }) {
+  const { data: c, err } = useList<ComplaintDetail>(`/complaints/${id}/`);
   const closeBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     closeBtn.current?.focus();
@@ -43,8 +42,10 @@ export function ComplaintPanel({ id, onClose, onAssigned }: { id: string; onClos
             {prop("user", "Assignee", c.assigned_to_name ? <span className="cell-user"><span className="avatar-sm" aria-hidden="true">{c.assigned_to_name[0].toUpperCase()}</span>{c.assigned_to_name}</span> : <span className="muted">Unassigned</span>)}
             {prop("division", "Division", c.division_name ?? <span className="muted">Unassigned</span>)}
             {prop("category", "Category", <>{c.category_name}{c.subcategory_name ? ` / ${c.subcategory_name}` : ""}</>)}
+            {prop("clock", "Priority", c.priority_name ?? "Not set")}
+            {prop("alert", "Resolution due", c.resolution_due_at ? new Date(c.resolution_due_at).toLocaleDateString() : "—")}
             {prop("send", "Received via", c.channel === "portal" ? "Public portal" : words(c.channel).replace(/^./, (letter) => letter.toUpperCase()))}
-            {prop("pin", "Location", [c.gewog_name, c.dzongkhag_name].filter(Boolean).join(", ") || "Not provided")}
+            {prop("pin", "Location", [c.locality, c.dzongkhag_name].filter(Boolean).join(", ") || "Not provided")}
             {prop("history", "Received", fmt(c.created_at))}
           </dl>
           </section>
@@ -82,8 +83,7 @@ export function ComplaintPanel({ id, onClose, onAssigned }: { id: string; onClos
           </dl>
           </aside>
           </div>
-          <FocalAssignment complaint={c} onAssigned={() => { reload(); onAssigned?.(); }} />
-          <footer className="complaint-popup-footer"><span className="muted">Last updated {fmt(c.updated_at)}</span><Link className="btn secondary" to={`/staff/complaints/${id}`}>View full complaint<Icon name="right" size={16} /></Link></footer>
+          <footer className="complaint-popup-footer"><span className="muted">Last updated {fmt(c.updated_at)}</span><Link className="btn" to={`/staff/complaints/${id}`}>Open case<Icon name="right" size={16} /></Link></footer>
         </div>
       )}
     </div>

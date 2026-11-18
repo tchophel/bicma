@@ -9,6 +9,11 @@ router.register("categories", views.CategoryAdminViewSet, basename="admin-catego
 router.register("subcategories", views.SubcategoryAdminViewSet, basename="admin-subcategory")
 router.register("dzongkhags", views.DzongkhagAdminViewSet, basename="admin-dzongkhag")
 router.register("gewogs", views.GewogAdminViewSet, basename="admin-gewog")
+for _route, _vs in (("provider-types", views.ProviderTypeAdminViewSet), ("providers", views.ProviderAdminViewSet),
+                    ("priorities", views.PriorityAdminViewSet), ("outcomes", views.OutcomeAdminViewSet),
+                    ("closure-reasons", views.ClosureReasonAdminViewSet), ("holidays", views.HolidayAdminViewSet),
+                    ("email-templates", views.EmailTemplateAdminViewSet)):
+    router.register(_route, _vs, basename=f"admin-{_route}")
 router.register("audit-logs", views.AuditLogViewSet, basename="admin-audit")
 
 urlpatterns = [

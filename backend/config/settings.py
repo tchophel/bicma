@@ -79,6 +79,12 @@ TIME_ZONE = "UTC"
 USE_I18N = True
 USE_TZ = True
 
+MEDIA_ROOT = BASE_DIR / "media"
+MEDIA_URL = "media/"
+ATTACHMENT_MAX_MB = int(os.environ.get("ATTACHMENT_MAX_MB", "5"))
+ATTACHMENT_MAX_FILES = int(os.environ.get("ATTACHMENT_MAX_FILES", "5"))
+DATA_UPLOAD_MAX_MEMORY_SIZE = 40 * 1024 * 1024
+
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"

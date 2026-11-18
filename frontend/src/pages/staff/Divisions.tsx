@@ -49,7 +49,7 @@ export function Divisions() {
           <div className="users-toolbar"><div><h2 id="division-directory">Division directory <span className="chip">{data?.count ?? "—"}</span></h2><p className="muted">Manage divisions and their availability.</p></div>
             <label className="users-search"><span className="sr-only">Search divisions</span><Icon name="search" /><input type="search" placeholder="Search name or code…" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} /></label>
           </div>
-          <div className="table-wrap"><table><thead><tr><th>Name</th><th>Code</th><th>Divisional Focal</th><th>Status</th><th className="users-actions-cell">Actions</th></tr></thead>
+          <div className="table-wrap"><table><thead><tr><th>Name</th><th>Code</th><th>Division Head</th><th>Status</th><th className="users-actions-cell">Actions</th></tr></thead>
             <tbody>{data?.results.map((d) => <tr key={d.id}>
               <td><div className="location-name"><span className="icon-tile"><Icon name="division" size={17} /></span><strong>{d.name}</strong></div></td>
               <td><span className="chip division-code">{d.code}</span></td>

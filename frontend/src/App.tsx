@@ -19,6 +19,8 @@ import { Profile } from "./pages/staff/Profile";
 import { Register } from "./pages/staff/Register";
 import { SettingsPage } from "./pages/staff/Settings";
 import { Users } from "./pages/staff/Users";
+import { Reports } from "./pages/staff/Reports";
+import { ClosureReasons, EmailTemplates, Holidays, Outcomes, Priorities, ProviderTypes, Providers } from "./pages/staff/MasterPage";
 
 function AdminOnly({ children }: { children: JSX.Element }) {
   const { user } = useAuth();
@@ -53,6 +55,14 @@ export default function App() {
             <Route path="gewogs" element={<AdminOnly><Gewogs /></AdminOnly>} />
             <Route path="divisions" element={<AdminOnly><Divisions /></AdminOnly>} />
             <Route path="categories" element={<AdminOnly><Categories /></AdminOnly>} />
+            <Route path="reports" element={<Reports />} />
+            <Route path="providers" element={<AdminOnly><Providers /></AdminOnly>} />
+            <Route path="provider-types" element={<AdminOnly><ProviderTypes /></AdminOnly>} />
+            <Route path="priorities" element={<AdminOnly><Priorities /></AdminOnly>} />
+            <Route path="outcomes" element={<AdminOnly><Outcomes /></AdminOnly>} />
+            <Route path="closure-reasons" element={<AdminOnly><ClosureReasons /></AdminOnly>} />
+            <Route path="holidays" element={<AdminOnly><Holidays /></AdminOnly>} />
+            <Route path="email-templates" element={<AdminOnly><EmailTemplates /></AdminOnly>} />
             <Route path="audit" element={<AdminOnly><AuditLogs /></AdminOnly>} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />

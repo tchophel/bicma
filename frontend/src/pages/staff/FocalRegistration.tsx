@@ -9,7 +9,7 @@ type Row = { email: string; first_name: string; last_name: string };
 type Result = { created: number; invites_sent: number; results: { email: string; division: string; invite_sent: boolean }[] };
 const empty: Row = { email: "", first_name: "", last_name: "" };
 
-/** Register the Divisional Focal of every division that does not have one yet, in one step. */
+/** Register the Division Head of every division that does not have one yet, in one step. */
 export function FocalRegistration({ divisions, onDone }: { divisions: Division[]; onDone: () => void }) {
   const pending = divisions.filter((d) => d.is_active && !d.focal);
   const [rows, setRows] = useState<Record<string, Row>>({});
@@ -44,7 +44,7 @@ export function FocalRegistration({ divisions, onDone }: { divisions: Division[]
 
   return (
     <section className="card focal-register" aria-labelledby="focal-register-title">
-      <PanelTitle icon="users"><span id="focal-register-title">Divisional Focals</span></PanelTitle>
+      <PanelTitle icon="users"><span id="focal-register-title">Division Heads</span></PanelTitle>
       {result && (
         <div className="users-success" role="status"><Icon name="check" />
           <div>Registered {result.created} focal{result.created === 1 ? "" : "s"}. Invitation emails sent: {result.invites_sent} of {result.created}.
@@ -53,10 +53,10 @@ export function FocalRegistration({ divisions, onDone }: { divisions: Division[]
         </div>
       )}
       {pending.length === 0 ? (
-        <p className="focal-done"><Icon name="check" size={18} />Every active division has a Divisional Focal.</p>
+        <p className="focal-done"><Icon name="check" size={18} />Every active division has a Division Head.</p>
       ) : (
         <form onSubmit={submit} aria-busy={busy}>
-          <p className="muted">{pending.length} division{pending.length === 1 ? " has" : "s have"} no Divisional Focal. Enter the focal for each one and register them all at once. Leave a row empty to skip it. Each person gets an email with a link to choose their own password.</p>
+          <p className="muted">{pending.length} division{pending.length === 1 ? " has" : "s have"} no Division Head. Enter the focal for each one and register them all at once. Leave a row empty to skip it. Each person gets an email with a link to choose their own password.</p>
           {error && <p className="error" role="alert">{error}</p>}
           <div className="focal-grid" role="group" aria-label="Divisional focals to register">
             <div className="focal-head" aria-hidden="true"><span>Division</span><span>Email *</span><span>First name</span><span>Last name</span></div>

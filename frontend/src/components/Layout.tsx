@@ -40,22 +40,32 @@ export function PublicLayout() {
 }
 
 interface NavItem { to: string; label: string; icon: IconName; roles?: Role[] }
+const STAFF: Role[] = ["focal", "investigator"];
 const NAV: { heading?: string; items: NavItem[] }[] = [
   { items: [{ to: "/staff/dashboard", label: "Dashboard", icon: "dashboard" }] },
   {
     heading: "Complaints",
     items: [
+      { to: "/staff/complaints?scope=triage", label: "Triage queue", icon: "clock", roles: ["focal", "investigator", "super_admin"] },
       { to: "/staff/complaints", label: "All complaints", icon: "complaint" },
-      { to: "/staff/register", label: "Register complaint", icon: "plus", roles: ["focal", "investigator", "super_admin"] },
+      { to: "/staff/register", label: "Register complaint", icon: "plus", roles: STAFF },
+      { to: "/staff/reports", label: "Reports", icon: "chart" },
     ],
   },
   {
     heading: "Master data",
     items: [
+      { to: "/staff/categories", label: "Categories", icon: "category", roles: ["super_admin"] },
+      { to: "/staff/divisions", label: "Divisions", icon: "division", roles: ["super_admin"] },
+      { to: "/staff/providers", label: "Service providers", icon: "users", roles: ["super_admin"] },
+      { to: "/staff/provider-types", label: "Provider types", icon: "category", roles: ["super_admin"] },
+      { to: "/staff/priorities", label: "Priorities & timelines", icon: "alert", roles: ["super_admin"] },
+      { to: "/staff/outcomes", label: "Outcomes", icon: "check", roles: ["super_admin"] },
+      { to: "/staff/closure-reasons", label: "Closure reasons", icon: "close", roles: ["super_admin"] },
+      { to: "/staff/holidays", label: "Holiday calendar", icon: "clock", roles: ["super_admin"] },
+      { to: "/staff/email-templates", label: "Email templates", icon: "mail", roles: ["super_admin"] },
       { to: "/staff/dzongkhags", label: "Dzongkhags", icon: "map", roles: ["super_admin"] },
       { to: "/staff/gewogs", label: "Gewogs", icon: "pin", roles: ["super_admin"] },
-      { to: "/staff/divisions", label: "Divisions", icon: "division", roles: ["super_admin"] },
-      { to: "/staff/categories", label: "Categories", icon: "category", roles: ["super_admin"] },
     ],
   },
   {
@@ -88,7 +98,7 @@ export function StaffLayout() {
           {groups.map((g, i) => (
             <div key={i} className={css.group}>
               {g.heading && <div className={css.heading}>{g.heading}</div>}
-              {g.items.map((n) => <NavLink key={n.to} to={n.to} end={n.to === "/staff/complaints"}><Icon name={n.icon} />{n.label}</NavLink>)}
+              {g.items.map((n) => <NavLink key={n.to} to={n.to} end={n.to.startsWith("/staff/complaints")} className={({ isActive }) => (isActive && (n.to.includes("?") === window.location.search.includes("scope=triage")) ? "active" : "")}><Icon name={n.icon} />{n.label}</NavLink>)}
             </div>
           ))}
         </nav>

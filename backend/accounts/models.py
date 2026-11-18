@@ -7,10 +7,10 @@ from core.base import UUIDModel
 
 
 class Role(models.TextChoices):
-    SUPERVISOR = "supervisor", "Supervisor (Director)"
-    SUPER_ADMIN = "super_admin", "Super Administrator"
-    FOCAL = "focal", "Divisional Focal"
-    INVESTIGATOR = "investigator", "Investigating Official"
+    SUPERVISOR = "supervisor", "Management Viewer"
+    SUPER_ADMIN = "super_admin", "Administrator"
+    FOCAL = "focal", "Division Head"  # stored value kept stable; BRD name is Division Head
+    INVESTIGATOR = "investigator", "Investigating Officer"
 
 
 DIVISIONAL_ROLES = (Role.FOCAL, Role.INVESTIGATOR)
@@ -58,6 +58,8 @@ class User(UUIDModel, AbstractUser):
         Division, null=True, blank=True, on_delete=models.PROTECT, related_name="users"
     )
     phone = models.CharField(max_length=30, blank=True)
+    employee_id = models.CharField(max_length=30, unique=True, null=True, blank=True)
+    designation = models.CharField(max_length=120, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -69,6 +71,7 @@ class User(UUIDModel, AbstractUser):
 
     def save(self, *args, **kwargs):
         self.email = (self.email or "").strip().lower()
+        self.employee_id = (self.employee_id or "").strip() or None
         super().save(*args, **kwargs)
 
     def clean(self):

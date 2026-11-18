@@ -4,9 +4,32 @@ from django.db import models
 from .base import UUIDModel
 
 
+class Priority(UUIDModel):
+    """Priority with its response / resolution timeline (working days)."""
+
+    name = models.CharField(max_length=40, unique=True)
+    rank = models.PositiveSmallIntegerField(default=2, help_text="Higher = more urgent")
+    response_days = models.PositiveSmallIntegerField(default=2)
+    resolution_days = models.PositiveSmallIntegerField(default=15)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-rank", "name"]
+        verbose_name_plural = "priorities"
+
+    def __str__(self):
+        return self.name
+
+
 class Category(UUIDModel):
     name = models.CharField(max_length=120, unique=True)
     is_active = models.BooleanField(default=True)
+    default_division = models.ForeignKey("accounts.Division", null=True, blank=True, on_delete=models.PROTECT, related_name="default_categories")
+    urban_division = models.ForeignKey("accounts.Division", null=True, blank=True, on_delete=models.PROTECT, related_name="+",
+                                       help_text="Optional: division for urban complaints in this category")
+    rural_division = models.ForeignKey("accounts.Division", null=True, blank=True, on_delete=models.PROTECT, related_name="+",
+                                       help_text="Optional: division for rural complaints in this category")
+    default_priority = models.ForeignKey(Priority, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
 
     class Meta:
         ordering = ["name"]
@@ -127,3 +150,100 @@ class FAQ(UUIDModel):
 
     def __str__(self):
         return self.question
+
+
+class ProviderType(UUIDModel):
+    name = models.CharField(max_length=80, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Provider(UUIDModel):
+    """Service provider / licensee a complaint can name."""
+
+    name = models.CharField(max_length=150, unique=True)
+    provider_type = models.ForeignKey(ProviderType, null=True, blank=True, on_delete=models.PROTECT, related_name="providers")
+    licence_number = models.CharField(max_length=60, blank=True)
+    contact_email = models.EmailField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Outcome(UUIDModel):
+    name = models.CharField(max_length=80, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class ClosureReason(UUIDModel):
+    name = models.CharField(max_length=120, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Holiday(UUIDModel):
+    date = models.DateField(unique=True)
+    name = models.CharField(max_length=120)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["date"]
+
+    def __str__(self):
+        return f"{self.date} {self.name}"
+
+
+class EmailTemplate(UUIDModel):
+    """Configurable email for a notification event. Placeholders: {reference} {subject} {status} {category}
+    {provider} {message} {division} {officer} {tracking_url}."""
+
+    event = models.CharField(max_length=40, unique=True)
+    name = models.CharField(max_length=120)
+    recipient = models.CharField(max_length=40, blank=True, help_text="complainant | provider | officer | division_head")
+    subject = models.CharField(max_length=200)
+    body = models.TextField(max_length=5000)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class NotificationLog(UUIDModel):
+    """Every email sent for a case: date, recipient, subject, content, delivery status."""
+
+    complaint = models.ForeignKey("complaints.Complaint", on_delete=models.CASCADE, related_name="notification_log")
+    event = models.CharField(max_length=40)
+    recipient = models.CharField(max_length=254)
+    subject = models.CharField(max_length=300)
+    body = models.TextField()
+    status = models.CharField(max_length=10, default="pending")  # pending | sent | failed
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]

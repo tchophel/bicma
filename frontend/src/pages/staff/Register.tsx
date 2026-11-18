@@ -6,6 +6,11 @@ import { PageHeader } from "../../components/ui";
 export function Register() {
   const { user } = useAuth();
   const nav = useNavigate();
-  if (user && !["focal", "investigator", "super_admin"].includes(user.role)) return <p className="error">Your role cannot register complaints.</p>;
-  return (<div className="register-page"><PageHeader icon="plus" title="Register an offline complaint" subtitle="Record a complaint received by phone, email, letter, social media or in person." /><ComplaintForm offline onDone={() => nav("/staff/complaints")} /></div>);
+  if (user && !["focal", "investigator"].includes(user.role)) return <p className="error">Only Investigating Officers and Division Heads can register complaints.</p>;
+  return (
+    <div className="register-page">
+      <PageHeader icon="plus" title="Register a complaint" subtitle="Record a complaint received by phone, letter, walk-in or email. Save a draft to finish later." />
+      <ComplaintForm offline onDone={(r) => nav(r.draft ? "/staff/complaints?scope=drafts" : r.id ? `/staff/complaints/${r.id}` : "/staff/complaints")} />
+    </div>
+  );
 }

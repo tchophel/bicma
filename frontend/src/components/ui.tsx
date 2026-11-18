@@ -16,7 +16,7 @@ export function Field({ label, required, hint, error, children }: {
 }
 
 const TONE: Record<string, string> = {
-  resolved: "ok", closed: "ok", rejected: "bad", on_hold: "warn", pending_response: "warn", pending_external_action: "warn",
+  resolved: "ok", closed: "ok", not_within_mandate: "bad", awaiting_information: "warn", referred: "warn", draft: "warn",
 };
 export function StatusBadge({ value, label }: { value: string; label: string }) {
   return <span className={`badge ${TONE[value] ?? ""}`}><Icon name={TONE[value] === "ok" ? "check" : TONE[value] === "bad" ? "close" : TONE[value] === "warn" ? "clock" : "complaint"} size={14} />{label}</span>;

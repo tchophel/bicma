@@ -31,8 +31,8 @@ function flatten(data: unknown): { message: string; fields: Record<string, strin
   return { message: parts.join(" ") || "Something went wrong. Please try again.", fields };
 }
 
-export async function api<T = unknown>(path: string, init: RequestInit & { json?: unknown } = {}): Promise<T> {
-  const method = (init.method ?? (init.json !== undefined ? "POST" : "GET")).toUpperCase();
+export async function api<T = unknown>(path: string, init: RequestInit & { json?: unknown; form?: FormData } = {}): Promise<T> {
+  const method = (init.method ?? (init.json !== undefined || init.form ? "POST" : "GET")).toUpperCase();
   const headers: Record<string, string> = { Accept: "application/json" };
   if (init.json !== undefined) headers["Content-Type"] = "application/json";
   if (method !== "GET") headers["X-CSRFToken"] = cookie("csrftoken");
@@ -40,7 +40,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
     method,
     headers,
     credentials: "same-origin",
-    body: init.json !== undefined ? JSON.stringify(init.json) : undefined,
+    body: init.form ?? (init.json !== undefined ? JSON.stringify(init.json) : undefined),
   });
   if (res.status === 204) return undefined as T;
   let data: unknown = null;
