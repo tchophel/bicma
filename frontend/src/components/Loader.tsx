@@ -12,26 +12,31 @@ export function Loader({ label = "Loading", size = 56, block = true }: { label?:
   );
 }
 
-/** The one loading spinner: big, in the middle of the screen, while any request is waiting on the server. It appears
- *  at once and stays at least half a second so it is always seen, and it sits in the browser's top layer so it also
- *  shows above popup dialogs. */
+const SHOW_AFTER_MS = 400; // requests that finish sooner never show the spinner
+const MIN_VISIBLE_MS = 400; // once shown it stays a moment so it doesn't flash
+
+/** The one loading spinner: big, in the middle of the screen, shown only when the server is slow. A fast response
+ *  shows nothing. It sits in the browser's top layer so it also shows above popup dialogs. */
 export function GlobalLoader() {
   const [busy, setBusy] = useState(false);
   const box = useRef<HTMLDivElement>(null);
   useEffect(() => {
     let shownAt = 0;
+    let showTimer: ReturnType<typeof setTimeout> | undefined;
     let hideTimer: ReturnType<typeof setTimeout> | undefined;
     const update = () => {
       if (pendingCount() > 0) {
         if (hideTimer) { clearTimeout(hideTimer); hideTimer = undefined; }
-        if (!shownAt) shownAt = Date.now();
-        setBusy(true);
-      } else if (shownAt && !hideTimer) {
-        hideTimer = setTimeout(() => { shownAt = 0; hideTimer = undefined; setBusy(false); }, Math.max(0, 500 - (Date.now() - shownAt)));
+        if (!shownAt && !showTimer) showTimer = setTimeout(() => { showTimer = undefined; shownAt = Date.now(); setBusy(true); }, SHOW_AFTER_MS);
+      } else {
+        if (showTimer) { clearTimeout(showTimer); showTimer = undefined; } // finished quickly: nothing was shown
+        if (shownAt && !hideTimer) {
+          hideTimer = setTimeout(() => { shownAt = 0; hideTimer = undefined; setBusy(false); }, Math.max(0, MIN_VISIBLE_MS - (Date.now() - shownAt)));
+        }
       }
     };
     const off = subscribePending(update);
-    return () => { off(); if (hideTimer) clearTimeout(hideTimer); };
+    return () => { off(); if (showTimer) clearTimeout(showTimer); if (hideTimer) clearTimeout(hideTimer); };
   }, []);
   useEffect(() => { box.current?.setAttribute("popover", "manual"); }, []);
   useEffect(() => {

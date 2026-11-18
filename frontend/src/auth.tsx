@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from "react";
 import { useToast } from "./components/Toast";
-import { api, ensureCsrf, withMinTime } from "./api";
+import { api, ensureCsrf } from "./api";
 import type { User } from "./types";
 
 interface AuthState {
@@ -19,8 +19,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // A quick sign-in can finish before this first check does, so never overwrite a user who is already signed in.
-    withMinTime(ensureCsrf().then(() => api<User>("/auth/me/")))
+    // Never overwrite a user who signed in while this first check was still running.
+    ensureCsrf().then(() => api<User>("/auth/me/"))
       .then((u) => setUser((prev) => prev ?? u))
       .catch(() => { /* not signed in: user stays null */ })
       .finally(() => setLoading(false));

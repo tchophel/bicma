@@ -69,10 +69,3 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
 }
 
 export const ensureCsrf = () => api("/auth/csrf/");
-
-/** Keep a spinner on screen for at least `ms`, so a fast server doesn't make it vanish before it can be seen. */
-export async function withMinTime<T>(p: Promise<T>, ms = 450): Promise<T> {
-  const start = Date.now();
-  try { return await p; }
-  finally { const left = ms - (Date.now() - start); if (left > 0) await new Promise((r) => setTimeout(r, left)); }
-}
