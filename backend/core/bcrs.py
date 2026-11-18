@@ -100,4 +100,8 @@ def lookup(cid, _retry=True):
     if not first and not last:
         return None
     parts = [str(x).strip() for x in (first, middle, last) if x]  # middleName is often null
-    return {"first_name": first or "", "middle_name": middle or "", "last_name": last or "", "full_name": " ".join(parts)}
+    return {
+        "first_name": first or "", "middle_name": middle or "", "last_name": last or "", "full_name": " ".join(parts),
+        "mobile": _find(body, "mobileNumber") or "", "dzongkhag": _find(body, "dzongkhagName") or "",
+        "gewog": _find(body, "gewogName") or "", "occupation": _find(body, "occupation") or "",
+    }

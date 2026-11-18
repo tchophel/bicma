@@ -81,7 +81,7 @@ class PublicCidLookupView(APIView):
             return Response({"detail": "The citizen registry could not be reached. Enter the name by hand."}, status=502)
         if found is None:
             return Response({"detail": "No record found for this CID."}, status=404)
-        return Response(found)
+        return Response({k: found[k] for k in ("first_name", "middle_name", "last_name", "full_name")})
 
 
 class PublicCaptchaView(APIView):

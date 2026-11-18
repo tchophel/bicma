@@ -318,3 +318,28 @@ class NdiStartView(APIView):
 
     def get(self, request):
         return Response({"detail": "Bhutan NDI sign-in is not set up yet. Use your Employee ID or email."}, status=status.HTTP_501_NOT_IMPLEMENTED)
+
+
+class StaffCidLookupView(APIView):
+    """Administrator: fetch a person's details from BCRS by CID to fill the Create user form."""
+
+    permission_classes = [IsSuperAdmin]
+    throttle_scope = "cid_lookup"
+
+    def post(self, request):
+        import re
+        from core import bcrs
+        cid = str(request.data.get("cid", "")).strip()
+        if not re.fullmatch(r"\d{11}", cid):
+            return Response({"cid": ["The CID must be 11 digits."]}, status=400)
+        try:
+            found = bcrs.lookup(cid)
+        except bcrs.NotConfigured:
+            return Response({"detail": "CID lookup is not configured."}, status=503)
+        except Exception:
+            return Response({"detail": "The citizen registry could not be reached."}, status=502)
+        if found is None:
+            return Response({"detail": "No record found for this CID."}, status=404)
+        found["existing_user"] = User.objects.filter(cid=cid).values_list("email", flat=True).first()
+        audit.log(request, "user.cid_lookup", entity_type="user", detail={"cid_suffix": cid[-4:]})
+        return Response(found)

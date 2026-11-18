@@ -60,6 +60,7 @@ class User(UUIDModel, AbstractUser):
     phone = models.CharField(max_length=30, blank=True)
     employee_id = models.CharField(max_length=30, unique=True, null=True, blank=True)
     designation = models.CharField(max_length=120, blank=True)
+    cid = models.CharField(max_length=11, unique=True, null=True, blank=True)
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
@@ -72,6 +73,7 @@ class User(UUIDModel, AbstractUser):
     def save(self, *args, **kwargs):
         self.email = (self.email or "").strip().lower()
         self.employee_id = (self.employee_id or "").strip() or None
+        self.cid = (self.cid or "").strip() or None
         super().save(*args, **kwargs)
 
     def clean(self):

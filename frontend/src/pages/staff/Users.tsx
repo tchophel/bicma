@@ -12,19 +12,33 @@ const ROLES = [["investigator", "Investigating Officer"], ["focal", "Division He
 export function Users() {
   const { data, err, loading, reload } = useList<Page<User>>("/admin/users/?page_size=100");
   const divs = useList<Page<Division>>("/admin/divisions/");
-  const blank = { employee_id: "", designation: "", first_name: "", last_name: "", email: "", phone: "", role: "investigator", division: "", password: "" };
+  const blank = { cid: "", employee_id: "", designation: "", first_name: "", last_name: "", email: "", phone: "", role: "investigator", division: "", password: "" };
   const [form, setForm] = useState(blank);
   const [msg, setMsg] = useState<ApiError | null>(null);
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
   const [query, setQuery] = useState("");
+  const [cidMsg, setCidMsg] = useState("");
+  async function onCid(e: { target: { value: string } }) {
+    const cid = e.target.value.replace(/\D/g, "").slice(0, 11);
+    setForm((f) => ({ ...f, cid }));
+    setCidMsg("");
+    if (cid.length !== 11) return;
+    setCidMsg("Looking up…");
+    try {
+      const r = await api<{ first_name: string; middle_name: string; last_name: string; mobile: string; existing_user: string | null }>("/admin/users/cid-lookup/", { json: { cid } });
+      const phone = String(r.mobile ?? "").replace(/\D/g, "").slice(-8);
+      setForm((f) => (f.cid === cid ? { ...f, first_name: [r.first_name, r.middle_name].filter(Boolean).join(" "), last_name: r.last_name, phone: phone.length === 8 ? phone : f.phone } : f));
+      setCidMsg(r.existing_user ? `Filled from BCRS. Note: ${r.existing_user} already has this CID.` : "Name and contact number filled from BCRS. Employee ID, email, designation and division are entered by hand.");
+    } catch (x) { setCidMsg((x as ApiError).message); }
+  }
   const set = (k: string) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
   async function create(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
     setMsg(null); setSuccess(""); setBusy(true);
     try {
-      await api("/admin/users/", { json: { ...form, division: form.division || null } });
+      await api("/admin/users/", { json: { ...form, cid: form.cid || null, division: form.division || null } });
       setSuccess(`Account created for ${form.email}.`);
       setForm(blank); reload();
     } catch (x) { setMsg(x as ApiError); }
@@ -75,6 +89,7 @@ export function Users() {
           <fieldset disabled={busy}>
             <legend>Personal details</legend>
             <div className="row">
+              <Field label="CID number" hint={cidMsg || "Enter the 11-digit CID to fill the name and contact number."}><input inputMode="numeric" maxLength={11} autoComplete="off" value={form.cid} onChange={onCid} /></Field>
               <Field label="Employee ID" hint="Becomes the username. Staff can also sign in with their email."><input autoComplete="off" value={form.employee_id} onChange={set("employee_id")} /></Field>
               <Field label="Designation"><input value={form.designation} onChange={set("designation")} /></Field>
               <Field label="First name"><input placeholder="Enter first name" autoComplete="given-name" value={form.first_name} onChange={set("first_name")} /></Field>

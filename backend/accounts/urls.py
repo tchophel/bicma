@@ -17,6 +17,7 @@ urlpatterns = [
     path("auth/me/", views.MeView.as_view()),
     path("auth/change-password/", views.ChangePasswordView.as_view()),
     path("divisions/", views.DivisionListView.as_view()),
+    path("admin/users/cid-lookup/", views.StaffCidLookupView.as_view()),
     path("admin/divisions/register-focals/", views.RegisterFocalsView.as_view()),
     path("admin/", include(router.urls)),
 ]

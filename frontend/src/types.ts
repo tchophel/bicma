@@ -6,6 +6,7 @@ export interface User {
   last_name: string;
   email: string;
   employee_id: string | null;
+  cid: string | null;
   designation: string;
   phone: string;
   role: Role;

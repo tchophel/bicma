@@ -404,3 +404,27 @@ class CidLookupTests(Base):
             self.assertEqual(bcrs.lookup("10101010101")["full_name"], "A B C")
             resp.read.return_value = b'{}'
             self.assertEqual(self.post().status_code, 404)
+
+
+class StaffCidLookupTests(Base):
+    def test_admin_only_and_fills_details(self):
+        from unittest import mock
+        from django.test import override_settings
+        body = b'{"citizenDetailsResponse": {"citizenDetail": [{"firstName": "A", "middleName": null, "lastName": "B", "mobileNumber": "17123456"}]}}'
+        resp = mock.MagicMock(); resp.read.return_value = body; resp.__enter__.return_value = resp
+        url = "/api/admin/users/cid-lookup/"
+        self.assertIn(self.login(self.focal1).post(url, {"cid": "10101010101"}, format="json").status_code, (401, 403))
+        with override_settings(BCRS_API_URL="https://x/{cid}", BCRS_TOKEN_URL="", BCRS_CLIENT_ID="", BCRS_API_TOKEN=""), \
+                mock.patch("core.bcrs.urllib.request.urlopen", return_value=resp):
+            r = self.login(self.admin).post(url, {"cid": "10101010101"}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual((r.data["first_name"], r.data["last_name"], r.data["mobile"]), ("A", "B", "17123456"))
+
+    def test_public_lookup_returns_name_only_and_user_cid_unique(self):
+        from accounts.models import User
+        u = self.login(self.admin)
+        r = u.post("/api/admin/users/", {"email": "n1@x.bt", "password": "Str0ng-pass-123", "role": "supervisor", "cid": "10101010101"}, format="json")
+        self.assertEqual(r.status_code, 201, r.content)
+        r = u.post("/api/admin/users/", {"email": "n2@x.bt", "password": "Str0ng-pass-123", "role": "supervisor", "cid": "10101010101"}, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("cid", r.data)

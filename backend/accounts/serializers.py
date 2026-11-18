@@ -48,7 +48,7 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "id", "email", "employee_id", "designation", "first_name", "last_name", "phone", "role", "role_display",
+            "id", "email", "employee_id", "cid", "designation", "first_name", "last_name", "phone", "role", "role_display",
             "division", "division_name", "is_active", "last_login",
         ]
         read_only_fields = ["last_login"]
@@ -90,6 +90,19 @@ class UserWriteSerializer(UserSerializer):
             qs = qs.exclude(pk=self.instance.pk)
         if qs.exists():
             raise serializers.ValidationError("A user with this Employee ID already exists.")
+        return value
+
+    def validate_cid(self, value):
+        value = (value or "").strip()
+        if not value:
+            return None
+        if not re.fullmatch(r"\d{11}", value):
+            raise serializers.ValidationError("The CID must be 11 digits.")
+        qs = User.objects.filter(cid=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A user with this CID already exists.")
         return value
 
     def validate_phone(self, value):
