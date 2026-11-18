@@ -2,6 +2,7 @@ import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
 import { Icon } from "../../components/Icon";
 import { PanelTitle } from "../../components/ui";
+import { Modal } from "../../components/Modal";
 import type { Division } from "../../types";
 import "./FocalRegistration.css";
 
@@ -17,6 +18,7 @@ export function FocalRegistration({ divisions, onDone }: { divisions: Division[]
   const [error, setError] = useState("");
   const [rowErrors, setRowErrors] = useState<Record<string, Record<string, string>>>({});
   const [result, setResult] = useState<Result | null>(null);
+  const [open, setOpen] = useState(false);
 
   const get = (id: string): Row => rows[id] ?? empty;
   const set = (id: string, k: keyof Row, v: string) => setRows((r) => ({ ...r, [id]: { ...get(id), [k]: v } }));
@@ -30,7 +32,7 @@ export function FocalRegistration({ divisions, onDone }: { divisions: Division[]
       const res = await api<Result>("/admin/divisions/register-focals/", {
         json: { focals: filled.map((d) => ({ division: d.id, email: get(d.id).email.trim(), first_name: get(d.id).first_name.trim(), last_name: get(d.id).last_name.trim() })) },
       });
-      setResult(res); setRows({}); onDone();
+      setResult(res); setRows({}); setOpen(false); onDone();
     } catch (x) {
       const body = ((x as ApiError).body as { rows?: Record<string, string[]>[] } | null)?.rows;
       setError((x as ApiError).message);
@@ -55,6 +57,10 @@ export function FocalRegistration({ divisions, onDone }: { divisions: Division[]
       {pending.length === 0 ? (
         <p className="focal-done"><Icon name="check" size={18} />Every active division has a Division Head.</p>
       ) : (
+        <>
+          <p className="muted">{pending.length} division{pending.length === 1 ? " has" : "s have"} no Division Head.</p>
+          <button type="button" className="btn" onClick={() => { setError(""); setRowErrors({}); setOpen(true); }}><Icon name="plus" />Register Division Heads</button>
+          <Modal open={open} onClose={() => setOpen(false)} title="Register Division Heads" icon="users" busy={busy} wide>
         <form onSubmit={submit} aria-busy={busy}>
           <p className="muted">{pending.length} division{pending.length === 1 ? " has" : "s have"} no Division Head. Enter the focal for each one and register them all at once. Leave a row empty to skip it. Each person gets an email with a link to choose their own password.</p>
           {error && <p className="error" role="alert">{error}</p>}
@@ -77,6 +83,8 @@ export function FocalRegistration({ divisions, onDone }: { divisions: Division[]
             <button className="btn" disabled={busy || !filled.length}><Icon name="users" />{busy ? "Registering…" : `Register ${filled.length || "all"} focal${filled.length === 1 ? "" : "s"}`}</button>
           </div>
         </form>
+          </Modal>
+        </>
       )}
     </section>
   );

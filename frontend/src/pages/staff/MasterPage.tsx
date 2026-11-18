@@ -1,7 +1,8 @@
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
 import { Icon, type IconName } from "../../components/Icon";
-import { EmptyState, Field, PageHeader, PanelTitle } from "../../components/ui";
+import { EmptyState, Field, PageHeader } from "../../components/ui";
+import { Modal } from "../../components/Modal";
 import type { Page } from "../../types";
 import { useList } from "../../useList";
 
@@ -23,6 +24,7 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
   const [msg, setMsg] = useState<ApiError | null>(null);
   const [ok, setOk] = useState("");
   const [busy, setBusy] = useState(false);
+  const [open, setOpen] = useState(false);
   const set = (k: string) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
   const label = (f: FieldDef, v: unknown) => f.type === "select" ? f.options?.find((o) => o.value === String(v ?? ""))?.label ?? "—" : String(v ?? "") || "—";
 
@@ -35,7 +37,7 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
     try {
       if (editing) await api(`/admin/${path}/${editing}/`, { method: "PATCH", json: body });
       else await api(`/admin/${path}/`, { json: body });
-      setOk(editing ? "Changes saved." : "Added."); setForm(blank); setEditing(null); setReason(""); reload();
+      setOk(editing ? "Changes saved." : "Added."); setForm(blank); setEditing(null); setReason(""); setOpen(false); reload();
     } catch (x) { setMsg(x as ApiError); }
     finally { setBusy(false); }
   }
@@ -49,30 +51,17 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
   function edit(r: Row) {
     setEditing(r.id);
     setForm(Object.fromEntries(fields.map((f) => [f.key, String(r[f.key] ?? "")])));
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    setMsg(null); setOpen(true);
   }
   const rows = (data?.results ?? []).filter((r) => !status || (status === "active") === r.is_active);
   return (
     <div className="users-page">
-      <PageHeader icon={icon} title={title} subtitle={subtitle} />
+      <PageHeader icon={icon} title={title} subtitle={subtitle}>
+        <button type="button" className="btn" onClick={() => { setEditing(null); setForm(blank); setReason(""); setMsg(null); setOpen(true); }}><Icon name="plus" />Add</button>
+      </PageHeader>
       {err && <p className="error" role="alert">{err}</p>}
       {msg && <p className="error" role="alert">{msg.message}</p>}
       {ok && <p className="notice" role="status">{ok}</p>}
-      <form className="card" onSubmit={save} style={{ marginBottom: 16 }}>
-        <PanelTitle icon={editing ? "edit" : "plus"}>{editing ? "Edit record" : "Add record"}</PanelTitle>
-        <div className="row">
-          {fields.map((f) => (
-            <Field key={f.key} label={f.label} required={f.required} hint={f.hint} error={msg?.fields[f.key]}>
-              {f.type === "textarea" ? <textarea rows={4} required={f.required} value={form[f.key]} onChange={set(f.key)} />
-                : f.type === "select" ? <select required={f.required} value={form[f.key]} onChange={set(f.key)}><option value="">{f.required ? "Select" : "None"}</option>{f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
-                : <input type={f.type ?? "text"} min={f.min} required={f.required} value={form[f.key]} onChange={set(f.key)} />}
-            </Field>
-          ))}
-          {editing && <Field label="Reason for the change" hint="Kept in the audit trail with the before and after values."><input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>}
-        </div>
-        <button className="btn" disabled={busy}><Icon name={editing ? "check" : "plus"} />{editing ? "Save changes" : "Add"}</button>
-        {editing && <button type="button" className="btn secondary" style={{ marginLeft: 8 }} onClick={() => { setEditing(null); setForm(blank); }}>Cancel</button>}
-      </form>
       <section className="card">
         <div className="filter-bar" style={{ gridTemplateColumns: "2fr 1fr", padding: 0, boxShadow: "none", border: 0 }}>
           <label><span>Search</span><div className="search-wrap"><Icon name="search" /><input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Name" /></div></label>
@@ -98,6 +87,23 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
         </div>
         <p className="muted">Records in use are deactivated, never deleted, so historical complaints stay intact.</p>
       </section>
+      <Modal open={open} onClose={() => setOpen(false)} title={editing ? "Edit record" : "Add record"} icon={editing ? "edit" : "plus"} busy={busy}>
+      <form onSubmit={save}>
+        {msg && <p className="error" role="alert">{msg.message}</p>}
+        <div className="row">
+          {fields.map((f) => (
+            <Field key={f.key} label={f.label} required={f.required} hint={f.hint} error={msg?.fields[f.key]}>
+              {f.type === "textarea" ? <textarea rows={4} required={f.required} value={form[f.key]} onChange={set(f.key)} />
+                : f.type === "select" ? <select required={f.required} value={form[f.key]} onChange={set(f.key)}><option value="">{f.required ? "Select" : "None"}</option>{f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
+                : <input type={f.type ?? "text"} min={f.min} required={f.required} value={form[f.key]} onChange={set(f.key)} />}
+            </Field>
+          ))}
+          {editing && <Field label="Reason for the change" hint="Kept in the audit trail with the before and after values."><input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>}
+        </div>
+        <button className="btn" disabled={busy}><Icon name={editing ? "check" : "plus"} />{editing ? "Save changes" : "Add"}</button>
+        <button type="button" className="btn secondary" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
+      </form>
+      </Modal>
     </div>
   );
 }

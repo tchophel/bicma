@@ -3,6 +3,7 @@ import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../../api";
 import { Field, PageHeader } from "../../components/ui";
+import { Modal } from "../../components/Modal";
 import { type DzongkhagRow, type Page } from "../../types";
 import { useList } from "../../useList";
 import "./Directory.css";
@@ -16,6 +17,7 @@ export function Dzongkhags() {
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [changing, setChanging] = useState<string | null>(null);
   async function add(e: FormEvent) {
     e.preventDefault();
@@ -45,7 +47,7 @@ export function Dzongkhags() {
   return (
     <div className="locations-page">
       <PageHeader icon="map" title="Dzongkhags" subtitle="Manage the locations available on complaint forms.">
-        <a className="btn" href="#add-dzongkhag"><Icon name="plus" />Add Dzongkhag</a>
+        <button type="button" className="btn" onClick={() => { setMsg(""); setAdding(true); }}><Icon name="plus" />Add Dzongkhag</button>
       </PageHeader>
       {err && <p className="error" role="alert">{err}</p>}
       {msg && <p className="error" role="alert">{msg}</p>}
@@ -78,16 +80,16 @@ export function Dzongkhags() {
           </div>
         </section>
         <aside className="locations-aside">
-          <section className="card location-create" id="add-dzongkhag" aria-labelledby="add-dzongkhag-title">
-            <div className="location-create-heading"><span className="icon-tile lg"><Icon name="map" size={26} /></span><h2 id="add-dzongkhag-title">Add Dzongkhag</h2><p>Add a location to the master list used on complaint forms.</p></div>
-            <form onSubmit={add} aria-busy={busy}>
-              <Field label="Dzongkhag name" required><input required maxLength={80} placeholder="Enter Dzongkhag name" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} /></Field>
-              <button className="btn" disabled={busy || !name.trim()}><Icon name="plus" />{busy ? "Adding…" : "Add Dzongkhag"}</button>
-            </form>
-          </section>
           <div className="location-guidance"><Icon name="help" size={21} /><div><strong>Keep location records intact</strong><p>Deactivate a Dzongkhag instead of deleting it. Existing complaints keep their location, while inactive entries are hidden from new complaint forms.</p></div></div>
         </aside>
       </div>
+      <Modal open={adding} onClose={() => setAdding(false)} title="Add Dzongkhag" icon="map" busy={busy}>
+        {msg && <p className="error" role="alert">{msg}</p>}
+        <form onSubmit={add} aria-busy={busy}>
+              <Field label="Dzongkhag name" required><input required maxLength={80} placeholder="Enter Dzongkhag name" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} /></Field>
+              <button className="btn" disabled={busy || !name.trim()}><Icon name="plus" />{busy ? "Adding…" : "Add Dzongkhag"}</button>
+            </form>
+      </Modal>
     </div>
   );
 }

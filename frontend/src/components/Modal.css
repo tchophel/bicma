@@ -1,0 +1,8 @@
+.modal { width: min(640px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 0; border-radius: 16px; background: var(--c-surface); color: var(--c-text); box-shadow: 0 24px 80px rgb(0 0 0 / 28%); overflow: auto; }
+.modal::backdrop { background: rgb(30 24 18 / 55%); }
+.modal-head { display: flex; align-items: center; gap: 12px; padding: 18px 22px; border-bottom: 1px solid var(--c-border); position: sticky; top: 0; background: var(--c-surface); z-index: 1; }
+.modal-head h2 { margin: 0; flex: 1; font-size: 1.15rem; }
+.modal-body { padding: 22px; }
+.modal-body form > .btn, .modal-actions .btn { margin-right: 8px; }
+.modal-actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+.modal.wide { width: min(980px, calc(100% - 32px)); }

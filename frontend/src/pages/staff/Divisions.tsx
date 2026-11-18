@@ -2,6 +2,7 @@ import { Icon } from "../../components/Icon";
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
 import { Field, PageHeader } from "../../components/ui";
+import { Modal } from "../../components/Modal";
 import { type Division, type Page } from "../../types";
 import { useList } from "../../useList";
 import "./Directory.css";
@@ -16,6 +17,7 @@ export function Divisions() {
   const [name, setName] = useState(""); const [code, setCode] = useState(""); const [msg, setMsg] = useState("");
   const [success, setSuccess] = useState("");
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [changing, setChanging] = useState<string | null>(null);
   async function add(e: FormEvent) {
     e.preventDefault();
@@ -23,7 +25,7 @@ export function Divisions() {
     setMsg(""); setSuccess(""); setBusy(true);
     try {
       await api("/admin/divisions/", { json: { name: name.trim(), code: code.trim() } });
-      setSuccess(`${name.trim()} has been added.`); setName(""); setCode(""); reload(); all.reload();
+      setSuccess(`${name.trim()} has been added.`); setName(""); setCode(""); reload(); all.reload(); setAdding(false);
     } catch (x) { setMsg((x as ApiError).message); }
     finally { setBusy(false); }
   }
@@ -39,7 +41,7 @@ export function Divisions() {
   return (
     <div className="locations-page divisions-page">
       <PageHeader icon="division" title="Divisions" subtitle="Organisational divisions that investigate complaints.">
-        <a className="btn" href="#add-division"><Icon name="plus" />Add division</a>
+        <button type="button" className="btn" onClick={() => { setMsg(""); setAdding(true); }}><Icon name="plus" />Add division</button>
       </PageHeader>
       {err && <p className="error" role="alert">{err}</p>}{msg && <p className="error" role="alert">{msg}</p>}
       {success && <p className="users-success" role="status"><Icon name="check" />{success}</p>}
@@ -66,17 +68,17 @@ export function Divisions() {
           </div>
         </section>
         <aside className="locations-aside">
-          <section className="card location-create" id="add-division" aria-labelledby="add-division-title">
-            <div className="location-create-heading"><span className="icon-tile lg"><Icon name="division" size={26} /></span><h2 id="add-division-title">Add division</h2><p>Create a division to organise officials and investigate complaints.</p></div>
-            <form onSubmit={add} aria-busy={busy}>
+          <div className="location-guidance"><Icon name="help" size={21} /><div><strong>Keep division records intact</strong><p>Deactivate divisions that are no longer in use. Existing complaints retain their division details.</p></div></div>
+        </aside>
+      </div>
+      <Modal open={adding} onClose={() => setAdding(false)} title="Add division" icon="division" busy={busy}>
+        {msg && <p className="error" role="alert">{msg}</p>}
+        <form onSubmit={add} aria-busy={busy}>
               <Field label="Division name" required><input required maxLength={120} placeholder="Enter division name" disabled={busy} value={name} onChange={(e) => setName(e.target.value)} /></Field>
               <Field label="Code" required hint="A unique short code, e.g. TEL."><input required maxLength={20} placeholder="e.g. TEL" disabled={busy} value={code} onChange={(e) => setCode(e.target.value)} /></Field>
               <button className="btn" disabled={busy || !name.trim() || !code.trim()}><Icon name="plus" />{busy ? "Adding…" : "Add division"}</button>
             </form>
-          </section>
-          <div className="location-guidance"><Icon name="help" size={21} /><div><strong>Keep division records intact</strong><p>Deactivate divisions that are no longer in use. Existing complaints retain their division details.</p></div></div>
-        </aside>
-      </div>
+      </Modal>
     </div>
   );
 }
