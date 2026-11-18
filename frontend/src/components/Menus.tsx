@@ -1,0 +1,101 @@
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { api } from "../api";
+import { useAuth } from "../auth";
+import type { AppNotification } from "../types";
+import { Icon } from "./Icon";
+import css from "./Layout.module.css";
+
+/** Closes on outside click and Escape. */
+function usePopover() {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open) return;
+    const click = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setOpen(false); };
+    const key = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("mousedown", click);
+    document.addEventListener("keydown", key);
+    return () => { document.removeEventListener("mousedown", click); document.removeEventListener("keydown", key); };
+  }, [open]);
+  return { open, setOpen, ref };
+}
+
+function ago(iso: string) {
+  const s = Math.max(0, (Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60) return "just now";
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return new Date(iso).toLocaleDateString();
+}
+
+export function NotificationBell() {
+  const { open, setOpen, ref } = usePopover();
+  const [items, setItems] = useState<AppNotification[]>([]);
+  const [unread, setUnread] = useState(0);
+  const nav = useNavigate();
+  const load = useCallback(() => {
+    api<{ unread_count: number; results: AppNotification[] }>("/notifications/").then((d) => { setItems(d.results); setUnread(d.unread_count); }).catch(() => {});
+  }, []);
+  useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
+
+  async function openItem(n: AppNotification) {
+    setOpen(false);
+    if (!n.read) { await api(`/notifications/${n.id}/read/`, { method: "POST" }).catch(() => {}); load(); }
+    if (n.link) nav(n.link);
+  }
+  async function readAll() { await api("/notifications/read-all/", { method: "POST" }); load(); }
+
+  return (
+    <div className={css.pop} ref={ref}>
+      <button className={css.iconBtn} aria-label={`Notifications, ${unread} unread`} aria-expanded={open} aria-haspopup="true" onClick={() => { setOpen(!open); if (!open) load(); }}>
+        <Icon name="bell" size={20} />
+        {unread > 0 && <span className={css.count}>{unread > 99 ? "99+" : unread}</span>}
+      </button>
+      {open && (
+        <div className={css.panel} role="region" aria-label="Notifications">
+          <div className={css.panelHead}><strong>Notifications</strong>{unread > 0 && <button className={css.linkBtn} onClick={readAll}>Mark all as read</button>}</div>
+          {items.length === 0 && <p className={css.empty}>You have no notifications.</p>}
+          <ul className={css.notes}>
+            {items.map((n) => (
+              <li key={n.id}>
+                <button className={`${css.note} ${n.read ? "" : css.unread}`} onClick={() => openItem(n)}>
+                  <span>{n.message}</span><small>{ago(n.created_at)}</small>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function UserMenu() {
+  const { user, logout } = useAuth();
+  const { open, setOpen, ref } = usePopover();
+  const nav = useNavigate();
+  if (!user) return null;
+  const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email;
+  const initials = (user.first_name?.[0] ?? user.email[0]).toUpperCase() + (user.last_name?.[0] ?? "").toUpperCase();
+  const item = (to: string, icon: "user" | "gear", label: ReactNode) => (
+    <Link to={to} className={css.menuItem} role="menuitem" onClick={() => setOpen(false)}><Icon name={icon} />{label}</Link>
+  );
+  return (
+    <div className={css.pop} ref={ref}>
+      <button className={css.userBtn} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+        <span className={css.avatar} aria-hidden="true">{initials}</span>
+        <span className={css.who}><strong>{name}</strong><small>{user.role_display}{user.division_name ? ` · ${user.division_name}` : ""}</small></span>
+        <Icon name="chev" size={14} />
+      </button>
+      {open && (
+        <div className={css.panel} role="menu" style={{ minWidth: 220 }}>
+          <div className={css.panelHead} style={{ display: "block" }}><strong>{name}</strong><br /><small>{user.email}</small></div>
+          {item("/staff/profile", "user", "My profile")}
+          {user.role === "super_admin" && item("/staff/settings", "gear", "Settings")}
+          <button className={css.menuItem} role="menuitem" onClick={async () => { setOpen(false); await logout(); nav("/staff"); }}><Icon name="logout" />Sign out</button>
+        </div>
+      )}
+    </div>
+  );
+}

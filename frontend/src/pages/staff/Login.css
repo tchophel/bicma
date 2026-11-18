@@ -1,0 +1,43 @@
+.login-label { display: block; font-weight: 600; margin-bottom: 4px; }
+.input-icon-wrap { position: relative; }
+.input-icon-wrap > .icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--c-muted); pointer-events: none; }
+.input-icon-wrap input { padding-left: 40px; }
+.password-input input { padding-right: 48px; }
+.password-toggle { position: absolute; right: 1px; top: 1px; bottom: 1px; width: 44px; display: inline-flex; align-items: center; justify-content: center; border: 0; border-radius: 0 var(--radius) var(--radius) 0; background: transparent; color: var(--c-muted); cursor: pointer; }
+.password-toggle:hover { background: var(--c-primary-soft); color: var(--c-primary); }
+.staff-login { width: 100%; max-width: 560px; padding-top: 48px; padding-bottom: 48px; }
+.staff-login-logo { display: block; width: 132px; height: 132px; margin: 0 auto 16px; }
+.staff-login h1 { font-size: 2.1rem; }
+.staff-login > div > p { font-size: 1rem; }
+.staff-login-card { padding: 32px; }
+.staff-login .field { margin-bottom: 24px; }
+.staff-login .login-label { font-size: 1.05rem; margin-bottom: 9px; }
+.staff-login input { min-height: 58px; font-size: 1.05rem; padding-left: 46px; }
+.staff-login .input-icon-wrap > .icon { width: 22px; height: 22px; left: 14px; }
+.staff-login .password-input input { padding-right: 54px; }
+.staff-login .password-toggle { width: 50px; }
+.staff-login .password-toggle .icon { width: 22px; height: 22px; }
+.staff-login .btn { min-height: 56px; font-size: 1.1rem; }
+@media (max-width: 600px) {
+  .staff-login { padding-top: 28px; padding-bottom: 28px; }
+  .staff-login-card { padding: 24px; }
+}
+.staff-login .login-label .req { color: var(--c-accent); }
+/* compact staff sign-in */
+.staff-login { max-width: 420px; padding-top: 32px; padding-bottom: 32px; }
+.staff-login-logo { width: 88px; height: 88px; margin-bottom: 10px; }
+.staff-login h1 { font-size: 1.5rem; }
+.staff-login > div > p { font-size: .9rem; }
+.staff-login-card { padding: 24px; }
+.staff-login .field { margin-bottom: 16px; }
+.staff-login .login-label { font-size: .9rem; margin-bottom: 6px; }
+.staff-login input { min-height: 44px; font-size: .95rem; padding-left: 40px; }
+.staff-login .input-icon-wrap > .icon { width: 18px; height: 18px; left: 12px; }
+.staff-login .password-input input { padding-right: 46px; }
+.staff-login .password-toggle { width: 42px; }
+.staff-login .password-toggle .icon { width: 18px; height: 18px; }
+.staff-login .btn { min-height: 44px; font-size: .95rem; }
+.login-options { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 20px; font-size: .87rem; }
+.login-options label, .recovery-show { display: inline-flex; align-items: center; gap: 7px; cursor: pointer; }
+.staff-login .login-options input, .staff-login .recovery-show input { width: 16px; height: 16px; min-height: 0; padding: 0; margin: 0; }
+.login-options a { font-weight: 600; text-decoration: none; }

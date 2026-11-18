@@ -1,0 +1,75 @@
+/* Location directory */
+.locations-layout { display: grid; grid-template-columns: minmax(0, 1fr) 290px; gap: 24px; align-items: start; }
+.locations-layout .users-toolbar { flex-wrap: wrap; }
+.locations-layout .users-search { width: 100%; }
+.location-name { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
+.location-name .icon-tile { width: 32px; height: 32px; border-radius: 9px; }
+.gewog-count { display: inline-flex; align-items: center; gap: 8px; min-width: 74px; justify-content: space-between; text-decoration: none; padding: 6px 9px; border: 1px solid var(--c-border); border-radius: 8px; font-weight: 600; background: var(--c-bg); }
+.gewog-count:hover { background: var(--c-primary-soft); border-color: var(--c-primary); }
+.location-create { padding: 0; overflow: hidden; scroll-margin-top: 100px; }
+.location-create-heading { padding: 24px; background: #fff5e8; border-bottom: 1px solid var(--c-border); }
+.location-create-heading h2 { margin: 16px 0 8px; font-size: 1.25rem; }
+.location-create-heading p { margin: 0; color: var(--c-muted); font-size: .9rem; line-height: 1.65; }
+.location-create form { padding: 24px; }
+.location-create input { min-height: 44px; }
+.location-create .btn { width: 100%; min-height: 44px; margin-top: 6px; }
+.location-guidance { display: flex; gap: 12px; padding: 22px 6px; color: var(--c-muted); font-size: .88rem; }
+.location-guidance > .icon { color: var(--c-primary); margin-top: 2px; }
+.location-guidance strong { color: var(--c-text); }
+.location-guidance p { margin: 6px 0 0; line-height: 1.7; }
+@media (max-width: 1100px) { .locations-layout { grid-template-columns: minmax(0, 1fr); } .locations-aside { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; } .locations-layout .users-toolbar { flex-wrap: nowrap; } .locations-layout .users-search { max-width: 280px; } }
+@media (max-width: 600px) { .locations-aside { grid-template-columns: minmax(0, 1fr); gap: 0; } .locations-layout .users-toolbar { flex-wrap: wrap; } .locations-layout .users-search { max-width: none; } }
+/* Compact Dzongkhag management */
+.locations-page .page-head { margin-bottom: 16px; gap: 10px; }
+.locations-page .page-head h1 { font-size: 1.35rem; }
+.locations-page .page-head > .icon-tile { width: 40px; height: 40px; border-radius: 10px; }
+.locations-page .page-head > .icon-tile .icon { width: 22px; height: 22px; }
+.locations-layout { grid-template-columns: minmax(0, 1fr) 250px; gap: 16px; }
+.locations-page .users-toolbar { padding: 16px; gap: 12px; }
+.locations-page .users-toolbar h2 { font-size: 1rem; }
+.locations-page .users-toolbar p { font-size: .82rem; }
+.locations-page .users-search input { min-height: 36px; padding-top: 6px; padding-bottom: 6px; font-size: .88rem; }
+.locations-page .users-directory th { padding: 9px 14px; font-size: .75rem; }
+.locations-page .users-directory td { padding: 7px 14px; font-size: .88rem; }
+.locations-page .location-name { gap: 8px; }
+.locations-page .location-name .icon-tile { width: 26px; height: 26px; border-radius: 7px; }
+.locations-page .location-name .icon { width: 14px; height: 14px; }
+.locations-page .gewog-count { min-width: 64px; gap: 6px; padding: 3px 7px; font-size: .82rem; }
+.locations-page .users-actions-cell .btn { padding: 4px 8px; font-size: .78rem; gap: 5px; }
+.locations-page .users-actions-cell .icon { width: 14px; height: 14px; }
+.locations-page .users-directory-footer { padding: 10px 16px; font-size: .78rem; }
+.locations-page .location-create-heading { padding: 18px; }
+.locations-page .location-create-heading .icon-tile { width: 38px; height: 38px; border-radius: 10px; }
+.locations-page .location-create-heading .icon { width: 22px; height: 22px; }
+.locations-page .location-create-heading h2 { margin: 10px 0 6px; font-size: 1.1rem; }
+.locations-page .location-create-heading p { font-size: .82rem; }
+.locations-page .location-create form { padding: 18px; }
+.locations-page .location-create .field { margin-bottom: 12px; font-size: .88rem; }
+.locations-page .location-create input, .locations-page .location-create .btn { min-height: 36px; font-size: .88rem; padding-top: 6px; padding-bottom: 6px; }
+.locations-page .location-guidance { padding: 16px 4px; gap: 8px; font-size: .8rem; }
+@media (max-width: 1100px) { .locations-layout { grid-template-columns: minmax(0, 1fr); } }
+.location-pagination, .location-pagination nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.location-pagination .btn { padding: 4px 8px; font-size: .8rem; }
+/* Slightly roomier Dzongkhag directory */
+.locations-page .page-head h1 { font-size: 1.5rem; }
+.locations-page .users-toolbar { padding: 20px; gap: 14px; }
+.locations-page .users-toolbar h2 { font-size: 1.1rem; }
+.locations-page .users-toolbar p { font-size: .9rem; }
+.locations-page .users-search input { min-height: 40px; font-size: .95rem; }
+.locations-page .users-directory th { padding: 11px 16px; font-size: .8rem; }
+.locations-page .users-directory td { padding: 11px 16px; font-size: .95rem; }
+.locations-page .location-name { gap: 10px; }
+.locations-page .location-name .icon-tile { width: 30px; height: 30px; }
+.locations-page .location-name .icon { width: 16px; height: 16px; }
+.locations-page .gewog-count { padding: 5px 8px; font-size: .9rem; }
+.locations-page .users-actions-cell .btn { padding: 6px 10px; font-size: .85rem; }
+.locations-page .users-directory-footer { padding: 14px 20px; font-size: .85rem; }
+.locations-page .location-pagination .btn { padding: 6px 10px; font-size: .85rem; }
+.locations-page .location-create-heading, .locations-page .location-create form { padding: 20px; }
+.locations-page .location-create-heading h2 { font-size: 1.2rem; }
+.locations-page .location-create-heading p, .locations-page .location-create .field { font-size: .95rem; }
+.locations-page .location-create input, .locations-page .location-create .btn { min-height: 42px; font-size: .95rem; }
+.division-code { font-family: ui-monospace, SFMono-Regular, monospace; letter-spacing: .06em; font-weight: 700; }
+.divisions-page .location-name { white-space: normal; min-width: 170px; }
+.division-focal { display: flex; flex-direction: column; line-height: 1.3; }
+.division-focal small { font-size: .8rem; }

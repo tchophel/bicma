@@ -1,0 +1,41 @@
+.success-hero { text-align: center; }
+.success-hero .icon-tile { background: #dff1e5; color: var(--c-ok); margin-bottom: 12px; }
+.ref-big { display: inline-block; margin: 6px 0 14px; padding: 12px 22px; border-radius: 12px; background: var(--c-primary-soft); border: 1px dashed var(--c-primary); font-size: 1.6rem; font-weight: 800; letter-spacing: .02em; color: var(--c-primary-dark); }
+/* Public complaint submission */
+.submit-page { max-width: 1150px; padding-top: 40px; padding-bottom: 56px; }
+.submit-hero { margin-bottom: 30px; }
+.submit-eyebrow { display: inline-flex; align-items: center; gap: 8px; color: var(--c-primary); font-size: .76rem; font-weight: 700; letter-spacing: .09em; }
+.submit-hero h1 { font-size: 2.35rem; letter-spacing: -.035em; margin: 12px 0 8px; }
+.submit-hero > p { color: var(--c-muted); margin: 0; font-size: 1.05rem; }
+.submit-layout { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 28px; align-items: start; }
+.submit-page .complaint-form { border-radius: 16px; box-shadow: 0 6px 24px rgb(70 43 18 / 5%); }
+.submit-page .complaint-form > .muted { background: #fffbf5; font-size: .82rem; padding: 15px 30px; }
+.submit-page .form-section { padding: 30px; }
+.submit-page .complaint-form .row { gap: 2px 22px; }
+.submit-page .complaint-form .field { margin-bottom: 22px; }
+.submit-page .complaint-form input:not([type=checkbox]), .submit-page .complaint-form select { min-height: 46px; }
+.submit-page .complaint-form input, .submit-page .complaint-form select, .submit-page .complaint-form textarea { border-color: #d9cfc3; border-radius: 9px; }
+.submit-page .complaint-form input:focus, .submit-page .complaint-form select:focus, .submit-page .complaint-form textarea:focus { border-color: var(--c-primary); }
+.submit-page .complaint-form textarea { line-height: 1.8; padding: 12px; }
+.submit-page .on-behalf { background: #fffbf5; padding: 16px; margin-bottom: 0; }
+.submit-page .on-behalf + .row { margin-top: 22px; }
+.submit-page .form-actions { padding: 24px 30px; }
+.submit-page .form-actions p { display: flex; align-items: flex-start; gap: 8px; max-width: 230px; line-height: 1.6; }
+.submit-page .form-actions p > .icon { color: var(--c-primary); margin-top: 2px; }
+.submit-guide { display: grid; gap: 22px; }
+.submit-guide .card { padding: 24px; border-radius: 14px; }
+.submit-guide h2 { font-size: 1rem; margin: 16px 0 12px; }
+.submit-guide ul { padding-left: 18px; margin: 0; color: var(--c-muted); font-size: .88rem; }
+.submit-guide ul li { padding-left: 4px; margin: 12px 0; line-height: 1.7; }
+.submit-guide ul li::marker { color: var(--c-brand-orange); }
+.submit-next { padding: 0 10px; }
+.submit-next h2 { margin-top: 0; }
+.submit-next ol { list-style: none; padding: 0; margin: 0; }
+.submit-next li { display: flex; gap: 12px; margin-top: 18px; font-size: .88rem; }
+.submit-next li > span { display: grid; place-items: center; width: 26px; height: 26px; border: 1px solid var(--c-border); border-radius: 50%; color: var(--c-primary); background: #fff; flex-shrink: 0; font-size: .8rem; font-weight: 700; }
+.submit-next p { color: var(--c-muted); font-size: .83rem; margin: 4px 0 0; line-height: 1.6; }
+.submit-help { display: flex; align-items: center; gap: 10px; border-top: 1px solid var(--c-border); padding: 20px 4px; text-decoration: none; font-size: .82rem; }
+.submit-help > span { flex: 1; color: var(--c-muted); }
+.submit-help strong { display: block; color: var(--c-primary); font-size: .85rem; margin-top: 3px; }
+@media (max-width: 960px) { .submit-layout { grid-template-columns: minmax(0, 1fr); } .submit-guide { grid-template-columns: repeat(2, minmax(0, 1fr)); } .submit-help { grid-column: 1 / -1; } }
+@media (max-width: 600px) { .submit-page { padding-top: 24px; } .submit-hero h1 { font-size: 1.9rem; } .submit-page .form-section { padding: 22px 20px; } .submit-page .complaint-form > .muted, .submit-page .form-actions { padding: 18px 20px; } .submit-guide { grid-template-columns: minmax(0, 1fr); } .submit-page .form-actions p { max-width: none; } .complaint-section-heading { gap: 10px; } .form-section-icon { width: 38px; height: 38px; } }

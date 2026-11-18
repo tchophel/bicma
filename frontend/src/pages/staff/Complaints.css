@@ -1,0 +1,3 @@
+/* Complaint details popup (modal dialog) */
+.table-wrap tbody tr.clickable { cursor: pointer; }
+.table-wrap tbody tr.row-active { background: var(--c-primary-soft); box-shadow: inset 3px 0 0 var(--c-primary); }

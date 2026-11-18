@@ -1,0 +1,56 @@
+.hero { position: relative; background: #7a1c10; color: #fff; overflow: hidden; padding: 56px 0 120px; }
+.art { position: absolute; inset: 0; background: url(/hero.jpg) 60% 68% / cover no-repeat; }
+.art::after { content: ""; position: absolute; inset: 0; background: linear-gradient(100deg, rgba(110,24,14,.95) 0%, rgba(160,48,20,.84) 30%, rgba(214,120,30,.50) 50%, rgba(46,125,70,.42) 74%, rgba(30,110,60,.22) 100%); }
+.inner { position: relative; max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.title { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.1; margin: 0 0 18px; font-weight: 800; }
+.title span { color: var(--c-yellow); }
+.lead { max-width: 560px; font-size: 1.15rem; line-height: 1.55; margin: 0 0 18px; }
+.rule { width: 60px; height: 4px; border-radius: 2px; background: var(--c-yellow); margin-bottom: 28px; }
+.actions { display: flex; flex-wrap: wrap; gap: 14px; }
+.btnYellow, .btnOutline { display: inline-flex; align-items: center; gap: 10px; padding: 13px 24px; border-radius: 8px; font-weight: 700; font-size: 1.05rem; text-decoration: none; border: 2px solid var(--c-yellow); }
+.btnYellow { background: var(--c-yellow); color: #1b2430; }
+.btnYellow:hover { background: #ffd24f; }
+.btnOutline { border-color: #fff; color: #fff; }
+.btnOutline:hover { background: rgba(255,255,255,.14); }
+
+.wrap { max-width: 1180px; margin: 0 auto; padding: 0 24px; }
+.features { position: relative; margin-top: -72px; background: #fff; border-radius: 14px; box-shadow: 0 8px 30px rgba(10,61,120,.14); display: grid; grid-template-columns: repeat(4, 1fr); padding: 22px 8px; }
+.feature { display: flex; gap: 16px; padding: 4px 22px; border-left: 1px solid var(--c-border); }
+.feature:first-child { border-left: 0; }
+.feature h3 { margin: 0 0 4px; font-size: 1.1rem; color: #14233a; }
+.feature p { margin: 0; color: var(--c-muted); font-size: .95rem; line-height: 1.5; }
+.fIcon { flex-shrink: 0; width: 48px; height: 48px; color: #1750b0; }
+.fIcon.ok { color: #1b8a4a; }
+.fIcon svg { width: 100%; height: 100%; stroke-width: 1.4; }
+
+.lower { display: grid; grid-template-columns: 1.7fr 1fr; gap: 24px; margin: 32px auto 48px; }
+.panel { background: #fff; border-radius: 14px; box-shadow: 0 4px 18px rgba(10,61,120,.09); padding: 28px; position: relative; overflow: hidden; }
+.panel h2 { margin: 0 0 20px; font-size: 1.6rem; color: #101c30; }
+.steps { list-style: none; margin: 0; padding: 0; position: relative; }
+.steps li { display: flex; align-items: center; gap: 18px; padding: 10px 0; font-size: 1.1rem; position: relative; }
+.steps li:not(:last-child)::after { content: ""; position: absolute; left: 18px; top: 46px; bottom: -10px; width: 3px; background: #1750b0; }
+.num { flex-shrink: 0; width: 38px; height: 38px; border-radius: 50%; background: #1750b0; color: #fff; font-weight: 700; display: grid; place-items: center; position: relative; z-index: 1; }
+.hills { position: absolute; right: 0; bottom: 0; width: 55%; height: 120px; opacity: .35; pointer-events: none; }
+.helpHead { display: flex; align-items: center; gap: 12px; background: #e4f0fc; border-radius: 10px; padding: 14px 16px; font-size: 1.3rem; font-weight: 700; margin-bottom: 8px; color: #101c30; }
+.helpHead svg { width: 28px; height: 28px; color: #1750b0; }
+.link { display: flex; align-items: center; gap: 14px; padding: 14px 8px; color: #101c30; text-decoration: none; font-weight: 600; border-bottom: 1px solid var(--c-border); }
+.link:last-child { border-bottom: 0; }
+.link:hover { background: #f1f6fc; }
+.link > svg:first-child { width: 26px; height: 26px; color: #1750b0; }
+.link > span { flex: 1; }
+.link > svg:last-child { width: 18px; height: 18px; color: #3a4658; }
+
+@media (max-width: 960px) {
+  .features { grid-template-columns: 1fr 1fr; row-gap: 18px; }
+  .feature:nth-child(3) { border-left: 0; }
+  .lower { grid-template-columns: 1fr; }
+  .art::after { background: rgba(120,28,14,.84); }
+}
+@media (max-width: 560px) {
+  .hero { padding: 36px 0 110px; }
+  .features { grid-template-columns: 1fr; }
+  .feature { border-left: 0; border-top: 1px solid var(--c-border); padding-top: 16px; }
+  .feature:first-child { border-top: 0; padding-top: 4px; }
+}
+.steps { position: relative; z-index: 1; }
+.hills { height: 80px; width: 45%; opacity: .3; }

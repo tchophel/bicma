@@ -1,0 +1,51 @@
+.hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+.complaint-form { padding: 0; overflow: hidden; }
+.complaint-form > .muted { margin: 0; padding: 16px 28px; background: #fffbf5; border-bottom: 1px solid var(--c-border); font-size: .875rem; }
+.complaint-form > .error { margin: 20px 28px; }
+.complaint-form > .field { margin: 20px 28px; }
+.form-section { padding: 28px; border-bottom: 1px solid var(--c-border); }
+.form-section h2 { margin: 0 0 6px; display: flex; align-items: center; }
+.section-description { margin: 0 0 24px; color: var(--c-muted); font-size: .9rem; }
+.complaint-form .row { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 24px; }
+.complaint-form .field { min-width: 0; margin-bottom: 20px; }
+.complaint-form .field > span { font-size: .9rem; margin-bottom: 7px; }
+.complaint-form input:not([type=checkbox]), .complaint-form select { min-height: 46px; }
+.complaint-form input::placeholder, .complaint-form textarea::placeholder { color: var(--c-muted); opacity: 1; }
+.complaint-form select:disabled { background: #f5f1eb; color: var(--c-muted); cursor: not-allowed; }
+.on-behalf { display: flex; align-items: flex-start; gap: 10px; padding: 16px; margin: 4px 0 20px; border: 1px solid var(--c-border); border-radius: var(--radius); background: var(--c-bg); font-size: .9rem; cursor: pointer; }
+.on-behalf input { flex-shrink: 0; margin: 4px 0 0; }
+.form-actions { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px 28px; background: #fffbf5; }
+.form-actions p { margin: 0; font-size: .85rem; }
+.form-actions .btn { flex-shrink: 0; min-height: 46px; }
+@media (max-width: 600px) {
+  .form-section { padding: 20px; }
+  .complaint-form > .muted { padding: 16px 20px; }
+  .complaint-form .row { grid-template-columns: minmax(0, 1fr); }
+  .form-actions { padding: 20px; flex-direction: column; align-items: stretch; }
+}
+/* captcha */
+.captcha { padding: 20px 28px; border-top: 1px solid var(--c-border); background: #fffbf5; }
+.captcha-title { display: flex; align-items: center; gap: 8px; margin: 0 0 12px; font-size: 1rem; }
+.captcha-row { display: flex; flex-wrap: wrap; gap: 12px 16px; align-items: flex-end; }
+.captcha-img { border: 1px solid var(--c-border); border-radius: var(--radius); background: #f6efe4; display: block; width: 170px; height: 60px; }
+.captcha-loading { display: grid; place-items: center; color: var(--c-muted); }
+.captcha-input { flex: 1 1 200px; max-width: 280px; }
+.captcha-input > span { display: block; font-weight: 600; font-size: .9rem; margin-bottom: 6px; }
+.captcha-input input { text-transform: uppercase; letter-spacing: .15em; min-height: 44px; }
+.captcha-error { margin: 8px 0 0; min-height: 1.2em; color: var(--c-accent); font-size: .88rem; }
+@media (max-width: 600px) { .captcha { padding: 20px; } }
+.captcha-dialog { width: min(520px, calc(100% - 32px)); max-height: calc(100dvh - 32px); padding: 0; border: 1px solid var(--c-border); border-radius: 16px; background: var(--c-surface); color: var(--c-text); box-shadow: 0 24px 80px rgb(0 0 0 / 22%); }
+.captcha-dialog::backdrop { background: rgb(30 24 18 / 55%); }
+.captcha-dialog .captcha { border-top: 0; padding: 28px; }
+.captcha-dialog-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.captcha-dialog-heading .captcha-title { margin: 0; }
+.captcha-dialog .captcha-input { flex-basis: 100%; max-width: none; }
+.captcha-dialog-actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 10px; margin-top: 20px; }
+.captcha-dialog .req { color: var(--c-accent); }
+.complaint-section-heading { display: flex; align-items: flex-start; gap: 14px; margin-bottom: 26px; }
+.form-section-icon { display: grid; place-items: center; flex-shrink: 0; width: 46px; height: 46px; background: var(--c-primary-soft); color: var(--c-primary); border-radius: 13px; }
+.form-section-step { display: block; color: var(--c-muted); font-size: .68rem; letter-spacing: .11em; font-weight: 700; margin-bottom: 4px; }
+.complaint-section-heading h2 { font-size: 1.3rem; margin: 0 0 6px; }
+.complaint-section-heading .section-description { margin: 0; font-size: .88rem; line-height: 1.6; }
+.on-behalf > span > strong { display: block; font-size: .9rem; }
+.on-behalf > span > small { display: block; color: var(--c-muted); margin-top: 3px; font-size: .82rem; }

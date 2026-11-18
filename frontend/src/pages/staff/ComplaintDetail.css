@@ -1,0 +1,7 @@
+/* complaint detail */
+.detail-head { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; border-top: 4px solid var(--c-brand-orange); }
+.detail-head h1 { margin: 0 0 4px; font-size: 1.35rem; }
+.detail-head .meta { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.detail-grid { display: grid; gap: 16px; grid-template-columns: minmax(0, 2fr) minmax(0, 1fr); align-items: start; }
+.detail-grid dl.kv { grid-template-columns: 150px 1fr; }
+@media (max-width: 960px) { .detail-grid { grid-template-columns: minmax(0, 1fr); } }
