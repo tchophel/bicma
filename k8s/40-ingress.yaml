@@ -1,0 +1,13 @@
+# BICMA CMS, namespace bcs. Secrets are not in these files: see README.md.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: cms
+  namespace: bcs
+  annotations: { nginx.ingress.kubernetes.io/proxy-body-size: 40m }
+spec:
+  ingressClassName: nginx
+  tls: [{ hosts: [bicma-cms.systems.gov.bt], secretName: systems-tls }]
+  rules:
+    - host: bicma-cms.systems.gov.bt
+      http: { paths: [{ path: /, pathType: Prefix, backend: { service: { name: cms-frontend, port: { number: 80 } } } }] }

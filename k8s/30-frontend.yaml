@@ -1,0 +1,20 @@
+# BICMA CMS, namespace bcs. Secrets are not in these files: see README.md.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: cms-frontend, namespace: bcs }
+spec:
+  replicas: 1
+  selector: { matchLabels: { app: cms-frontend } }
+  template:
+    metadata: { labels: { app: cms-frontend } }
+    spec:
+      imagePullSecrets: [{ name: harbor-secret }]
+      containers:
+        - name: web
+          image: dev-harbor.systems.gov.bt/bcs/cms-frontend:v1
+          ports: [{ containerPort: 8080 }]
+---
+apiVersion: v1
+kind: Service
+metadata: { name: cms-frontend, namespace: bcs }
+spec: { selector: { app: cms-frontend }, ports: [{ port: 80, targetPort: 8080 }] }
