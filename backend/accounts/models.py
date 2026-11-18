@@ -84,3 +84,15 @@ class User(UUIDModel, AbstractUser):
     @property
     def is_oversight(self):
         return self.role in (Role.SUPERVISOR, Role.SUPER_ADMIN)
+
+
+class RolePermission(UUIDModel):
+    """A saved change to a role's permission; roles with no row use the defaults in accounts/perms.py."""
+
+    role = models.CharField(max_length=20, choices=Role.choices)
+    code = models.CharField(max_length=40)
+    allowed = models.BooleanField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["role", "code"], name="uniq_role_permission")]

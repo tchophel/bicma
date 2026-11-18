@@ -79,10 +79,10 @@ export function Users() {
           {msg && <p className="error" role="alert">{msg.message}</p>}
           <p className="users-form-note"><span className="req">*</span> Required fields</p>
           <fieldset disabled={busy}>
-            <legend>Personal details</legend>
+            <legend><span className="users-section-number">01</span> Personal details</legend>
             <div className="row">
-              <Field label="Employee ID" hint="Becomes the username. Staff can also sign in with their email."><input autoComplete="off" value={form.employee_id} onChange={set("employee_id")} /></Field>
-              <Field label="Designation"><input value={form.designation} onChange={set("designation")} /></Field>
+              <Field label="Employee ID" hint="Becomes the username. Staff can also sign in with their email."><input placeholder="e.g. EMP001" autoComplete="off" value={form.employee_id} onChange={set("employee_id")} /></Field>
+              <Field label="Designation"><input placeholder="e.g. Senior Officer" value={form.designation} onChange={set("designation")} /></Field>
               <Field label="First name"><input placeholder="Enter first name" autoComplete="given-name" value={form.first_name} onChange={set("first_name")} /></Field>
               <Field label="Last name"><input placeholder="Enter last name" autoComplete="family-name" value={form.last_name} onChange={set("last_name")} /></Field>
               <Field label="Email address" required hint="Used to sign in."><input required type="email" placeholder="official@example.org" autoComplete="off" value={form.email} onChange={set("email")} /></Field>
@@ -90,15 +90,15 @@ export function Users() {
             </div>
           </fieldset>
           <fieldset disabled={busy}>
-            <legend>Account access</legend>
+            <legend><span className="users-section-number">02</span> Account access</legend>
             <div className="row">
               <Field label="Role" required><select required value={form.role} onChange={set("role")}>{ROLES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></Field>
               <Field label="Division" required={needsDiv} hint={needsDiv ? "Required for this role." : "Optional for this role."}><select required={needsDiv} value={form.division} onChange={set("division")}><option value="">{needsDiv ? "Select a division" : "No division"}</option>{divs.data?.results.filter((d) => d.is_active).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></Field>
             </div>
             {divs.err && <p className="error" role="alert">Could not load divisions. Refresh the page to try again.</p>}
-            <p className="muted"><Icon name="lock" /> A secure initial password will be generated automatically and emailed to the user.</p>
+            <div className="users-password-notice"><span className="users-password-icon"><Icon name="lock" size={20} /></span><div><strong>Password delivered by email</strong><p>A secure initial password will be generated automatically and sent to the user’s email address.</p></div></div>
           </fieldset>
-          <div className="users-form-footer"><span className="muted">Review the details before creating the account.</span><button type="button" className="btn secondary" disabled={busy} onClick={closeDialog}>Cancel</button><button className="btn" disabled={busy}><Icon name="plus" />{busy ? "Creating…" : "Create user"}</button></div>
+          <div className="users-form-footer"><span className="muted">Review the details before creating the account.</span><div className="users-form-actions"><button type="button" className="btn secondary" disabled={busy} onClick={closeDialog}>Cancel</button><button className="btn" disabled={busy}><Icon name="plus" />{busy ? "Creating…" : "Create user"}</button></div></div>
         </form>
       </section>
       </dialog>

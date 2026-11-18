@@ -34,7 +34,7 @@ export function Complaints() {
   const set = (k: string) => (e: { target: { value: string } }) => update({ [k]: e.target.value, page: "" });
   const filtered = Object.values(f).some(Boolean);
   const STATUSES = ["received", "triage", "assigned", "investigating", "awaiting_information", "referred", "resolved", "not_within_mandate", "closed"];
-  const canRegister = !!user && ["focal", "investigator"].includes(user.role);
+  const canRegister = !!user?.permissions?.includes("register_complaint");
   return (
     <>
       <PageHeader icon="complaint" title="Complaints" subtitle="Search and filter every complaint you are permitted to see.">

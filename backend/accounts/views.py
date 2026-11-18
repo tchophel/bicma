@@ -26,13 +26,18 @@ from core import audit
 from .authentication import CsrfOnlyAuthentication
 from .models import Division, User
 from .permissions import IsSuperAdmin
-from .models import Role
+from .models import Role, RolePermission
+from . import perms as perm_mod
 from .serializers import (
     DivisionAdminSerializer, DivisionSerializer, FocalRegistrationSerializer, ProfileSerializer, UserSerializer, UserWriteSerializer,
 )
 
 MAX_FAILURES = 5
 LOCKOUT_SECONDS = 15 * 60
+
+
+def _with_perms(data, user):
+    return {**data, "permissions": sorted(perm_mod.role_perms(user.role))}
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
@@ -70,7 +75,7 @@ class LoginView(APIView):
         login(request, user)
         request.session.set_expiry(settings.REMEMBER_ME_AGE if request.data.get("remember_me") is True else 0)
         audit.log(request, "auth.login", actor=user)
-        return Response(UserSerializer(user).data)
+        return Response(_with_perms(UserSerializer(user).data, user))
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
@@ -147,7 +152,7 @@ class LogoutView(APIView):
 
 class MeView(APIView):
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        return Response(_with_perms(UserSerializer(request.user).data, request.user))
 
     def patch(self, request):
         ser = ProfileSerializer(request.user, data=request.data, partial=True)
@@ -364,3 +369,38 @@ class StaffCidLookupView(APIView):
         found["existing_user"] = User.objects.filter(cid=cid).values_list("email", flat=True).first()
         audit.log(request, "user.cid_lookup", entity_type="user", detail={"cid_suffix": cid[-4:]})
         return Response(found)
+
+
+class RolePermissionsView(APIView):
+    """Administrator: read and change what each role may do."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def _matrix(self):
+        return {r.value: sorted(perm_mod.role_perms(r.value)) for r in Role}
+
+    def get(self, request):
+        return Response({
+            "roles": [{"value": r.value, "label": r.label} for r in Role],
+            "permissions": [{"code": c, "label": l, "group": g} for c, l, g in perm_mod.CATALOG],
+            "matrix": self._matrix(),
+        })
+
+    def put(self, request):
+        role, code, allowed = request.data.get("role"), request.data.get("code"), request.data.get("allowed")
+        if role not in Role.values or code not in perm_mod.CODES or not isinstance(allowed, bool):
+            return Response({"detail": "Choose a valid role, permission and on/off value."}, status=400)
+        before = code in perm_mod.role_perms(role)
+        RolePermission.objects.update_or_create(role=role, code=code, defaults={"allowed": allowed})
+        audit.log(request, "role_permission.update", entity_type="role", entity_id=role,
+                  detail={"permission": code, "before": before, "after": allowed})
+        return Response({"matrix": self._matrix()})
+
+    def delete(self, request):
+        """Reset one role to the defaults."""
+        role = request.query_params.get("role")
+        if role not in Role.values:
+            return Response({"detail": "Choose a valid role."}, status=400)
+        RolePermission.objects.filter(role=role).delete()
+        audit.log(request, "role_permission.reset", entity_type="role", entity_id=role)
+        return Response({"matrix": self._matrix()})

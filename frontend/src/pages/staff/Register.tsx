@@ -6,7 +6,7 @@ import { PageHeader } from "../../components/ui";
 export function Register() {
   const { user } = useAuth();
   const nav = useNavigate();
-  if (user && !["focal", "investigator"].includes(user.role)) return <p className="error">Only Investigating Officers and Division Heads can register complaints.</p>;
+  if (user && !user.permissions?.includes("register_complaint")) return <p className="error">Your role is not permitted to register complaints.</p>;
   return (
     <div className="register-page">
       <PageHeader icon="plus" title="Register a complaint" subtitle="Record a complaint received by phone, letter, walk-in or email. Save a draft to finish later." />

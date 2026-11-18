@@ -39,8 +39,7 @@ export function PublicLayout() {
   );
 }
 
-interface NavItem { to: string; label: string; icon: IconName; roles?: Role[] }
-const STAFF: Role[] = ["focal", "investigator"];
+interface NavItem { to: string; label: string; icon: IconName; roles?: Role[]; perm?: string }
 const NAV: { heading?: string; items: NavItem[] }[] = [
   { items: [{ to: "/staff/dashboard", label: "Dashboard", icon: "dashboard" }] },
   {
@@ -48,8 +47,8 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
     items: [
       { to: "/staff/complaints?scope=triage", label: "Triage queue", icon: "clock", roles: ["focal", "investigator", "super_admin"] },
       { to: "/staff/complaints", label: "All complaints", icon: "complaint" },
-      { to: "/staff/register", label: "Register complaint", icon: "plus", roles: STAFF },
-      { to: "/staff/reports", label: "Reports", icon: "chart" },
+      { to: "/staff/register", label: "Register complaint", icon: "plus", perm: "register_complaint" },
+      { to: "/staff/reports", label: "Reports", icon: "chart", perm: "view_reports" },
     ],
   },
   {
@@ -72,6 +71,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
     heading: "Administration",
     items: [
       { to: "/staff/users", label: "Users", icon: "users", roles: ["super_admin"] },
+      { to: "/staff/permissions", label: "Roles & permissions", icon: "lock", roles: ["super_admin"] },
       { to: "/staff/audit", label: "Audit logs", icon: "history", roles: ["super_admin"] },
       { to: "/staff/help", label: "Help & FAQ", icon: "help", roles: ["super_admin"] },
       { to: "/staff/settings", label: "Settings", icon: "gear", roles: ["super_admin"] },
@@ -84,7 +84,7 @@ export function StaffLayout() {
   const [open, setOpen] = useState(false);
   if (loading) return <p className="container">Loading…</p>;
   if (!user) return <Navigate to="/staff" replace />;
-  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => !i.roles || i.roles.includes(user.role)) })).filter((g) => g.items.length);
+  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.roles || i.roles.includes(user.role)) && (!i.perm || user.permissions?.includes(i.perm))) })).filter((g) => g.items.length);
   return (
     <div className={css.shell}>
       <a className="skip" href="#main">Skip to content</a>

@@ -10,14 +10,13 @@ from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from accounts.models import Role
+from accounts.perms import has_perm
 from core import audit
 
 from .filters import apply_filters
 from .models import OPEN_STATUSES, Complaint, InternalStatus as S
 from .serializers import can_see_identity
 
-REPORT_ROLES = (Role.SUPER_ADMIN, Role.SUPERVISOR, Role.FOCAL, Role.INVESTIGATOR)
 
 
 def _qs(request):
@@ -177,7 +176,7 @@ class ReportView(APIView):
     permission_classes = [IsAuthenticated]
 
     def get(self, request, key):
-        if request.user.role not in REPORT_ROLES:
+        if not has_perm(request.user, "view_reports"):
             return Response({"detail": "Not permitted."}, status=403)
         if key not in REPORTS:
             return Response({"detail": "Unknown report."}, status=404)
@@ -185,6 +184,8 @@ class ReportView(APIView):
         cols, rows = fn(request, _qs(request))
         fmt = request.query_params.get("export")
         if fmt:
+            if not has_perm(request.user, "export_reports"):
+                return Response({"detail": "Your role is not permitted to export reports."}, status=403)
             if fmt not in EXPORTERS:
                 return Response({"detail": "Export as csv, xlsx or pdf."}, status=400)
             audit.log(request, "report.export", entity_type="report", entity_id=key, detail={"format": fmt, "rows": len(rows)})

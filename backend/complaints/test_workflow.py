@@ -428,3 +428,45 @@ class StaffCidLookupTests(Base):
         r = u.post("/api/admin/users/", {"email": "n2@x.bt", "password": "Str0ng-pass-123", "role": "supervisor", "cid": "10101010101"}, format="json")
         self.assertEqual(r.status_code, 400)
         self.assertIn("cid", r.data)
+
+
+class RolePermissionTests(WorkflowBase):
+    URL = "/api/admin/permissions/"
+
+    def test_only_admin_can_view_or_change(self):
+        for u in (self.focal1, self.inv1, self.sup):
+            self.assertEqual(self.login(u).get(self.URL).status_code, 403)
+            self.assertEqual(self.login(u).put(self.URL, {"role": "investigator", "code": "approve", "allowed": True}, format="json").status_code, 403)
+        self.assertEqual(self.login(self.admin).get(self.URL).status_code, 200)
+
+    def test_defaults_separate_duties(self):
+        m = self.login(self.admin).get(self.URL).data["matrix"]
+        self.assertNotIn("approve", m["super_admin"])
+        self.assertNotIn("export_reports", m["investigator"])
+        self.assertIn("approve", m["focal"])
+        # an administrator cannot close a case by default
+        self.to_investigating()
+        self.act(self.inv1, "resolve", {"investigation_findings": "F", "action_taken": "A", "outcome": str(self.outcome.pk)})
+        self.assertEqual(self.act(self.admin, "approve", {"closure_reason": "x"}).status_code, 403)
+
+    def test_changing_a_permission_takes_effect_and_is_audited(self):
+        from core.models import AuditLog
+        a = self.login(self.admin)
+        r = a.put(self.URL, {"role": "investigator", "code": "export_reports", "allowed": True}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self.login(self.inv1).get("/api/reports/summary/?export=csv").status_code, 200)
+        self.assertTrue(AuditLog.objects.filter(action="role_permission.update").exists())
+        a.put(self.URL, {"role": "focal", "code": "register_complaint", "allowed": False}, format="json")
+        body = OfflineRegistrationTests.body(self)
+        self.assertEqual(self.login(self.focal1).post("/api/complaints/", body, format="json").status_code, 403)
+        # reset returns to the defaults
+        self.assertEqual(a.delete(self.URL + "?role=focal").status_code, 200)
+        self.assertEqual(self.login(self.focal1).post("/api/complaints/", body, format="json").status_code, 201)
+
+    def test_validation_and_me_lists_permissions(self):
+        a = self.login(self.admin)
+        self.assertEqual(a.put(self.URL, {"role": "nope", "code": "approve", "allowed": True}, format="json").status_code, 400)
+        self.assertEqual(a.put(self.URL, {"role": "focal", "code": "nope", "allowed": True}, format="json").status_code, 400)
+        self.assertEqual(a.put(self.URL, {"role": "focal", "code": "approve", "allowed": "yes"}, format="json").status_code, 400)
+        me = self.login(self.focal1).get("/api/auth/me/").data
+        self.assertIn("approve", me["permissions"])

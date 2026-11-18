@@ -1,5 +1,6 @@
 """Who may do what to a case (BRD 5.4 / 5.5). The API enforces this; the UI only reads `permissions`."""
 from accounts.models import Role
+from accounts.perms import role_perms
 
 from .models import InternalStatus as S
 
@@ -17,7 +18,7 @@ def allowed_actions(user, c):
     officer = user.role == Role.INVESTIGATOR and c.assigned_to_id == user.pk
     handler = head or officer
     triage_role = user.role in (Role.FOCAL, Role.INVESTIGATOR, Role.SUPER_ADMIN) and _in_division(user, c)
-    return {
+    structural = {
         "triage": triage_role and st in (S.RECEIVED, S.TRIAGE, S.REFERRED),
         "assign": head and st in (S.RECEIVED, S.TRIAGE, S.REFERRED, S.ASSIGNED, S.INVESTIGATING),
         "refer": head and st in (S.RECEIVED, S.TRIAGE, S.REFERRED, S.ASSIGNED, S.INVESTIGATING),
@@ -35,3 +36,5 @@ def allowed_actions(user, c):
         "stakeholder_review": head and st not in (S.DRAFT, S.CLOSED, S.NOT_WITHIN_MANDATE),
         "register_draft": st == S.DRAFT and c.registered_by_id == user.pk,
     }
+    allowed = role_perms(user.role)
+    return {name: ok and (("register_complaint" if name == "register_draft" else name) in allowed) for name, ok in structural.items()}

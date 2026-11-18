@@ -1,0 +1,5 @@
+.perm-table th.perm-role { text-align: center; min-width: 120px; }
+.perm-table th.perm-role .linklike { display: block; margin: 2px auto 0; font-size: .75rem; font-weight: 500; }
+.perm-table .perm-cell { text-align: center; }
+.perm-table .perm-cell input { width: 18px; height: 18px; min-height: 0; cursor: pointer; }
+.perm-table .perm-group td { background: var(--c-primary-soft); font-weight: 700; font-size: .78rem; text-transform: uppercase; letter-spacing: .05em; }

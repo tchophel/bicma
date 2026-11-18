@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { api } from "../../api";
+import { useAuth } from "../../auth";
 import { Icon } from "../../components/Icon";
 import { EmptyState, PageHeader } from "../../components/ui";
 import type { Meta } from "../../types";
@@ -16,6 +17,7 @@ function range(period: string): { date_from?: string; date_to?: string } {
 }
 
 export function Reports() {
+  const canExport = !!useAuth().user?.permissions?.includes("export_reports");
   const list = useList<{ key: string; name: string }[]>("/reports/");
   const meta = useList<Meta>("/meta/").data;
   const [key, setKey] = useState("summary");
@@ -51,7 +53,7 @@ export function Reports() {
         <section className="card" aria-label={rep.title}>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center", marginBottom: 10 }}>
             <h2 style={{ margin: 0, flex: 1 }}>{rep.title} <span className="chip">{rep.total_rows} rows</span></h2>
-            {["csv", "xlsx", "pdf"].map((x) => <a key={x} className="btn secondary" href={`/api/reports/${key}/?${query()}&export=${x}`}><Icon name="send" />{x.toUpperCase()}</a>)}
+            {canExport && ["csv", "xlsx", "pdf"].map((x) => <a key={x} className="btn secondary" href={`/api/reports/${key}/?${query()}&export=${x}`}><Icon name="send" />{x.toUpperCase()}</a>)}
             <button className="btn secondary" onClick={() => window.print()}><Icon name="complaint" />Print</button>
           </div>
           <div className="table-wrap"><table>

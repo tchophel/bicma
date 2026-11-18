@@ -20,6 +20,7 @@ import { Register } from "./pages/staff/Register";
 import { SettingsPage } from "./pages/staff/Settings";
 import { Users } from "./pages/staff/Users";
 import { Reports } from "./pages/staff/Reports";
+import { Permissions } from "./pages/staff/Permissions";
 import { ClosureReasons, EmailTemplates, Holidays, Outcomes, Priorities, ProviderTypes, Providers } from "./pages/staff/MasterPage";
 
 function AdminOnly({ children }: { children: JSX.Element }) {
@@ -55,6 +56,7 @@ export default function App() {
             <Route path="gewogs" element={<AdminOnly><Gewogs /></AdminOnly>} />
             <Route path="divisions" element={<AdminOnly><Divisions /></AdminOnly>} />
             <Route path="categories" element={<AdminOnly><Categories /></AdminOnly>} />
+            <Route path="permissions" element={<AdminOnly><Permissions /></AdminOnly>} />
             <Route path="reports" element={<Reports />} />
             <Route path="providers" element={<AdminOnly><Providers /></AdminOnly>} />
             <Route path="provider-types" element={<AdminOnly><ProviderTypes /></AdminOnly>} />

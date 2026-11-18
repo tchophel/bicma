@@ -15,6 +15,7 @@ export interface User {
   division_name: string | null;
   is_active: boolean;
   last_login: string | null;
+  permissions?: string[];
 }
 
 export interface Division { id: string; name: string; code: string; is_active: boolean; focal?: { id: string; email: string; name: string } | null }

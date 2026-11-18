@@ -11,7 +11,7 @@ from rest_framework.response import Response
 from rest_framework.views import APIView
 
 from accounts.models import Division, Role, User
-from accounts.permissions import has_role
+from accounts.perms import has_perm
 from core import audit, captcha
 from core.models import Category, Outcome, Priority
 from core.utils import parse_uuid
@@ -27,7 +27,6 @@ from .serializers import (
 from .services import WorkflowError
 from .workflow import allowed_actions
 
-REGISTRAR_ROLES = (Role.FOCAL, Role.INVESTIGATOR)  # BRD 5.3.4: only Investigating Officers and Division Heads
 GENERIC_TRACK_ERROR = "No complaint matches that reference number."
 
 
@@ -203,8 +202,8 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
     # ------------------------------------------------------------ registration
     def create(self, request, *args, **kwargs):
         """Registration of complaints received by phone, letter, walk-in or email (or saving a draft)."""
-        if not has_role(request.user, *REGISTRAR_ROLES):
-            return _bad("Only Investigating Officers and Division Heads can register complaints.", code=403)
+        if not has_perm(request.user, "register_complaint"):
+            return _bad("Your role is not permitted to register complaints.", code=403)
         data = _flat(request.data)
         channel = data.get("channel")
         if channel not in {c for c, _ in Channel.choices} or channel == Channel.PORTAL:
