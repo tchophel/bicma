@@ -476,6 +476,23 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
                 att.save()
         return self._run(request, "register_draft", run)
 
+    @action(detail=True, methods=["post"], url_path="upload")
+    def upload(self, request, pk=None):
+        """Add documents to a case. Public visibility needs the permission to message the complainant."""
+        files = _files(request)
+        visibility = "public" if str(request.data.get("visibility", "")).lower() == "public" else "internal"
+
+        def run(c):
+            if not files:
+                raise WorkflowError("Choose at least one file.", "files")
+            if visibility == "public" and not allowed_actions(request.user, c).get("message"):
+                raise WorkflowError("You cannot share documents with the complainant.", "visibility")
+            for att in files:
+                att.complaint, att.uploaded_by, att.visibility = c, request.user, visibility
+                att.save()
+            audit.log(request, "complaint.upload", entity_type="complaint", entity_id=c.pk, detail={"files": len(files), "visibility": visibility})
+        return self._run(request, "note", run)
+
     @action(detail=True, methods=["get"], url_path=r"attachments/(?P<att_id>[0-9a-f-]{36})")
     def attachment(self, request, pk=None, att_id=None):
         c = self.get_object()

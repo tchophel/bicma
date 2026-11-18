@@ -547,3 +547,23 @@ class ComplainantTypeAndDeclarationTests(Base):
         self.assertEqual(a.patch("/api/admin/settings/", {"declaration_text": new}, format="json").status_code, 200)
         self.assertEqual(self.client.get("/api/meta/").data["declaration_text"], new)
         self.assertEqual(self.login(self.focal1).patch("/api/admin/settings/", {"declaration_text": new}, format="json").status_code, 403)
+
+
+class CaseUploadTests(WorkflowBase):
+    def up(self, user, vis="internal", name="a.pdf", c=None):
+        f = SimpleUploadedFile(name, b"%PDF-1.4 x", content_type="application/pdf")
+        return self.login(user).post(f"/api/complaints/{(c or self.c).pk}/upload/", {"files": [f], "visibility": vis}, format="multipart")
+
+    def test_staff_can_upload_and_rules_apply(self):
+        self.to_investigating()
+        self.assertEqual(self.up(self.inv1).status_code, 200)
+        self.assertEqual(self.c.attachments.get().visibility, "internal")
+        self.assertEqual(self.up(self.inv1, "public").status_code, 200)
+        self.assertEqual(self.c.attachments.count(), 2)
+        self.assertEqual(self.up(self.sup).status_code, 403)
+        self.assertEqual(self.up(self.focal2).status_code, 404)
+        bad = SimpleUploadedFile("x.exe", b"MZ")
+        r = self.login(self.inv1).post(f"/api/complaints/{self.c.pk}/upload/", {"files": [bad]}, format="multipart")
+        self.assertEqual(r.status_code, 400)
+        r = self.login(self.inv1).post(f"/api/complaints/{self.c.pk}/upload/", {}, format="multipart")
+        self.assertEqual(r.status_code, 400)

@@ -1,6 +1,7 @@
 import { CaseActions } from "../../components/CaseActions";
 import { Icon } from "../../components/Icon";
 import { Link, useParams } from "react-router-dom";
+import { Documents } from "../../components/Documents";
 import { PanelTitle, StatusBadge, fmt, fmtDate } from "../../components/ui";
 import { type ComplaintDetail } from "../../types";
 import { useList } from "../../useList";
@@ -53,7 +54,6 @@ export function ComplaintView() {
               {row("Registered by", c.registered_by_name)}
               {row("Declaration", c.declaration_accepted ? "Accepted by complainant" : "")}
             </dl>
-            {c.attachments.length > 0 && <><h3>Documents</h3><ul>{c.attachments.map((a) => <li key={a.id}><a href={`/api/complaints/${c.id}/attachments/${a.id}/`}>{a.original_name}</a> <span className="muted">({Math.ceil(a.size / 1024)} KB)</span></li>)}</ul></>}
           </section>
           <CaseActions key={`${c.version}-${c.messages.length}`} c={c} onDone={reload} />
           <section className="card"><PanelTitle icon="history">Case history</PanelTitle>
@@ -89,6 +89,7 @@ export function ComplaintView() {
               {row("Closed", c.closed_at && fmt(c.closed_at))}
             </dl>
           </section>
+          <Documents c={c} onDone={reload} />
           {c.related.length > 0 && (
             <section className="card"><PanelTitle icon="refresh">Recurring complaints</PanelTitle>
               <p className="muted">Same category, provider and location.</p>
