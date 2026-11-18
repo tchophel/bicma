@@ -1,4 +1,5 @@
 import { useRef, useState, type FormEvent } from "react";
+import { Loader } from "../../components/Loader";
 import { api, ApiError } from "../../api";
 import { useList } from "../../useList";
 import type { Page } from "../../types";
@@ -51,7 +52,7 @@ export function Help() {
     <div className="faq-admin-grid">
       <section aria-label="Saved FAQs">
         <div className="faq-list-heading"><h2>Questions & answers</h2><span className="badge">{data?.count ?? 0} FAQs</span></div>
-        {loading && <p className="muted">Loading FAQs…</p>}
+        {loading && <Loader label="Loading FAQs" />}
         {!loading && data?.results.length === 0 && <div className="card faq-empty"><Icon name="help" size={28} /><h3>No FAQs yet</h3><p>Add a question and answer using the form.</p></div>}
         {data?.results.map((item) => <article className={`card faq-admin-item ${!item.is_active ? "faq-inactive" : ""}`} key={item.id}>
           <div className="faq-item-meta"><span className="chip">Order {item.position}</span><span className={`badge ${item.is_active ? "ok" : "bad"}`}>{item.is_active ? "Active" : "Inactive"}</span></div>

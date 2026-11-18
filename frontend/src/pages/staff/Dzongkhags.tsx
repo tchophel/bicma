@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { Loader } from "../../components/Loader";
 import { useToast } from "../../components/Toast";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
@@ -66,7 +67,7 @@ export function Dzongkhags() {
               <td><span className={`badge ${d.is_active ? "ok" : "bad"}`}><span className="status-dot" />{d.is_active ? "Active" : "Inactive"}</span></td>
               <td className="users-actions-cell"><button className="btn secondary" disabled={changing !== null} onClick={() => toggle(d)} aria-label={`${d.is_active ? "Deactivate" : "Activate"} ${d.name}`}><Icon name="power" />{changing === d.id ? "Updating…" : d.is_active ? "Deactivate" : "Activate"}</button></td>
             </tr>)}
-            {loading && <tr><td colSpan={4} className="users-empty">Loading Dzongkhags…</td></tr>}
+            {loading && <tr><td colSpan={4}><Loader size={40} label="Loading Dzongkhags" /></td></tr>}
             {!loading && visible.length === 0 && <tr><td colSpan={4} className="users-empty"><Icon name="map" size={28} /><p>{query ? "No Dzongkhags match your search." : "No Dzongkhags yet. Add one to get started."}</p></td></tr>}
             </tbody>
           </table></div>

@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { Loader } from "../../components/Loader";
 import { useEffect } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth";
@@ -107,7 +108,7 @@ export function Complaints() {
                 <td>{fmtDate(c.created_at)}</td>
               </tr>
             ))}
-            {loading && <tr><td colSpan={9} className="muted">Loading…</td></tr>}
+            {loading && <tr><td colSpan={9}><Loader size={40} /></td></tr>}
           </tbody>
         </table>
         {!loading && data?.results.length === 0 && <EmptyState icon="search">No complaints match your filters.</EmptyState>}

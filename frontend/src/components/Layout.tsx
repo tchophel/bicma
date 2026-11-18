@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { Loader } from "./Loader";
 import { NavLink, Link, Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import type { Role } from "../types";
@@ -84,7 +85,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
 export function StaffLayout() {
   const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
-  const { pathname } = useLocation();
+  const { pathname, search } = useLocation();
   // Sidebar groups fold away; the one holding the current page is open, and so is "Complaints".
   const [folded, setFolded] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem("nav-folded") ?? "{}"); } catch { return {}; }
@@ -94,7 +95,7 @@ export function StaffLayout() {
     try { localStorage.setItem("nav-folded", JSON.stringify(next)); } catch { /* storage unavailable */ }
     return next;
   });
-  if (loading) return <p className="container">Loading…</p>;
+  if (loading) return <div className="page-loader"><Loader /></div>;
   if (!user) return <Navigate to="/staff" replace />;
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.roles || i.roles.includes(user.base_role)) && (!i.perm || user.permissions?.includes(i.perm))) })).filter((g) => g.items.length);
   return (
@@ -118,7 +119,15 @@ export function StaffLayout() {
                   <span>{g.heading}</span><Icon name="chev" size={14} />
                 </button>
               )}
-              {isOpen && g.items.map((n) => <NavLink key={n.to} to={n.to} end={n.to.startsWith("/staff/complaints")} className={({ isActive }) => (isActive && (n.to.includes("?") === window.location.search.includes("scope=triage")) ? "active" : "")}><Icon name={n.icon} />{n.label}</NavLink>)}
+              {isOpen && g.items.map((n) => {
+                // Triage queue and All complaints share a path, so tell them apart by the query string.
+                if (n.to.startsWith("/staff/complaints")) {
+                  const triage = n.to.includes("scope=triage");
+                  const active = pathname === "/staff/complaints" && search.includes("scope=triage") === triage;
+                  return <Link key={n.to} to={n.to} aria-current={active ? "page" : undefined}><Icon name={n.icon} />{n.label}</Link>;
+                }
+                return <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>;
+              })}
             </div>
             );
           })}

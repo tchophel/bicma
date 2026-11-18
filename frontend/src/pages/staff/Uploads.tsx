@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Loader } from "../../components/Loader";
 import { useToast } from "../../components/Toast";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../../api";
@@ -95,7 +96,7 @@ export function Uploads() {
                 <td><Link className="ref-link" to={`/staff/complaints/${a.complaint}`}>{a.reference}</Link></td><td>{a.uploaded_by}</td>
                 <td><span className={`badge ${a.visibility === "public" ? "" : "warn"}`}>{a.visibility === "public" ? "Shared" : "Internal"}</span></td><td>{fmt(a.created_at)}</td></tr>
             ))}
-            {loading && <tr><td colSpan={6} className="muted">Loading…</td></tr>}
+            {loading && <tr><td colSpan={6}><Loader size={40} /></td></tr>}
           </tbody>
         </table>
         {!loading && data?.results.length === 0 && <EmptyState icon="search">No documents match.</EmptyState>}</div>

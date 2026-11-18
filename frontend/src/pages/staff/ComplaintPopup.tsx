@@ -1,4 +1,5 @@
 import { Icon, type IconName } from "../../components/Icon";
+import { Loader } from "../../components/Loader";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { StatusBadge, fmt } from "../../components/ui";
@@ -29,7 +30,7 @@ export function ComplaintPanel({ id, onClose }: { id: string; onClose: () => voi
         </div>
       </div>
       {err && <p className="error" style={{ margin: 16 }} role="alert">{err}</p>}
-      {!c && !err && <p className="muted" style={{ padding: 16 }}>Loading…</p>}
+      {!c && !err && <Loader />}
       {c && (
         <div className="side-panel-body">
           <header className="complaint-popup-hero">

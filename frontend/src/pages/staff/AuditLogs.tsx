@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { Loader } from "../../components/Loader";
 import { useState } from "react";
 import { PageHeader, fmt } from "../../components/ui";
 import { type AuditEntry, type Page } from "../../types";
@@ -14,7 +15,7 @@ export function AuditLogs() {
     {err && <p className="error">{err}</p>}
     <div className="table-wrap"><table><thead><tr><th>When</th><th>User</th><th>Action</th><th>Entity</th><th>Detail</th><th>IP</th></tr></thead>
       <tbody>{data?.results.map((a) => <tr key={a.id}><td>{fmt(a.created_at)}</td><td>{a.actor_email || "—"}</td><td>{a.action}</td><td>{a.entity_type} {a.entity_id}</td><td><code>{JSON.stringify(a.detail)}</code></td><td>{a.ip_address}</td></tr>)}
-        {loading && <tr><td colSpan={6}>Loading…</td></tr>}
+        {loading && <tr><td colSpan={6}><Loader size={40} /></td></tr>}
         {!loading && data?.results.length === 0 && <tr><td colSpan={6} className="muted">No audit entries match.</td></tr>}</tbody></table></div>
     <div className="pager">
       <span className="muted">{data?.count ? `Showing ${(page - 1) * 10 + 1}–${(page - 1) * 10 + data.results.length} of ${data.count} entries` : "0 entries"}</span>

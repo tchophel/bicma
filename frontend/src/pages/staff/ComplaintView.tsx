@@ -1,4 +1,5 @@
 import { CaseActions } from "../../components/CaseActions";
+import { Loader } from "../../components/Loader";
 import { Icon } from "../../components/Icon";
 import { Link, useParams } from "react-router-dom";
 import { Documents } from "../../components/Documents";
@@ -13,7 +14,7 @@ export function ComplaintView() {
   const { id } = useParams();
   const { data: c, err, reload } = useList<ComplaintDetail>(`/complaints/${id}/`);
   if (err) return <p className="error" role="alert">{err}</p>;
-  if (!c) return <p>Loading…</p>;
+  if (!c) return <Loader />;
   const row = (k: string, v: string | null | undefined) => v ? <><dt>{k}</dt><dd>{v}</dd></> : null;
   const words = (t: string) => t.replace(/_/g, " ");
   const sla = SLA[c.sla_state];

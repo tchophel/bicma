@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { Loader } from "../../components/Loader";
 import { useToast } from "../../components/Toast";
 import { useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
@@ -66,7 +67,7 @@ export function Users() {
               <td><span className={`badge ${u.is_active ? "ok" : "bad"}`}><span className="status-dot" />{u.is_active ? "Active" : "Inactive"}</span></td>
               <td className="users-actions-cell"><button className="btn secondary" onClick={() => toggle(u)} aria-label={`${u.is_active ? "Deactivate" : "Activate"} ${u.email}`}><Icon name="power" />{u.is_active ? "Deactivate" : "Activate"}</button></td>
             </tr>))}
-            {loading && <tr><td colSpan={5} className="users-empty">Loading staff accounts…</td></tr>}
+            {loading && <tr><td colSpan={5}><Loader size={40} label="Loading staff accounts" /></td></tr>}
             {!loading && visible.length === 0 && <tr><td colSpan={5} className="users-empty"><Icon name="users" size={28} /><p>{query ? "No users match your search." : "No staff accounts yet. Create your first user below."}</p></td></tr>}
           </tbody>
         </table></div>

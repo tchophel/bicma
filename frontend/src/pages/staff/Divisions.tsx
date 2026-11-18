@@ -1,4 +1,5 @@
 import { Icon } from "../../components/Icon";
+import { Loader } from "../../components/Loader";
 import { useToast } from "../../components/Toast";
 import { useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
@@ -59,7 +60,7 @@ export function Divisions() {
               <td><span className={`badge ${d.is_active ? "ok" : "bad"}`}><span className="status-dot" />{d.is_active ? "Active" : "Inactive"}</span></td>
               <td className="users-actions-cell"><button className="btn secondary" disabled={changing !== null} onClick={() => toggle(d)} aria-label={`${d.is_active ? "Deactivate" : "Activate"} ${d.name}`}><Icon name="power" />{changing === d.id ? "Updating…" : d.is_active ? "Deactivate" : "Activate"}</button></td>
             </tr>)}
-            {loading && <tr><td colSpan={5} className="users-empty">Loading divisions…</td></tr>}
+            {loading && <tr><td colSpan={5}><Loader size={40} label="Loading divisions" /></td></tr>}
             {!loading && data?.results.length === 0 && <tr><td colSpan={5} className="users-empty"><Icon name="division" size={28} /><p>{query ? "No divisions match your search." : "No divisions yet. Add one to get started."}</p></td></tr>}
             </tbody>
           </table></div>

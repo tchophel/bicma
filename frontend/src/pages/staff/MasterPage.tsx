@@ -1,4 +1,5 @@
 import { useState, type FormEvent } from "react";
+import { Loader } from "../../components/Loader";
 import { useToast } from "../../components/Toast";
 import { api, ApiError } from "../../api";
 import { Icon, type IconName } from "../../components/Icon";
@@ -80,7 +81,7 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
                 </td>
               </tr>
             ))}
-            {loading && <tr><td colSpan={fields.length + 2} className="muted">Loading…</td></tr>}
+            {loading && <tr><td colSpan={fields.length + 2}><Loader size={40} /></td></tr>}
           </tbody>
         </table>
         {!loading && rows.length === 0 && <EmptyState icon="search">No records.</EmptyState>}

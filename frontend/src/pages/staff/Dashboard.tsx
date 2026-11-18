@@ -1,4 +1,5 @@
 import { Icon, type IconName } from "../../components/Icon";
+import { Loader } from "../../components/Loader";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth";
 import { EmptyState, PageHeader, PanelTitle, StatusBadge, fmtDate } from "../../components/ui";
@@ -39,7 +40,7 @@ export function DashboardPage() {
   const meta = useList<Meta>("/meta/");
   const { data, err, loading, reload } = useList<Dashboard>(`/dashboard/?${sp.toString()}`);
   if (err) return <p className="error" role="alert">{err}</p>;
-  if (!data) return <p>{loading ? "Loading…" : ""}</p>;
+  if (!data) return loading ? <Loader /> : null;
   const maxM = Math.max(1, ...data.monthly.map((m) => m.count));
   const set = (k: string) => (e: { target: { value: string } }) => { const n = new URLSearchParams(sp); if (e.target.value) n.set(k, e.target.value); else n.delete(k); setSp(n, { replace: true }); };
   const hrs = (t: { average: number | null; median: number | null }) => t.average === null ? "No data yet" : `avg ${t.average} h · median ${t.median} h`;

@@ -1,4 +1,5 @@
 import { Icon } from "./Icon";
+import { Loader } from "./Loader";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
 import type { Meta } from "../types";
@@ -116,7 +117,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
 
   // Officials register on a complainant's behalf, so the copy talks about "the complainant", not "you".
   const t = (pub: string, staff: string) => (offline ? staff : pub);
-  if (!meta) return <p>{err ? err.message : "Loading form…"}</p>;
+  if (!meta) return err ? <p className="error" role="alert">{err.message}</p> : <Loader label="Loading the form" />;
   return (
     <form onSubmit={(e) => submit(e)} className="card complaint-form" noValidate={false}>
       <p className="muted"><span className="req" style={{ color: "var(--c-accent)" }}>*</span> marks required fields.</p>
@@ -252,7 +253,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
           </div>
           <p id="captcha-description" className="muted">Complete this check to submit your complaint.</p>
           <div className="captcha-row">
-            {cap ? <img className="captcha-img" alt="Verification characters" src={`data:image/svg+xml;utf8,${encodeURIComponent(cap.svg)}`} width={170} height={60} /> : <div className="captcha-img captcha-loading">Loading…</div>}
+            {cap ? <img className="captcha-img" alt="Verification characters" src={`data:image/svg+xml;utf8,${encodeURIComponent(cap.svg)}`} width={170} height={60} /> : <div className="captcha-img captcha-loading"><Loader size={40} block={false} label="Loading the image" /></div>}
             <button type="button" className="btn secondary" onClick={loadCaptcha} disabled={busy} aria-label="Get a new image"><Icon name="refresh" />New image</button>
             <label className="captcha-input">
               <span>Type the characters shown <span className="req" aria-hidden="true">*</span></span>
