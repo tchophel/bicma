@@ -5,7 +5,6 @@ import { useAuth } from "../auth";
 import type { AppNotification } from "../types";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
-import { useToast } from "./Toast";
 import css from "../styles/Layout.module.css";
 
 /** Closes on outside click and Escape. */
@@ -78,13 +77,12 @@ export function UserMenu() {
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const { open, setOpen, ref } = usePopover();
   const nav = useNavigate();
-  const toast = useToast();
   const [confirming, setConfirming] = useState(false);
   const [leaving, setLeaving] = useState(false);
   if (!user) return null;
   async function signOut() {
     setLeaving(true);
-    try { await logout(); setConfirming(false); toast.success("You have been logged out."); nav("/staff"); }
+    try { await logout(); setConfirming(false); nav("/staff"); }
     finally { setLeaving(false); }
   }
   const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email;
