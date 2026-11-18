@@ -372,7 +372,9 @@ class CidLookupTests(Base):
         return self.client.post("/api/public/cid-lookup/", {"cid": cid}, format="json")
 
     def test_unconfigured_returns_503_and_bad_cid_400(self):
-        self.assertEqual(self.post().status_code, 503)
+        from django.test import override_settings
+        with override_settings(BCRS_API_URL=""):
+            self.assertEqual(self.post().status_code, 503)
         self.assertEqual(self.post("123").status_code, 400)
 
     def test_name_is_assembled_and_null_middle_name_skipped(self):
@@ -382,7 +384,7 @@ class CidLookupTests(Base):
         resp = mock.MagicMock()
         resp.read.return_value = body
         resp.__enter__.return_value = resp
-        with override_settings(BCRS_API_URL="https://bcrs.test/citizen/{cid}", BCRS_API_TOKEN="Bearer x"), \
+        with override_settings(BCRS_API_URL="https://bcrs.test/citizen/{cid}", BCRS_API_TOKEN="Bearer x", BCRS_TOKEN_URL="", BCRS_CLIENT_ID=""), \
                 mock.patch("core.bcrs.urllib.request.urlopen", return_value=resp) as op:
             r = self.post()
         self.assertEqual(r.status_code, 200, r.content)
@@ -398,7 +400,7 @@ class CidLookupTests(Base):
         resp = mock.MagicMock()
         resp.read.return_value = b'{"firstName": "A", "middleName": "B", "lastName": "C"}'
         resp.__enter__.return_value = resp
-        with override_settings(BCRS_API_URL="https://bcrs.test/x"), mock.patch("core.bcrs.urllib.request.urlopen", return_value=resp):
+        with override_settings(BCRS_API_URL="https://bcrs.test/x", BCRS_TOKEN_URL="", BCRS_CLIENT_ID="", BCRS_API_TOKEN=""), mock.patch("core.bcrs.urllib.request.urlopen", return_value=resp):
             self.assertEqual(bcrs.lookup("10101010101")["full_name"], "A B C")
             resp.read.return_value = b'{}'
             self.assertEqual(self.post().status_code, 404)
