@@ -36,6 +36,9 @@ services:
       BCRS_API_METHOD: ${BCRS_API_METHOD:-GET}
       BCRS_AUTH_HEADER: ${BCRS_AUTH_HEADER:-Authorization}
       BCRS_API_TOKEN: ${BCRS_API_TOKEN:-}
+      BCRS_TOKEN_URL: ${BCRS_TOKEN_URL:-}
+      BCRS_CLIENT_ID: ${BCRS_CLIENT_ID:-}
+      BCRS_CLIENT_SECRET: ${BCRS_CLIENT_SECRET:-}
       EMAIL_BACKEND: ${EMAIL_BACKEND:-django.core.mail.backends.console.EmailBackend}
       EMAIL_HOST: ${EMAIL_HOST:-localhost}
       EMAIL_PORT: ${EMAIL_PORT:-587}

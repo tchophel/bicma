@@ -123,6 +123,9 @@ BCRS_API_URL = os.environ.get("BCRS_API_URL", "")
 BCRS_API_METHOD = os.environ.get("BCRS_API_METHOD", "GET")
 BCRS_AUTH_HEADER = os.environ.get("BCRS_AUTH_HEADER", "Authorization")
 BCRS_API_TOKEN = os.environ.get("BCRS_API_TOKEN", "")
+BCRS_TOKEN_URL = os.environ.get("BCRS_TOKEN_URL", "")
+BCRS_CLIENT_ID = os.environ.get("BCRS_CLIENT_ID", "")
+BCRS_CLIENT_SECRET = os.environ.get("BCRS_CLIENT_SECRET", "")
 
 # Account recovery and persistent sign-in.
 REMEMBER_ME_AGE = 30 * 24 * 3600

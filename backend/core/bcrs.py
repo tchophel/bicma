@@ -4,8 +4,14 @@ BCRS_API_URL     full URL; use {cid} as the placeholder, e.g. https://host/citiz
                  (without {cid}, the CID is sent as ?cid=...)
 BCRS_API_METHOD  GET (default) or POST (CID sent as JSON {"cid": ...})
 BCRS_AUTH_HEADER header name for the credential (default Authorization)
-BCRS_API_TOKEN   credential value, sent as-is in that header (include "Bearer " yourself if needed)
+BCRS_API_TOKEN   static credential, sent as-is in that header (include "Bearer " yourself if needed)
+
+Or, for OAuth2 client credentials (WSO2), set instead:
+BCRS_TOKEN_URL, BCRS_CLIENT_ID, BCRS_CLIENT_SECRET
+The access token is fetched on demand, cached until shortly before it expires, and sent as "Bearer <token>".
 """
+import base64
+import time
 import json
 import logging
 import urllib.error
@@ -39,7 +45,25 @@ def _find(obj, key):
     return None
 
 
-def lookup(cid):
+_token = {"value": "", "expires": 0.0}
+
+
+def _access_token(force=False):
+    """OAuth2 client-credentials token, cached in memory per process."""
+    if not force and _token["value"] and time.time() < _token["expires"]:
+        return _token["value"]
+    basic = base64.b64encode(f"{settings.BCRS_CLIENT_ID}:{settings.BCRS_CLIENT_SECRET}".encode()).decode()
+    req = urllib.request.Request(
+        settings.BCRS_TOKEN_URL, data=b"grant_type=client_credentials", method="POST",
+        headers={"Authorization": f"Basic {basic}", "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"})
+    with urllib.request.urlopen(req, timeout=8) as resp:
+        data = json.loads(resp.read().decode())
+    _token["value"] = data["access_token"]
+    _token["expires"] = time.time() + max(30, int(data.get("expires_in", 300)) - 60)
+    return _token["value"]
+
+
+def lookup(cid, _retry=True):
     """Return {"first_name", "middle_name", "last_name", "full_name"} or None if the CID is not found."""
     url = getattr(settings, "BCRS_API_URL", "")
     if not url:
@@ -47,7 +71,10 @@ def lookup(cid):
     method = (getattr(settings, "BCRS_API_METHOD", "GET") or "GET").upper()
     headers = {"Accept": "application/json"}
     token = getattr(settings, "BCRS_API_TOKEN", "")
-    if token:
+    oauth = bool(getattr(settings, "BCRS_TOKEN_URL", "") and getattr(settings, "BCRS_CLIENT_ID", ""))
+    if oauth:
+        headers["Authorization"] = f"Bearer {_access_token()}"
+    elif token:
         headers[getattr(settings, "BCRS_AUTH_HEADER", "Authorization") or "Authorization"] = token
     data = None
     if "{cid}" in url:
@@ -62,6 +89,9 @@ def lookup(cid):
         with urllib.request.urlopen(req, timeout=8) as resp:
             body = json.loads(resp.read().decode() or "null")
     except urllib.error.HTTPError as exc:
+        if exc.code == 401 and oauth and _retry:  # token revoked or expired early: fetch a new one once
+            _access_token(force=True)
+            return lookup(cid, _retry=False)
         if exc.code in (400, 404):
             return None
         log.error("BCRS lookup failed with HTTP %s", exc.code)
