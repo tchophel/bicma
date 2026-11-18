@@ -11,6 +11,7 @@ from rest_framework import status
 from rest_framework.decorators import action
 
 from .models import (
+    ApiLog, EmailLog, SmsLog,
     FAQ, AuditLog, Category, ClosureReason, Dzongkhag, EmailTemplate, Gewog, Holiday, Notification, Outcome, Priority,
     Provider, ProviderType, Subcategory, SystemConfiguration,
 )
@@ -252,3 +253,48 @@ OutcomeAdminViewSet = _master(Outcome, ["name"], "outcome")
 ClosureReasonAdminViewSet = _master(ClosureReason, ["name"], "closure_reason")
 HolidayAdminViewSet = _master(Holiday, ["date", "name"], "holiday", ("name",))
 EmailTemplateAdminViewSet = _master(EmailTemplate, ["event", "name", "recipient", "subject", "body"], "email_template")
+
+
+class LogListView(APIView):
+    """Administrator: read the API, email (SMTP) and SMS logs, newest first, with filters and paging."""
+
+    permission_classes = [IsSuperAdmin]
+    MODELS = {"api": ApiLog, "email": EmailLog, "sms": SmsLog}
+
+    def get(self, request, kind):
+        from django.db.models import Q
+        from .utils import parse_date
+        model = self.MODELS.get(kind)
+        if model is None:
+            return Response({"detail": "Unknown log."}, status=status.HTTP_404_NOT_FOUND)
+        qs = model.objects.all()
+        p = request.query_params
+        if kind == "api":
+            if p.get("direction") in ("in", "out"):
+                qs = qs.filter(direction=p["direction"])
+            if p.get("result") == "errors":
+                qs = qs.filter(Q(status__gte=400) | Q(status=0))
+            elif p.get("result") == "ok":
+                qs = qs.filter(status__gte=200, status__lt=400)
+            if p.get("q"):
+                qs = qs.filter(Q(path__icontains=p["q"]) | Q(user_email__icontains=p["q"]))
+        else:
+            if p.get("result") in ("sent", "failed"):
+                qs = qs.filter(status=p["result"])
+            if p.get("q"):
+                f = Q(recipient__icontains=p["q"]) | Q(reference__icontains=p["q"])
+                qs = qs.filter(f | Q(subject__icontains=p["q"])) if kind == "email" else qs.filter(f)
+        start, end = parse_date(p.get("date_from")), parse_date(p.get("date_to"))
+        if start:
+            qs = qs.filter(created_at__date__gte=start)
+        if end:
+            qs = qs.filter(created_at__date__lte=end)
+        try:
+            page, size = max(1, int(p.get("page", 1))), min(100, max(1, int(p.get("page_size", 25))))
+        except ValueError:
+            page, size = 1, 25
+        total = qs.count()
+        rows = list(qs[(page - 1) * size: page * size].values())
+        for r in rows:
+            r["id"] = str(r["id"])
+        return Response({"count": total, "page": page, "pages": max(1, -(-total // size)), "results": rows})

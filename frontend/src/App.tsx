@@ -8,7 +8,6 @@ import { Help } from "./pages/staff/Help";
 import { Home } from "./pages/public/Home";
 import { Submit, Submitted } from "./pages/public/Submit";
 import { Track } from "./pages/public/Track";
-import { AuditLogs } from "./pages/staff/AuditLogs";
 import { Categories } from "./pages/staff/Categories";
 import { ComplaintView } from "./pages/staff/ComplaintView";
 import { Complaints } from "./pages/staff/Complaints";
@@ -24,6 +23,7 @@ import { Users } from "./pages/staff/Users";
 import { Reports } from "./pages/staff/Reports";
 import { Permissions } from "./pages/staff/Permissions";
 import { Uploads } from "./pages/staff/Uploads";
+import { Logs } from "./pages/staff/Logs";
 import { Roles } from "./pages/staff/MasterPage";
 import { ClosureReasons, EmailTemplates, Holidays, Outcomes, Priorities, ProviderTypes, Providers } from "./pages/staff/MasterPage";
 
@@ -73,7 +73,8 @@ export default function App() {
             <Route path="closure-reasons" element={<AdminOnly><ClosureReasons /></AdminOnly>} />
             <Route path="holidays" element={<AdminOnly><Holidays /></AdminOnly>} />
             <Route path="email-templates" element={<AdminOnly><EmailTemplates /></AdminOnly>} />
-            <Route path="audit" element={<AdminOnly><AuditLogs /></AdminOnly>} />
+            <Route path="logs" element={<AdminOnly><Logs /></AdminOnly>} />
+            <Route path="audit" element={<Navigate to="/staff/logs?tab=audit" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>

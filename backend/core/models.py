@@ -247,3 +247,52 @@ class NotificationLog(UUIDModel):
 
     class Meta:
         ordering = ["-created_at", "-id"]
+
+
+class ApiLog(UUIDModel):
+    """Every API request the system serves (direction "in") and every call it makes to another system ("out").
+    No request or response bodies, no query values and no tokens are stored."""
+
+    direction = models.CharField(max_length=3, default="in")
+    method = models.CharField(max_length=8)
+    path = models.CharField(max_length=300)
+    status = models.PositiveSmallIntegerField(default=0)  # 0 = no response (network error)
+    duration_ms = models.PositiveIntegerField(default=0)
+    user_email = models.CharField(max_length=254, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    error = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["direction", "created_at"]), models.Index(fields=["status"])]
+
+
+class EmailLog(UUIDModel):
+    """Every email the system tried to send through SMTP. The message body is not kept (reset links are secrets)."""
+
+    kind = models.CharField(max_length=40)
+    recipient = models.CharField(max_length=254)
+    subject = models.CharField(max_length=300)
+    status = models.CharField(max_length=10)  # sent | failed
+    error = models.CharField(max_length=300, blank=True)
+    reference = models.CharField(max_length=40, blank=True, help_text="Complaint reference, when the email is about a case")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+
+class SmsLog(UUIDModel):
+    """Every SMS the system tried to send. SMS is a later phase, so this stays empty until a gateway is connected."""
+
+    kind = models.CharField(max_length=40)
+    recipient = models.CharField(max_length=30)
+    message = models.CharField(max_length=500, blank=True)
+    status = models.CharField(max_length=10)  # sent | failed
+    error = models.CharField(max_length=300, blank=True)
+    reference = models.CharField(max_length=40, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]

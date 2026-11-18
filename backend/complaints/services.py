@@ -101,6 +101,7 @@ def render_template(event, complaint, message=""):
 
 
 def deliver(entry):
+    from core import logs
     entry.attempts += 1
     try:
         send_mail(entry.subject, entry.body, settings.DEFAULT_FROM_EMAIL, [entry.recipient])
@@ -109,6 +110,7 @@ def deliver(entry):
         log.exception("Email delivery failed")
         entry.status, entry.error = "failed", str(exc)[:300]
     entry.save()
+    logs.email(entry.event, entry.recipient, entry.subject, entry.status == "sent", entry.error, entry.complaint.reference)
     return entry.status == "sent"
 
 

@@ -21,7 +21,7 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core import audit
+from core import audit, logs
 
 from .authentication import CsrfOnlyAuthentication
 from .models import Division, User
@@ -104,13 +104,16 @@ class PasswordResetRequestView(APIView):
             token = default_token_generator.make_token(user)
             url = f"{settings.FRONTEND_URL.rstrip('/')}/staff/reset-password/{uid}/{token}"
             try:
+                email_logged = False
                 send_mail(
                     "Reset your BICMA password",
                     f"A password reset was requested for your BICMA account.\n\nOpen this link to choose a new password:\n{url}\n\nThis link expires in one hour and can be used once. If you did not request this, you can ignore this email.",
                     settings.DEFAULT_FROM_EMAIL, [user.email],
                 )
-            except Exception:
+                logs.email("password_reset", user.email, "Reset your BICMA password", True)
+            except Exception as exc:
                 logging.getLogger(__name__).exception("Password reset email delivery failed")
+                logs.email("password_reset", user.email, "Reset your BICMA password", False, str(exc))
         return Response({"detail": "If an active account exists for this email, a password reset link will be sent. Check your inbox and spam folder."})
 
 
@@ -238,7 +241,9 @@ class UserViewSet(AuditedModelViewSet):
                 )
                 if sent != 1:
                     raise OSError("Email was not accepted for delivery")
-            except Exception:
+                logs.email("account_created", user.email, "Your BICMA Complaint Management System account", True)
+            except Exception as exc:
+                logs.email("account_created", user.email, "Your BICMA Complaint Management System account", False, str(exc))
                 raise serializers.ValidationError({"email": ["Could not send the initial password. The account was not created. Please try again."]}) from None
             audit.log(self.request, "user.create", entity_type="user", entity_id=user.pk,
                       detail={"reason": str(self.request.data.get("reason", ""))[:300]})
@@ -322,9 +327,11 @@ class RegisterFocalsView(APIView):
                 "The link expires in one hour and can be used once. If it has expired, use \"Forgot password\" on the sign-in page.",
                 settings.DEFAULT_FROM_EMAIL, [user.email],
             )
+            logs.email("division_head_invite", user.email, "Your BICMA Complaint Management System account", True)
             return True
-        except Exception:
+        except Exception as exc:
             logging.getLogger(__name__).exception("Focal invitation email delivery failed")
+            logs.email("division_head_invite", user.email, "Your BICMA Complaint Management System account", False, str(exc))
             return False
 
 

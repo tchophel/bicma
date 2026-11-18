@@ -681,3 +681,69 @@ class MonthlyReportTests(WorkflowBase):
         self.assertIn("Signal restored", row[8])
         x = self.login(self.admin).get("/api/reports/monthly/?export=xlsx")
         self.assertEqual(x.status_code, 200)
+
+
+class LogTests(WorkflowBase):
+    def logs(self, kind, **q):
+        qs = "&".join(f"{k}={v}" for k, v in q.items())
+        return self.login(self.admin).get(f"/api/admin/logs/{kind}/?{qs}")
+
+    def test_api_requests_are_logged_without_bodies_or_query_values(self):
+        from core.models import ApiLog
+        ApiLog.objects.all().delete()
+        self.login(self.focal1).get(f"/api/complaints/?q=secret-name&page=1")
+        self.client.post("/api/public/track/", {"reference": "BICMA-CMS-2026-999999"}, format="json")
+        rows = self.logs("api").data["results"]
+        paths = [r["path"] for r in rows]
+        self.assertIn("/api/complaints/", paths)
+        self.assertNotIn("secret-name", str(rows))
+        track = next(r for r in rows if r["path"] == "/api/public/track/")
+        self.assertEqual((track["method"], track["status"], track["direction"]), ("POST", 404, "in"))
+        self.assertEqual(next(r for r in rows if r["path"] == "/api/complaints/")["user_email"], self.focal1.email)
+        self.assertEqual(self.logs("api", result="errors").data["count"], 1)
+        # the log viewer and notification polling are not logged
+        self.login(self.focal1).get("/api/notifications/")
+        self.assertFalse(ApiLog.objects.filter(path__startswith="/api/notifications/").exists())
+        self.assertFalse(ApiLog.objects.filter(path__startswith="/api/admin/logs/").exists())
+
+    def test_outbound_bcrs_call_is_logged_with_masked_cid(self):
+        from unittest import mock
+        from django.test import override_settings
+        resp = mock.MagicMock(); resp.read.return_value = b'{"firstName": "A", "lastName": "B"}'; resp.__enter__.return_value = resp
+        with override_settings(BCRS_API_URL="https://bcrs.test/citizen/{cid}", BCRS_TOKEN_URL="", BCRS_CLIENT_ID="", BCRS_API_TOKEN=""), \
+                mock.patch("core.bcrs.urllib.request.urlopen", return_value=resp):
+            self.client.post("/api/public/cid-lookup/", {"cid": "10101010101"}, format="json")
+        out = self.logs("api", direction="out").data["results"]
+        self.assertEqual(len(out), 1)
+        self.assertEqual(out[0]["path"], "bcrs.test/citizen/*******0101")
+        self.assertNotIn("10101010101", str(out))
+
+    def test_emails_are_logged_without_body_and_failures_recorded(self):
+        from unittest import mock
+        from core.models import EmailLog
+        EmailLog.objects.all().delete()
+        self.act(self.focal1, "not-in-mandate", {"reason": "x"})
+        row = self.logs("email").data["results"][0]
+        self.assertEqual((row["status"], row["recipient"], row["reference"]), ("sent", "track@x.bt", self.c.reference))
+        self.assertNotIn("body", row)
+        self.client.post("/api/auth/password-reset/", {"email": self.admin.email}, format="json")
+        self.assertTrue(EmailLog.objects.filter(kind="password_reset", status="sent").exists())
+        self.assertNotIn("reset-password", str(self.logs("email").data))  # the link is never stored
+        with mock.patch("accounts.views.send_mail", side_effect=OSError("smtp down")):
+            self.client.post("/api/auth/password-reset/", {"email": self.admin.email}, format="json")
+        self.assertEqual(self.logs("email", result="failed").data["count"], 1)
+
+    def test_sms_log_exists_and_only_admin_reads_logs(self):
+        self.assertEqual(self.logs("sms").data["count"], 0)
+        self.assertEqual(self.logs("nope").status_code, 404)
+        for u in (self.focal1, self.inv1, self.sup):
+            self.assertEqual(self.login(u).get("/api/admin/logs/api/").status_code, 403)
+
+    def test_purge_command_removes_only_old_rows(self):
+        import datetime as dt
+        from django.core.management import call_command
+        from core.models import ApiLog
+        old = ApiLog.objects.create(method="GET", path="/old", status=200)
+        ApiLog.objects.filter(pk=old.pk).update(created_at=timezone.now() - dt.timedelta(days=100))
+        call_command("purge_logs", "--days", "90")
+        self.assertFalse(ApiLog.objects.filter(path="/old").exists())

@@ -5,12 +5,12 @@ import { PageHeader, fmt } from "../../components/ui";
 import { type AuditEntry, type Page } from "../../types";
 import { useList } from "../../useList";
 
-export function AuditLogs() {
+export function AuditLogs({ embedded = false }: { embedded?: boolean }) {
   const [action, setAction] = useState("");
   const [page, setPage] = useState(1);
   const { data, err, loading } = useList<Page<AuditEntry>>(`/admin/audit-logs/?page=${page}&page_size=10&${action ? `action=${encodeURIComponent(action)}` : ""}`);
   return (<>
-    <PageHeader icon="history" title="Audit logs" subtitle="Append-only record of security and business events." />
+    {!embedded && <PageHeader icon="history" title="Audit logs" subtitle="Append-only record of security and business events." />}
     <div className="card filter-bar" style={{ gridTemplateColumns: "1fr" }}><label><span>Action prefix</span><div className="search-wrap"><Icon name="search" /><input value={action} onChange={(e) => { setAction(e.target.value); setPage(1); }} placeholder="e.g. auth. or complaint." /></div></label></div>
     {err && <p className="error">{err}</p>}
     <div className="table-wrap"><table><thead><tr><th>When</th><th>User</th><th>Action</th><th>Entity</th><th>Detail</th><th>IP</th></tr></thead>

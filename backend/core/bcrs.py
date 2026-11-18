@@ -48,6 +48,26 @@ def _find(obj, key):
 _token = {"value": "", "expires": 0.0}
 
 
+def _timed_open(req, label):
+    """urlopen that records an outbound API log entry (no bodies, tokens or query values)."""
+    from . import logs
+    start = time.monotonic()
+    status, error = 0, ""
+    try:
+        resp = urllib.request.urlopen(req, timeout=8)
+        status = resp.status if isinstance(resp.status, int) else 200
+        return resp
+    except urllib.error.HTTPError as exc:
+        status, error = exc.code, f"HTTP {exc.code}"
+        raise
+    except Exception as exc:
+        error = type(exc).__name__
+        raise
+    finally:
+        parsed = urllib.parse.urlsplit(req.full_url)
+        logs.api_call("out", req.get_method(), f"{parsed.netloc}{parsed.path}", status, (time.monotonic() - start) * 1000, error=f"{label} {error}".strip())
+
+
 def _access_token(force=False):
     """OAuth2 client-credentials token, cached in memory per process."""
     if not force and _token["value"] and time.time() < _token["expires"]:
@@ -56,7 +76,7 @@ def _access_token(force=False):
     req = urllib.request.Request(
         settings.BCRS_TOKEN_URL, data=b"grant_type=client_credentials", method="POST",
         headers={"Authorization": f"Basic {basic}", "Content-Type": "application/x-www-form-urlencoded", "Accept": "application/json"})
-    with urllib.request.urlopen(req, timeout=8) as resp:
+    with _timed_open(req, "BCRS token") as resp:
         data = json.loads(resp.read().decode())
     _token["value"] = data["access_token"]
     _token["expires"] = time.time() + max(30, int(data.get("expires_in", 300)) - 60)
@@ -86,7 +106,7 @@ def lookup(cid, _retry=True):
         headers["Content-Type"] = "application/json"
     req = urllib.request.Request(url, data=data, headers=headers, method=method)
     try:
-        with urllib.request.urlopen(req, timeout=8) as resp:
+        with _timed_open(req, "BCRS citizen lookup") as resp:
             body = json.loads(resp.read().decode() or "null")
     except urllib.error.HTTPError as exc:
         if exc.code == 401 and oauth and _retry:  # token revoked or expired early: fetch a new one once
