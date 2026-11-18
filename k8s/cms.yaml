@@ -42,9 +42,9 @@ kind: ConfigMap
 metadata: { name: cms-config, namespace: bcs }
 data:
   DJANGO_DEBUG: "0"
-  DJANGO_ALLOWED_HOSTS: "test-bcs.systems.gov.bt,cms-backend"
-  CORS_ALLOWED_ORIGINS: "https://test-bcs.systems.gov.bt"
-  FRONTEND_URL: "https://test-bcs.systems.gov.bt"
+  DJANGO_ALLOWED_HOSTS: "bicma-cms.systems.gov.bt,cms-backend"
+  CORS_ALLOWED_ORIGINS: "https://bicma-cms.systems.gov.bt"
+  FRONTEND_URL: "https://bicma-cms.systems.gov.bt"
   POSTGRES_HOST: cms-db
   POSTGRES_DB: cms
   POSTGRES_USER: cms
@@ -73,6 +73,7 @@ spec:
         - name: backend
           image: dev-harbor.systems.gov.bt/bcs/cms-backend:v1
           envFrom: [{ configMapRef: { name: cms-config } }, { secretRef: { name: cms-secrets } }]
+          env: [{ name: HOME, value: /tmp }]
           ports: [{ containerPort: 8000 }]
           volumeMounts: [{ name: media, mountPath: /app/media }]
           readinessProbe: { tcpSocket: { port: 8000 }, periodSeconds: 5 }
@@ -110,7 +111,8 @@ metadata:
   namespace: bcs
   annotations: { nginx.ingress.kubernetes.io/proxy-body-size: 40m }
 spec:
-  tls: [{ hosts: [test-bcs.systems.gov.bt], secretName: systems-tls }]
+  ingressClassName: nginx
+  tls: [{ hosts: [bicma-cms.systems.gov.bt], secretName: systems-tls }]
   rules:
-    - host: test-bcs.systems.gov.bt
+    - host: bicma-cms.systems.gov.bt
       http: { paths: [{ path: /, pathType: Prefix, backend: { service: { name: cms-frontend, port: { number: 80 } } } }] }
