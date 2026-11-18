@@ -31,6 +31,23 @@ def _name(u):
     return (u.get_full_name() or u.email) if u else ""
 
 
+def monthly(request, qs):
+    """Monthly Complaint Report in the layout BICMA uses: one row per complaint, oldest first."""
+    rows = []
+    for i, c in enumerate(qs.order_by("created_at").select_related("provider", "outcome"), start=1):
+        see = can_see_identity(request.user, c)
+        done = c.resolved_at or c.closed_at
+        place = ", ".join(x for x in (c.locality, c.gewog.name if c.gewog else "", c.dzongkhag.name if c.dzongkhag else "") if x)
+        contact = ", ".join(x for x in (c.phone, c.email) if x) if see else ""
+        issue = f"{c.subject}: {c.description}" if c.description else c.subject
+        remarks = "; ".join(x for x in (c.outcome.name if c.outcome else "", c.closure_reason, c.recommendation) if x)
+        rows.append([i, (c.provider.name if c.provider else c.platform) or "", c.created_at.date().isoformat(),
+                     done.date().isoformat() if done else "", place, c.complainant_name if see else "Confidential",
+                     contact, issue, remarks])
+    return ["Sl. No.", "Cable TV Operator", "Date of Complaint", "Complaint Resolved date", "Area/Location",
+            "Name of Complainant", "Contact Number/Particulars", "Issue/ Description", "Remarks"], rows
+
+
 def summary(request, qs):
     rows = []
     for r in qs.values("division__name", "category__name").annotate(
@@ -106,6 +123,7 @@ def detail(request, qs):
 
 
 REPORTS = {
+    "monthly": ("Monthly Complaint Report", monthly),
     "summary": ("Complaint Summary Report", summary),
     "provider": ("Service Provider Report", provider),
     "location": ("Location Report", location),
@@ -116,7 +134,19 @@ REPORTS = {
 }
 
 
-def _csv(title, cols, rows):
+def _subtitle(request):
+    m = request.query_params.get("month", "")
+    if len(m) == 7 and m[4] == "-":
+        import calendar
+        try:
+            return f"{calendar.month_name[int(m[5:])]} {m[:4]}"
+        except (ValueError, IndexError):
+            return ""
+    f, t = request.query_params.get("date_from", ""), request.query_params.get("date_to", "")
+    return f"{f or 'start'} to {t or 'today'}" if (f or t) else ""
+
+
+def _csv(title, cols, rows, subtitle=""):
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(cols)
@@ -128,11 +158,14 @@ def _csv(title, cols, rows):
     return resp
 
 
-def _xlsx(title, cols, rows):
+def _xlsx(title, cols, rows, subtitle=""):
     from openpyxl import Workbook
     wb = Workbook()
     ws = wb.active
     ws.title = title[:31]
+    ws.append([title.replace("_", " ")] + [""] * (len(cols) - 1))
+    if subtitle:
+        ws.append([subtitle] + [""] * (len(cols) - 1))
     ws.append(cols)
     for r in rows:
         ws.append([("'" + v) if isinstance(v, str) and v[:1] in "=+-@" else v for v in r])
@@ -143,7 +176,7 @@ def _xlsx(title, cols, rows):
     return resp
 
 
-def _pdf(title, cols, rows):
+def _pdf(title, cols, rows, subtitle=""):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import getSampleStyleSheet
@@ -156,7 +189,7 @@ def _pdf(title, cols, rows):
     data = [[Paragraph(str(c), cell) for c in cols]] + [[Paragraph(str(v)[:300].replace("<", "&lt;"), cell) for v in r] for r in rows]
     t = Table(data, repeatRows=1)
     t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey), ("GRID", (0, 0), (-1, -1), 0.25, colors.grey), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
-    doc.build([Paragraph(title, st["Title"]), Paragraph(f"Generated {timezone.now():%Y-%m-%d %H:%M}", st["Normal"]), t])
+    doc.build([Paragraph(title.replace("_", " "), st["Title"]), Paragraph((subtitle + " · " if subtitle else "") + f"Generated {timezone.now():%Y-%m-%d %H:%M}", st["Normal"]), t])
     resp = HttpResponse(buf.getvalue(), content_type="application/pdf")
     resp["Content-Disposition"] = f'attachment; filename="{title}.pdf"'
     return resp
@@ -189,5 +222,5 @@ class ReportView(APIView):
             if fmt not in EXPORTERS:
                 return Response({"detail": "Export as csv, xlsx or pdf."}, status=400)
             audit.log(request, "report.export", entity_type="report", entity_id=key, detail={"format": fmt, "rows": len(rows)})
-            return EXPORTERS[fmt](title.replace(" ", "_"), cols, rows)
-        return Response({"title": title, "columns": cols, "rows": rows[:1000], "total_rows": len(rows)})
+            return EXPORTERS[fmt](title.replace(" ", "_"), cols, rows, _subtitle(request))
+        return Response({"title": title, "subtitle": _subtitle(request), "columns": cols, "rows": rows[:1000], "total_rows": len(rows)})

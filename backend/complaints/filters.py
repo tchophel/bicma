@@ -42,7 +42,7 @@ def apply_filters(qs, params, user=None):
         if p.get(param):
             qs = qs.filter(**{field: p[param]})
     for param, field in (("category", "category_id"), ("division", "division_id"), ("provider", "provider_id"),
-                         ("dzongkhag", "dzongkhag_id"), ("priority", "priority_id"), ("assigned_to", "assigned_to_id")):
+                         ("dzongkhag", "dzongkhag_id"), ("priority", "priority_id"), ("provider_type", "provider_type_id"), ("assigned_to", "assigned_to_id")):
         if p.get(param):
             if param == "category" and p[param] == "uncategorized":
                 qs = qs.filter(category__isnull=True)
@@ -50,6 +50,12 @@ def apply_filters(qs, params, user=None):
             ident = parse_uuid(p[param])
             qs = qs.filter(**{field: ident}) if ident else qs.none()  # malformed id matches nothing
     start, end = _date(p.get("date_from")), _date(p.get("date_to"))
+    month = p.get("month", "")  # YYYY-MM selects that whole calendar month
+    if len(month) == 7 and month[4] == "-":
+        first = _date(month + "-01")
+        if first:
+            start = first
+            end = (first.replace(day=28) + dt.timedelta(days=4)).replace(day=1) - dt.timedelta(days=1)
     if start:
         qs = qs.filter(created_at__date__gte=start)
     if end:

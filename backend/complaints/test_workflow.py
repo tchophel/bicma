@@ -329,7 +329,7 @@ class ReportTests(WorkflowBase):
     def test_all_reports_run_and_export(self):
         self.to_investigating()
         keys = [r["key"] for r in self.login(self.admin).get("/api/reports/").data]
-        self.assertEqual(len(keys), 7)
+        self.assertEqual(len(keys), 8)
         a = self.login(self.admin)
         for k in keys:
             r = a.get(f"/api/reports/{k}/")
@@ -651,3 +651,33 @@ class AllowedFileTypeTests(Base):
         r = self.client.post("/api/public/complaints/", {**self.payload(), "files": [big]}, format="multipart")
         self.assertEqual(r.status_code, 400)
         self.assertIn("100 KB", str(r.data))
+
+
+class MonthlyReportTests(WorkflowBase):
+    def test_columns_match_the_bicma_layout_and_month_filter_works(self):
+        from core.models import Provider
+        prov = Provider.objects.create(name="Bhutan Cable TV")
+        Complaint.objects.filter(pk=self.c.pk).update(provider=prov, locality="Norzin Lam", subject="No signal", description="Channel missing")
+        a = self.login(self.admin)
+        d = a.get("/api/reports/monthly/").data
+        self.assertEqual(d["columns"], ["Sl. No.", "Cable TV Operator", "Date of Complaint", "Complaint Resolved date", "Area/Location",
+                                        "Name of Complainant", "Contact Number/Particulars", "Issue/ Description", "Remarks"])
+        row = d["rows"][0]
+        self.assertEqual((row[0], row[1], row[4], row[7]), (1, "Bhutan Cable TV", "Norzin Lam", "No signal: Channel missing"))
+        this_month = timezone.now().strftime("%Y-%m")
+        self.assertEqual(a.get(f"/api/reports/monthly/?month={this_month}").data["total_rows"], 1)
+        self.assertEqual(a.get(f"/api/reports/monthly/?month=2020-01").data["total_rows"], 0)
+        self.assertTrue(a.get(f"/api/reports/monthly/?month={this_month}").data["subtitle"])
+        self.assertEqual(a.get(f"/api/reports/monthly/?provider_type={self.ptype.pk}").data["total_rows"], 0)
+
+    def test_resolved_date_remarks_and_confidential_identity(self):
+        self.to_investigating()
+        self.act(self.inv1, "resolve", {"investigation_findings": "F", "action_taken": "A", "outcome": str(self.outcome.pk)})
+        self.act(self.focal1, "approve", {"closure_reason": "Signal restored"})
+        Complaint.objects.filter(pk=self.c.pk).update(confidential=True)
+        row = self.login(self.sup).get("/api/reports/monthly/").data["rows"][0]
+        self.assertTrue(row[3])  # resolved date filled
+        self.assertEqual((row[5], row[6]), ("Confidential", ""))
+        self.assertIn("Signal restored", row[8])
+        x = self.login(self.admin).get("/api/reports/monthly/?export=xlsx")
+        self.assertEqual(x.status_code, 200)
