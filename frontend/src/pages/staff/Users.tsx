@@ -1,3 +1,4 @@
+import { useConfirm } from "../../components/Confirm";
 import { Icon } from "../../components/Icon";
 import { IconBtn } from "../../components/IconBtn";
 import { Loader } from "../../components/Loader";
@@ -13,6 +14,7 @@ import "../../styles/Users.css";
 
 export function Users() {
   const toast = useToast();
+  const ask = useConfirm();
   const { data, err, loading, reload } = useList<Page<User>>("/admin/users/?page_size=100");
   const divs = useList<Page<Division>>("/admin/divisions/");
   const roles = useList<Page<{ id: string; code: string; name: string; base: string; is_active: boolean }>>("/admin/roles/?page_size=200");
@@ -37,7 +39,7 @@ export function Users() {
     finally { setBusy(false); }
   }
   async function toggle(u: User) {
-    if (!confirm(`${u.is_active ? "Deactivate" : "Activate"} ${u.email}?`)) return;
+    if (!await ask(u.is_active ? "Deactivate" : "Activate")) return;
     setMsg(null);
     try { await api(`/admin/users/${u.id}/`, { method: "PATCH", json: { is_active: !u.is_active } }); reload(); toast.success(`${u.email} is now ${u.is_active ? "inactive" : "active"}.`); }
     catch (x) { toast.error((x as ApiError).message); }

@@ -1,3 +1,4 @@
+import { useConfirm } from "../../components/Confirm";
 import "../../styles/Categories.css";
 import { IconBtn } from "../../components/IconBtn";
 import { Icon } from "../../components/Icon";
@@ -11,6 +12,7 @@ import { useList } from "../../useList";
 
 export function Categories() {
   const toast = useToast();
+  const ask = useConfirm();
   const { data, err, reload } = useList<Page<Category>>("/admin/categories/?page_size=200");
   const divs = useList<Page<Division>>("/admin/divisions/?page_size=200").data?.results ?? [];
   const prios = useList<Page<Named>>("/admin/priorities/?page_size=200").data?.results ?? [];
@@ -18,11 +20,14 @@ export function Categories() {
   const [subFor, setSubFor] = useState<Category | null>(null);
   const [name, setName] = useState(""); const [msg, setMsg] = useState(""); const [sub, setSub] = useState("");
   const run = async (fn: () => Promise<unknown>, success = "Saved.") => { setMsg(""); try { await fn(); reload(); toast.success(success); } catch (x) { setMsg((x as ApiError).message); toast.error((x as ApiError).message); } };
-  const remove = (kind: "categories" | "subcategories", id: string, label: string) => {
-    if (!confirm(`Delete "${label}" permanently? Items linked to complaints or subcategories cannot be deleted.`)) return;
+  const remove = async (kind: "categories" | "subcategories", id: string) => {
+    if (!await ask("Delete")) return;
     void run(() => api(`/admin/${kind}/${id}/`, { method: "DELETE" }), "Deleted successfully.");
   };
-  const patch = (c: Category, body: Record<string, unknown>) => run(() => api(`/admin/categories/${c.id}/`, { method: "PATCH", json: { ...body, reason: prompt("Reason for this change:") ?? "" } }));
+  const patch = async (c: Category, body: Record<string, unknown>) => {
+    if (!await ask("is_active" in body ? (body.is_active ? "Activate" : "Deactivate") : "Save changes")) return;
+    await run(() => api(`/admin/categories/${c.id}/`, { method: "PATCH", json: body }));
+  };
   const sel = (c: Category, key: "default_division" | "urban_division" | "rural_division" | "default_priority", label: string, options: Named[]) => (
     <Field label={label}><select value={c[key] ?? ""} onChange={(e) => patch(c, { [key]: e.target.value || null })}><option value="">None</option>{options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></Field>
   );
@@ -35,14 +40,14 @@ export function Categories() {
         <div className="category-card-heading"><div className="category-card-name">
         <strong>{c.name}</strong> {!c.is_active && <span className="badge bad">Inactive</span>}</div><div className="category-card-actions">
         <IconBtn icon="power" tone={c.is_active ? "danger" : "ok"} label={`${c.is_active ? "Deactivate" : "Activate"} ${c.name}`} onClick={() => patch(c, { is_active: !c.is_active })} />
-        <button type="button" className="category-delete" onClick={() => remove("categories", c.id, c.name)}>Delete</button></div></div>
+        <IconBtn icon="trash" tone="danger" label={`Delete ${c.name}`} onClick={() => remove("categories", c.id)} /></div></div>
         <div className="category-fields">
           {sel(c, "default_division", "Division", divs)}
           {sel(c, "default_priority", "Default priority", prios)}
           {sel(c, "urban_division", "Urban areas go to", divs)}
           {sel(c, "rural_division", "Rural areas go to", divs)}
         </div>
-        <div className="category-subcategories"><span className="category-subheading">Subcategories <span>{c.subcategories.length}</span></span><ul>{c.subcategories.map((s) => <li key={s.id}><span>{s.name}</span><button type="button" aria-label={`Delete ${s.name}`} title={`Delete ${s.name}`} onClick={() => remove("subcategories", s.id, s.name)}><Icon name="close" size={13} /></button></li>)}</ul>
+        <div className="category-subcategories"><span className="category-subheading">Subcategories <span>{c.subcategories.length}</span></span><ul>{c.subcategories.map((s) => <li key={s.id}><span>{s.name}</span><button type="button" aria-label={`Delete ${s.name}`} title={`Delete ${s.name}`} onClick={() => remove("subcategories", s.id)}><Icon name="trash" size={13} /></button></li>)}</ul>
         <IconBtn icon="plus" label={`Add subcategory to ${c.name}`} onClick={() => setSubFor(c)} /></div>
       </div>))}
     <Modal open={addCat} onClose={() => setAddCat(false)} title="Add category" icon="category">

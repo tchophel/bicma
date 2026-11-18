@@ -1,3 +1,4 @@
+import { useConfirm } from "../../components/Confirm";
 import { useState, type FormEvent } from "react";
 import { IconBtn } from "../../components/IconBtn";
 import { Loader } from "../../components/Loader";
@@ -18,6 +19,7 @@ type Row = { id: string; is_active: boolean } & Record<string, unknown>;
 /** One generic admin screen for the simple master lists (BRD 5.1): add, edit with a reason, activate/deactivate. */
 export function MasterPage({ title, subtitle, icon, path, fields }: { title: string; subtitle: string; icon: IconName; path: string; fields: FieldDef[] }) {
   const toast = useToast();
+  const ask = useConfirm();
   const [q, setQ] = useState("");
   const { data, err, loading, reload } = useList<Page<Row>>(`/admin/${path}/?page_size=200${q ? `&search=${encodeURIComponent(q)}` : ""}`);
   const [status, setStatus] = useState<"" | "active" | "inactive">("");
@@ -45,10 +47,9 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
     finally { setBusy(false); }
   }
   async function toggle(r: Row) {
-    const why = prompt(`${r.is_active ? "Deactivate" : "Activate"} this record. Reason for the change:`);
-    if (why === null) return;
+    if (!await ask(r.is_active ? "Deactivate" : "Activate")) return;
     setMsg(null);
-    try { await api(`/admin/${path}/${r.id}/`, { method: "PATCH", json: { is_active: !r.is_active, reason: why } }); reload(); toast.success(r.is_active ? "Deactivated." : "Activated."); }
+    try { await api(`/admin/${path}/${r.id}/`, { method: "PATCH", json: { is_active: !r.is_active } }); reload(); toast.success(r.is_active ? "Deactivated." : "Activated."); }
     catch (x) { toast.error((x as ApiError).message); }
   }
   function edit(r: Row) {

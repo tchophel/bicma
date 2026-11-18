@@ -1,3 +1,4 @@
+import { useConfirm } from "../../components/Confirm";
 import { Icon } from "../../components/Icon";
 import { IconBtn } from "../../components/IconBtn";
 import { Loader } from "../../components/Loader";
@@ -14,6 +15,7 @@ import "../../styles/Locations.css";
 
 export function Dzongkhags() {
   const toast = useToast();
+  const ask = useConfirm();
   const { data, err, loading, reload } = useList<Page<DzongkhagRow>>("/admin/dzongkhags/?page_size=100");
   const [name, setName] = useState("");
   const [msg, setMsg] = useState("");
@@ -34,6 +36,7 @@ export function Dzongkhags() {
   }
   async function toggle(d: DzongkhagRow) {
     if (changing !== null) return;
+    if (!await ask(d.is_active ? "Deactivate" : "Activate")) return;
     setChanging(d.id); setMsg("");
     try {
       await api(`/admin/dzongkhags/${d.id}/`, { method: "PATCH", json: { is_active: !d.is_active } });

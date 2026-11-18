@@ -1,3 +1,4 @@
+import { ConfirmProvider } from "./components/Confirm";
 import { PasswordRecovery } from "./pages/staff/PasswordRecovery";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
@@ -35,6 +36,7 @@ function AdminOnly({ children }: { children: JSX.Element }) {
 export default function App() {
   return (
     <ToastProvider>
+    <ConfirmProvider>
     <AuthProvider>
       <GlobalLoader />
       <BrowserRouter>
@@ -80,6 +82,7 @@ export default function App() {
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </ConfirmProvider>
     </ToastProvider>
   );
 }

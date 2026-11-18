@@ -1,3 +1,4 @@
+import { useConfirm } from "../../components/Confirm";
 import { Icon } from "../../components/Icon";
 import { IconBtn } from "../../components/IconBtn";
 import { Loader } from "../../components/Loader";
@@ -14,6 +15,7 @@ import { FocalRegistration } from "./FocalRegistration";
 
 export function Divisions() {
   const toast = useToast();
+  const ask = useConfirm();
   const [page, setPage] = useState(1);
   const [query, setQuery] = useState("");
   const { data, err, loading, reload } = useList<Page<Division>>(`/admin/divisions/?page=${page}&page_size=10&search=${encodeURIComponent(query)}`);
@@ -34,6 +36,7 @@ export function Divisions() {
   }
   async function toggle(d: Division) {
     if (changing !== null) return;
+    if (!await ask(d.is_active ? "Deactivate" : "Activate")) return;
     setChanging(d.id); setMsg("");
     try {
       await api(`/admin/divisions/${d.id}/`, { method: "PATCH", json: { is_active: !d.is_active } });

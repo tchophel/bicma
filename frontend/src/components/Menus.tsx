@@ -4,6 +4,8 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import type { AppNotification } from "../types";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
+import { useToast } from "./Toast";
 import css from "../styles/Layout.module.css";
 
 /** Closes on outside click and Escape. */
@@ -76,7 +78,15 @@ export function UserMenu() {
   const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const { open, setOpen, ref } = usePopover();
   const nav = useNavigate();
+  const toast = useToast();
+  const [confirming, setConfirming] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   if (!user) return null;
+  async function signOut() {
+    setLeaving(true);
+    try { await logout(); setConfirming(false); toast.success("You have been logged out."); nav("/staff"); }
+    finally { setLeaving(false); }
+  }
   const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email;
   const initials = (user.first_name?.[0] ?? user.email[0]).toUpperCase() + (user.last_name?.[0] ?? "").toUpperCase();
   const item = (to: string, icon: "user" | "gear", label: ReactNode) => (
@@ -94,9 +104,16 @@ export function UserMenu() {
           <div className={css.panelHead} style={{ display: "block" }}><strong>{name}</strong><br /><small>{user.email}</small></div>
           {item("/staff/profile", "user", "My profile")}
           {user.base_role === "super_admin" && item("/staff/settings", "gear", "Settings")}
-          <button className={css.menuItem} role="menuitem" onClick={async () => { setOpen(false); await logout(); nav("/staff"); }}><Icon name="logout" />Sign out</button>
+          <button className={css.menuItem} role="menuitem" onClick={() => { setOpen(false); setConfirming(true); }}><Icon name="logout" />Sign out</button>
         </div>
       )}
+      <Modal open={confirming} onClose={() => setConfirming(false)} title="Log out" icon="logout" busy={leaving}>
+        <p style={{ marginTop: 0 }}>Are you sure you want to log out?</p>
+        <div className="modal-actions">
+          <button type="button" className="btn secondary" disabled={leaving} onClick={() => setConfirming(false)}>Cancel</button>
+          <button type="button" className="btn" disabled={leaving} onClick={signOut} autoFocus><Icon name="logout" />{leaving ? "Logging out…" : "Yes, log out"}</button>
+        </div>
+      </Modal>
     </div>
   );
 }
