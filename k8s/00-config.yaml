@@ -16,4 +16,6 @@ data:
   EMAIL_USE_TLS: "1"
   BCRS_API_METHOD: GET
   BCRS_AUTH_HEADER: Authorization
-  # BCRS_API_URL and BCRS_API_TOKEN go in the cms-secrets secret
+  BCRS_API_URL: "https://staging-datahub-apim.tech.gov.bt/dcrc_citizen_details_api/1.0.0/citizendetails/{cid}"
+  BCRS_TOKEN_URL: "https://stg-sso.tech.gov.bt/oauth2/token"
+  # BCRS_CLIENT_ID and BCRS_CLIENT_SECRET are in the cms-secrets secret
