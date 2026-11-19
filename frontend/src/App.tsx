@@ -15,7 +15,6 @@ import { Complaints } from "./pages/staff/Complaints";
 import { DashboardPage } from "./pages/staff/Dashboard";
 import { Divisions } from "./pages/staff/Divisions";
 import { Dzongkhags } from "./pages/staff/Dzongkhags";
-import { Gewogs } from "./pages/staff/Gewogs";
 import { Login } from "./pages/staff/Login";
 import { Profile } from "./pages/staff/Profile";
 import { Register } from "./pages/staff/Register";
@@ -61,7 +60,6 @@ export default function App() {
             <Route path="register" element={<Register />} />
             <Route path="users" element={<AdminOnly><Users /></AdminOnly>} />
             <Route path="dzongkhags" element={<AdminOnly><Dzongkhags /></AdminOnly>} />
-            <Route path="gewogs" element={<AdminOnly><Gewogs /></AdminOnly>} />
             <Route path="divisions" element={<AdminOnly><Divisions /></AdminOnly>} />
             <Route path="categories" element={<AdminOnly><Categories /></AdminOnly>} />
             <Route path="roles" element={<AdminOnly><Roles /></AdminOnly>} />

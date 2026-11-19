@@ -7,6 +7,7 @@ import { EmptyState, PageHeader, StatusBadge, fmtDate } from "../../components/u
 import { type ComplaintRow, type Meta, type Page } from "../../types";
 import { useList } from "../../useList";
 import { ComplaintPanel } from "./ComplaintPopup";
+import { RowActions } from "../../components/RowActions";
 import "../../styles/Complaints.css";
 
 export function Complaints() {
@@ -31,17 +32,19 @@ export function Complaints() {
   }, [openId]);
   const meta = useList<Meta>("/meta/");
   const qs = new URLSearchParams({ page: String(page), ...Object.fromEntries(Object.entries(f).filter(([, v]) => v)) }).toString();
-  const { data, err, loading } = useList<Page<ComplaintRow>>(`/complaints/?${qs}`);
+  const { data, err, loading, reload } = useList<Page<ComplaintRow>>(`/complaints/?${qs}`);
   const set = (k: string) => (e: { target: { value: string } }) => update({ [k]: e.target.value, page: "" });
   const filtered = Object.values(f).some(Boolean);
-  const STATUSES = ["received", "triage", "assigned", "investigating", "awaiting_information", "referred", "resolved", "not_within_mandate", "closed"];
+  const STATUSES = ["received", "triage", "assigned", "investigating", "awaiting_information", "referred", "pending_approval", "management_rejected", "resolved", "not_within_mandate", "closed"];
   const canRegister = !!user?.permissions?.includes("register_complaint");
   return (
-    <>
+    <div className="complaints-page">
       <PageHeader icon="complaint" title="Complaints" subtitle="Search and filter every complaint you are permitted to see.">
         {canRegister && <Link className="btn" to="/staff/register"><Icon name="plus" />Register complaint</Link>}
       </PageHeader>
-      <div className="card filter-bar">
+      <section className="complaints-filters" aria-label="Search and filter complaints">
+      <div className="complaints-filter-heading"><div><Icon name="search" size={19} /><h2>Find a complaint</h2></div><span>Filter by case details or date received</span></div>
+      <div className="filter-bar">
         <label><span>Search</span><div className="search-wrap"><Icon name="search" /><input value={f.q} onChange={set("q")} placeholder="Reference, subject or name" /></div></label>
         <label><span>Scope</span>
           <select value={f.scope} onChange={set("scope")}>
@@ -59,7 +62,7 @@ export function Complaints() {
         <label><span>Status</span>
           <select value={f.status} onChange={set("status")}>
             <option value="">Any</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s.replace(/_/g, " ")}</option>)}
+            {STATUSES.map((s) => <option key={s} value={s}>{s === "investigating" ? "under review" : s === "pending_approval" ? "awaiting management approval" : s === "management_rejected" ? "returned by management" : s.replace(/_/g, " ")}</option>)}
           </select>
         </label>
         <label><span>Priority</span>
@@ -80,6 +83,7 @@ export function Complaints() {
           </select>
         </label>
       </div>
+      </section>
       {filtered && (
         <div className="chips" aria-label="Active filters">
           {f.q && <span className="chip plain">Search: {f.q}</span>}
@@ -92,23 +96,26 @@ export function Complaints() {
         </div>
       )}
       {err && <p className="error" role="alert">{err}</p>}
-      <div className="table-wrap">
+      <section className="complaints-results" aria-label="Complaint results" aria-busy={loading}>
+      <header className="complaints-results-heading"><div><h2>{f.scope === "triage" ? "Triage queue" : "Complaint register"}</h2><span className="complaints-count">{data ? `${data.count} complaint${data.count === 1 ? "" : "s"}` : "Loading…"}</span></div><p>{f.scope === "triage" ? "Oldest complaints first" : "Select a reference to view the complaint"}</p></header>
+      <div className="table-wrap" tabIndex={0} role="region" aria-label="Complaints table">
         <table>
-          <thead><tr><th>Reference</th><th>Subject</th><th>Category</th><th>Division</th><th>Assigned to</th><th>Priority</th><th>Status</th><th>Due</th><th>Received</th></tr></thead>
+          <thead><tr><th>Reference</th><th>Subject</th><th>Category</th><th>Division</th><th>Assigned to</th><th>Priority</th><th>Status</th><th>Due</th><th>Received</th><th className="row-actions-head">Actions</th></tr></thead>
           <tbody>
             {data?.results.map((c) => (
               <tr key={c.id} className={`clickable ${String(c.id) === openId ? "row-active" : ""}`} onClick={() => update({ open: String(c.id) })}>
                 <td><button type="button" className="ref-link linklike" aria-label={`Open ${c.reference}`} onClick={(e) => { e.stopPropagation(); update({ open: String(c.id) }); }}>{c.reference}</button></td>
-                <td>{c.subject}</td><td><span className="chip plain">{c.category_name}</span></td>
+                <td className="complaint-subject">{c.subject}</td><td><span className="chip plain">{c.category_name}</span></td>
                 <td>{c.division_name ?? <span className="muted">Unassigned</span>}</td>
                 <td>{c.assigned_to_name ?? "—"}</td>
-                <td>{c.priority_name ?? "—"}</td>
+                <td>{c.priority_name ? <span className="complaint-priority">{c.priority_name}</span> : <span className="muted">—</span>}</td>
                 <td><StatusBadge value={c.internal_status} label={c.internal_status_display} /></td>
                 <td>{c.sla_state === "overdue" ? <span className="badge bad">Overdue</span> : c.sla_state === "due_soon" ? <span className="badge warn">Due soon</span> : c.sla_state === "paused" ? <span className="badge warn">Paused</span> : c.resolution_due_at && c.sla_state !== "done" ? fmtDate(c.resolution_due_at) : "—"}</td>
                 <td>{fmtDate(c.created_at)}</td>
+                <td className="row-actions" onClick={(e) => e.stopPropagation()}><RowActions c={c} onDone={reload} /></td>
               </tr>
             ))}
-            {loading && <tr><td colSpan={9}><Loader size={40} /></td></tr>}
+            {loading && <tr><td colSpan={10}><Loader size={40} /></td></tr>}
           </tbody>
         </table>
         {!loading && data?.results.length === 0 && <EmptyState icon="search">No complaints match your filters.</EmptyState>}
@@ -117,15 +124,14 @@ export function Complaints() {
         <div className="pager">
           <span>{data.count} complaint{data.count === 1 ? "" : "s"}</span>
           <div>
+            <span className="complaints-page-number">Page {page}</span>
             <button className="btn secondary" disabled={!data.previous} onClick={() => setPage(page - 1)}><Icon name="left" size={16} />Previous</button>
             <button className="btn secondary" disabled={!data.next} onClick={() => setPage(page + 1)}>Next<Icon name="right" size={16} /></button>
           </div>
         </div>
       )}
-      {openId && (<>
-        <div className="panel-backdrop" onClick={closePanel} aria-hidden="true" />
-        <ComplaintPanel key={openId} id={openId} onClose={closePanel} />
-      </>)}
-    </>
+      </section>
+      {openId && <ComplaintPanel key={openId} id={openId} onClose={closePanel} onChanged={reload} />}
+    </div>
   );
 }

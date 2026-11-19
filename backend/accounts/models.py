@@ -19,6 +19,8 @@ DIVISIONAL_ROLES = (Role.FOCAL, Role.INVESTIGATOR)
 class Division(UUIDModel):
     name = models.CharField(max_length=120, unique=True)
     code = models.CharField(max_length=20, unique=True)
+    reference_code = models.CharField(
+        max_length=10, blank=True, help_text="Code used in complaint reference numbers (BICMA-Year-Code-Serial): 1 IID, 2 MCD, 3 STD")
     is_active = models.BooleanField(default=True)
     created_at = models.DateTimeField(auto_now_add=True)
 

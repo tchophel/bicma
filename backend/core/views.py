@@ -12,11 +12,11 @@ from rest_framework.decorators import action
 
 from .models import (
     ApiLog, EmailLog, SmsLog,
-    FAQ, AuditLog, Category, ClosureReason, Dzongkhag, EmailTemplate, Gewog, Holiday, Notification, Outcome, Priority,
+    FAQ, AuditLog, Category, ClosureReason, Dzongkhag, EmailTemplate, Holiday, Notification, Outcome, Priority,
     Provider, ProviderType, Subcategory, SystemConfiguration,
 )
 from .serializers import (
-    FAQSerializer, AuditLogSerializer, CategorySerializer, DzongkhagSerializer, GewogSerializer, SubcategorySerializer,
+    FAQSerializer, AuditLogSerializer, CategorySerializer, DzongkhagSerializer, SubcategorySerializer,
 )
 from .utils import parse_uuid
 from . import audit
@@ -43,10 +43,10 @@ class MetaView(APIView):
 
     def get(self, request):
         cats = Category.objects.filter(is_active=True).select_related("default_division").prefetch_related("subcategories")
-        dzongkhags = Dzongkhag.objects.filter(is_active=True).prefetch_related("gewogs")
+        dzongkhags = Dzongkhag.objects.filter(is_active=True)
         return Response({
             "dzongkhags": [
-                {"id": d.id, "name": d.name, "gewogs": [{"id": g.id, "name": g.name} for g in d.gewogs.all() if g.is_active]}
+                {"id": d.id, "name": d.name}
                 for d in dzongkhags
             ],
             "divisions": list(Division.objects.filter(is_active=True).values("id", "name")),
@@ -125,43 +125,12 @@ class DzongkhagAdminViewSet(AuditedModelViewSet):
     entity_type = "dzongkhag"
 
 
-class GewogAdminViewSet(AuditedModelViewSet):
-    serializer_class = GewogSerializer
-    entity_type = "gewog"
-
-    def get_queryset(self):
-        qs = Gewog.objects.select_related("dzongkhag")
-        if self.request.query_params.get("dzongkhag"):
-            ident = parse_uuid(self.request.query_params["dzongkhag"])
-            qs = qs.filter(dzongkhag_id=ident) if ident else qs.none()
-        return qs
-
-    @action(detail=False, methods=["post"])
-    def bulk(self, request):
-        """Add many Gewogs to one Dzongkhag at once: {dzongkhag: id, names: ["A", "B"]}. Existing names are skipped."""
-        try:
-            dz = Dzongkhag.objects.get(pk=request.data.get("dzongkhag"))
-        except (Dzongkhag.DoesNotExist, ValueError, TypeError, DjangoValidationError):
-            return Response({"dzongkhag": ["Select a valid Dzongkhag."]}, status=status.HTTP_400_BAD_REQUEST)
-        names = request.data.get("names")
-        if not isinstance(names, list):
-            return Response({"names": ["Provide a list of names."]}, status=status.HTTP_400_BAD_REQUEST)
-        cleaned = []
-        for n in names:
-            n = str(n).strip()
-            if n and len(n) <= 100 and n.lower() not in {c.lower() for c in cleaned}:
-                cleaned.append(n)
-        if not cleaned or len(cleaned) > 300:
-            return Response({"names": ["Provide between 1 and 300 names (max 100 characters each)."]}, status=status.HTTP_400_BAD_REQUEST)
-        existing = {g.lower() for g in dz.gewogs.values_list("name", flat=True)}
-        new = [n for n in cleaned if n.lower() not in existing]
-        Gewog.objects.bulk_create([Gewog(dzongkhag=dz, name=n) for n in new])
-        audit.log(request, "gewog.bulk_create", entity_type="dzongkhag", entity_id=dz.pk, detail={"created": len(new), "skipped": len(cleaned) - len(new)})
-        return Response({"created": len(new), "skipped": len(cleaned) - len(new)}, status=status.HTTP_201_CREATED)
-
-
 class NotificationListView(APIView):
     permission_classes = [IsAuthenticated]
+
+    def delete(self, request):
+        Notification.objects.filter(user=request.user).delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def get(self, request):
         mine = Notification.objects.filter(user=request.user)

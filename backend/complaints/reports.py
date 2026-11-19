@@ -37,7 +37,7 @@ def monthly(request, qs):
     for i, c in enumerate(qs.order_by("created_at").select_related("provider", "outcome"), start=1):
         see = can_see_identity(request.user, c)
         done = c.resolved_at or c.closed_at
-        place = ", ".join(x for x in (c.locality, c.gewog.name if c.gewog else "", c.dzongkhag.name if c.dzongkhag else "") if x)
+        place = ", ".join(x for x in (c.locality, c.dzongkhag.name if c.dzongkhag else "") if x)
         contact = ", ".join(x for x in (c.phone, c.email) if x) if see else ""
         issue = f"{c.subject}: {c.description}" if c.description else c.subject
         remarks = "; ".join(x for x in (c.outcome.name if c.outcome else "", c.closure_reason, c.recommendation) if x)
@@ -71,8 +71,11 @@ def provider(request, qs):
 
 
 def location(request, qs):
+    """Dzongkhag and urban or rural. MCD complaints are excluded: they do not record a location."""
+    qs = qs.exclude(division__name__istartswith="media")
     rows = [[r["dzongkhag__name"] or "Not stated", r["area_type"] or "-", r["n"]]
-            for r in qs.values("dzongkhag__name", "area_type").annotate(n=Count("id")).order_by("dzongkhag__name", "area_type")]
+            for r in qs.values("dzongkhag__name", "area_type").annotate(n=Count("id"))
+            .order_by("dzongkhag__name", "area_type")]
     return ["Dzongkhag", "Area", "Complaints"], rows
 
 

@@ -1,23 +1,33 @@
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 import { Loader } from "./Loader";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
-import type { Meta } from "../types";
+import type { FormDoc, FormField, FormWhen, Meta } from "../types";
 import { Field, humanKb } from "./ui";
 import "../styles/ComplaintForm.css";
 
 export interface FormResult { reference: string; id?: string; draft?: boolean }
 
 type Values = Record<string, string | boolean>;
+const ENTITY_TYPES = [["individual", "Person"], ["firm", "Firm"], ["institute", "Institute"], ["agency", "Agency"]] as const;
+// Remedy Sought and Nature of Complaint come from masters in the FRD; until those masters exist these are the options offered.
+const REMEDIES = ["Correction or clarification", "Apology", "Removal of the content", "Right of reply", "Compensation", "Other"];
+const NATURES = ["Defamation", "Inaccurate or misleading report", "Invasion of privacy", "Hate speech or incitement", "Obscene or harmful content", "Advertising or sponsorship breach", "Other"];
+const OTHER = "__other__";
 const empty: Values = {
   channel: "phone", date_received: new Date().toISOString().slice(0, 10),
-  complainant_type: "individual", complainant_name: "", cid: "", phone: "", email: "", confidential: false, dzongkhag: "", gewog: "", locality: "", area_type: "",
+  complainant_type: "individual", complainant_name: "", cid: "", phone: "", email: "", confidential: false, dzongkhag: "", area_type: "",
   preferred_contact: "email", on_behalf: false, affected_name: "", affected_relationship: "", affected_contact: "",
   category: "", subcategory: "", subject: "", description: "", incident_date: "", incident_time: "",
   provider_type: "", provider: "", platform: "", already_complained: false, provider_reference: "", medium_of_publication: "",
   remedy_sought: "", website_or_social: "", additional_info: "", declaration_accepted: false, fax_number: "",
+  concerned_frequency: "", publication_date: "", publication_url: "", nature_of_complaint: "",
+  agency_name: "", present_address: "", geo_latitude: "", geo_longitude: "", complaining_for: "self", other_party_name: "",
 };
-const NULLABLE = ["subcategory", "category", "provider", "provider_type", "dzongkhag", "gewog", "incident_date", "incident_time", "date_received"];
+let mediaIds = new Set<string>();
+const isMediaCat = (id: string) => mediaIds.has(id);
+const NULLABLE = ["subcategory", "category", "provider", "provider_type", "dzongkhag", "incident_date", "incident_time", "date_received", "publication_date"];
 
 /** Used by the public portal (offline=false) and by officials registering offline complaints (offline=true). */
 export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (r: FormResult) => void }) {
@@ -31,6 +41,13 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   const [cap, setCap] = useState<{ token: string; svg: string } | null>(null);
   const [capAnswer, setCapAnswer] = useState("");
   const [verificationOpen, setVerificationOpen] = useState(false);
+  const [open, setOpen] = useState(false);
+  const [already, setAlready] = useState<"" | "yes" | "no">("");
+  const [remedies, setRemedies] = useState<string[]>([]);
+  const [natures, setNatures] = useState<string[]>([]);
+  const [det, setDet] = useState<Record<string, string | string[]>>({});
+  const [slotFiles, setSlotFiles] = useState<Record<string, File[]>>({});
+  const [otherProvider, setOtherProvider] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [captchaError, setCaptchaError] = useState("");
   const loadCaptcha = useCallback(() => {
@@ -44,12 +61,18 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
     else dialogRef.current?.close();
   }, [verificationOpen]);
 
-  useEffect(() => { api<Meta>("/meta/").then(setMeta).catch(() => setErr(new ApiError("Could not load the form. Please refresh.", 0))); }, []);
+  useEffect(() => { api<Meta>("/meta/").then((m) => { mediaIds = new Set(m.categories.filter((c) => m.divisions.find((d) => d.id === c.default_division)?.name.toLowerCase().startsWith("media")).map((c) => c.id)); setMeta(m); }).catch(() => setErr(new ApiError("Could not load the form. Please refresh.", 0))); }, []);
 
   const set = (k: string) => (e: { target: { value: string } }) =>
-    setV((p) => ({ ...p, [k]: e.target.value, ...(k === "category" ? { subcategory: "" } : {}), ...(k === "dzongkhag" ? { gewog: "" } : {}),
-      ...(k === "provider" ? { platform: meta?.providers.find((p) => p.id === e.target.value)?.name ?? "" } : {}) }));
-  const individual = true; // the complainant is always a person on this form
+    setV((p) => ({ ...p, [k]: e.target.value, ...(k === "category" ? { subcategory: "", complainant_type: isMediaCat(e.target.value) ? "individual" : p.complainant_type } : {}),
+            ...(k === "provider" ? { platform: meta?.providers.find((p) => p.id === e.target.value)?.name ?? "" } : {}),
+      ...(k === "complainant_type" ? { cid: "", agency_name: "", complainant_name: "" } : {}) }));
+  function pickProvider(value: string) {
+    setOtherProvider(value === OTHER);
+    setV((p) => ({ ...p, provider: value === OTHER ? "" : value, platform: value === OTHER ? "" : (meta?.providers.find((x) => x.id === value)?.name ?? "") }));
+  }
+  const entity = v.complainant_type as string;
+  const individual = entity === "individual";
   async function lookupCid(cid: string) {
     if (!individual || !/^\d{11}$/.test(cid)) { setCidState(""); return; }
     setCidState("loading");
@@ -68,16 +91,30 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   };
   const check = (k: string) => (e: { target: { checked: boolean } }) => setV((p) => ({ ...p, [k]: e.target.checked }));
   const f = (k: string) => err?.fields[k];
-  const gewogs = meta?.dzongkhags.find((d) => String(d.id) === v.dzongkhag)?.gewogs ?? [];
   const cat = meta?.categories.find((c) => c.id === v.category);
-  const suggested = meta?.divisions.find((d) => d.id === cat?.default_division);
-  const isMedia = !!suggested && suggested.name.toLowerCase().startsWith("media");
+  const spec = cat?.form ?? null;
+  const division = meta?.divisions.find((d) => d.id === cat?.default_division);
+  const dn = division?.name.toLowerCase() ?? "";
+  const isMedia = dn.startsWith("media");
+  const isIid = dn.startsWith("infocomm");
+  const isStd = dn.startsWith("spectrum");
   const catGroups = (meta?.divisions ?? []).map((d) => ({ d, cats: (meta?.categories ?? []).filter((c) => c.default_division === d.id) })).filter((g) => g.cats.length);
   const ungrouped = (meta?.categories ?? []).filter((c) => !c.default_division);
+  function toggleNature(n: string) {
+    const next = natures.includes(n) ? natures.filter((x) => x !== n) : [...natures, n];
+    setNatures(next);
+    setV((p) => ({ ...p, nature_of_complaint: next.join("; ") }));
+  }
+  function toggleRemedy(r: string) {
+    const next = remedies.includes(r) ? remedies.filter((x) => x !== r) : [...remedies, r];
+    setRemedies(next);
+    setV((p) => ({ ...p, remedy_sought: next.join("; ") }));
+  }
 
   async function submit(e: FormEvent, opts: { draft?: boolean; confirmDuplicate?: boolean } = {}) {
     e.preventDefault();
     if (busy) return;
+    if (!opts.draft && !isMedia && isIid && !already) { setErr(new ApiError("Say whether you have already complained to the provider.", 400)); return; }
     if (!offline && !verificationOpen) {
       setErr(null);
       loadCaptcha();
@@ -90,13 +127,17 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
     setDups(null);
     const fd = new FormData();
     for (const [k, val] of Object.entries(v)) {
-      if (typeof val === "boolean") fd.append(k, val ? "true" : "false");
+      if (typeof val === "boolean") fd.append(k, k === "already_complained" ? (already === "yes" ? "true" : "false") : (val ? "true" : "false"));
       else if (val !== "" || !NULLABLE.includes(k)) { if (val !== "") fd.append(k, val); }
     }
     if (!offline) { fd.delete("channel"); fd.delete("date_received"); fd.append("captcha_token", cap?.token ?? ""); fd.append("captcha_answer", capAnswer); }
     if (opts.draft) fd.append("draft", "true");
     if (opts.confirmDuplicate) fd.append("confirm_duplicate", "true");
     files.forEach((f) => fd.append("files", f));
+    if (spec) {
+      fd.append("details", JSON.stringify(det));
+      for (const [slot, list] of Object.entries(slotFiles)) list.forEach((f) => fd.append(`doc__${slot}`, f));
+    }
     try {
       const res = await api<FormResult>(offline ? "/complaints/" : "/public/complaints/", { form: fd });
       onDone({ ...res, draft: opts.draft });
@@ -118,9 +159,62 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   // Officials register on a complainant's behalf, so the copy talks about "the complainant", not "you".
   const t = (pub: string, staff: string) => (offline ? staff : pub);
   if (!meta) return err ? <p className="error" role="alert">{err.message}</p> : <Loader label="Loading the form" />;
-  return (
-    <form onSubmit={(e) => submit(e)} className="card complaint-form" noValidate={false}>
-      <p className="muted"><span className="req" style={{ color: "var(--c-accent)" }}>*</span> marks required fields.</p>
+  const shown = (w?: FormWhen) => {
+    if (!w) return true;
+    const cur = det[w.key];
+    return w.equals !== undefined ? cur === w.equals : Array.isArray(cur) && cur.includes(w.includes ?? "");
+  };
+  const setD = (k: string, val: string | string[]) => setDet((p) => ({ ...p, [k]: val }));
+  const today = new Date().toISOString().slice(0, 10);
+  const renderField = (fd: FormField) => {
+    if (!shown(fd.when)) return null;
+    const err = f(`details.${fd.key}`);
+    const val = det[fd.key];
+    if (fd.type === "checks") {
+      const list = Array.isArray(val) ? val : [];
+      return (
+        <fieldset className="field" key={fd.key} style={{ border: 0, padding: 0 }}>
+          <legend style={{ fontWeight: 600, fontSize: ".9rem", marginBottom: 7 }}>{fd.label}{fd.required && <span className="req" aria-hidden="true"> *</span>}</legend>
+          <div style={{ display: "grid", gap: 8 }}>
+            {fd.options?.map((o) => <label key={o} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}><input type="checkbox" style={{ marginTop: 4 }} checked={list.includes(o)} onChange={() => setD(fd.key, list.includes(o) ? list.filter((x) => x !== o) : [...list, o])} />{o}</label>)}
+          </div>
+          {err && <p className="error" role="alert">{err}</p>}
+        </fieldset>
+      );
+    }
+    const text = typeof val === "string" ? val : "";
+    const common = { required: fd.required, value: text };
+    return (
+      <Field key={fd.key} label={fd.label} required={fd.required} error={err}>
+        {fd.type === "textarea" ? <textarea rows={3} {...common} onChange={(e) => setD(fd.key, e.target.value)} />
+          : fd.type === "date" ? <input type="date" max={fd.past ? today : undefined} {...common} onChange={(e) => setD(fd.key, e.target.value)} />
+          : fd.type === "select" || fd.type === "yesno" ? <select {...common} onChange={(e) => setD(fd.key, e.target.value)}><option value="">Select</option>{(fd.type === "yesno" ? ["Yes", "No"] : fd.options)?.map((o) => <option key={o} value={o}>{o}</option>)}</select>
+          : fd.type === "provider" ? <><input list={`providers-${fd.key}`} maxLength={150} {...common} onChange={(e) => setD(fd.key, e.target.value)} /><datalist id={`providers-${fd.key}`}>{meta?.providers.map((p) => <option key={p.id} value={p.name} />)}</datalist></>
+          : <input maxLength={300} {...common} onChange={(e) => setD(fd.key, e.target.value)} />}
+      </Field>
+    );
+  };
+  const renderDoc = (d: FormDoc) => {
+    if (!shown(d.when) || !meta) return null;
+    const list = slotFiles[d.key] ?? [];
+    const must = d.required === true || d.required === "when";
+    const accept = (d.image ? ["jpg", "jpeg", "png"] : meta.limits.allowed_extensions).map((x) => `.${x}`).join(",");
+    return (
+      <div className="supporting-documents" key={d.key}>
+        <div className="supporting-documents-heading"><h3>{d.label}</h3><span>{must ? "Required" : "Optional"}</span></div>
+        <label className="supporting-documents-picker">
+          <input type="file" multiple accept={accept} aria-label={d.label} aria-invalid={!!f(`doc__${d.key}`)} onChange={(e) => setSlotFiles((p) => ({ ...p, [d.key]: Array.from(e.target.files ?? []) }))} />
+          <span className="supporting-documents-icon"><Icon name="plus" size={24} /></span>
+          <span className="supporting-documents-copy"><strong>{d.image ? "Upload a photo" : "Upload files"}</strong><span>{d.image ? "JPG or PNG." : meta.limits.allowed_extensions.map((x) => x.toUpperCase()).join(", ")}</span></span>
+          <span className="supporting-documents-browse">Choose files</span>
+        </label>
+        {f(`doc__${d.key}`) && <p className="error" role="alert">{f(`doc__${d.key}`)}</p>}
+        {list.length > 0 && <div className="supporting-documents-selected"><ul>{list.map((file, i) => <li key={`${file.name}-${i}`}><span className="supporting-documents-file-name"><strong>{file.name}</strong><small>{Math.ceil(file.size / 1024)} KB</small></span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setSlotFiles((p) => ({ ...p, [d.key]: list.filter((_, j) => j !== i) }))}><Icon name="close" size={16} /></button></li>)}</ul></div>}
+      </div>
+    );
+  };
+  const notices = (
+    <>
       {err && <p className="error" role="alert">{err.message}</p>}
       {dups && (
         <div className="notice" role="alert">
@@ -130,6 +224,12 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
         </div>
       )}
 
+    </>
+  );
+  return (
+    <form onSubmit={(e) => submit(e)} className="card complaint-form" noValidate={false}>
+      <p className="muted"><span className="req" style={{ color: "var(--c-accent)" }}>*</span> marks required fields.</p>
+      {!open && notices}
       {offline && (
         <section className="form-section" aria-labelledby="channel-heading">
           <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="send" size={23} /></span><div><span className="form-section-step">SECTION 01</span><h2 id="channel-heading">How was it received?</h2></div></div>
@@ -140,88 +240,174 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
         </section>
       )}
 
-      <section className="form-section" aria-labelledby="about-you-heading">
-      <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="users" size={23} /></span><div><span className="form-section-step">SECTION {offline ? "02" : "01"}</span><h2 id="about-you-heading">{offline ? "Complainant" : "About you"}</h2><p className="section-description">{t("Tell us who is making the complaint and how we can contact you.", "Enter the details of the person who made the complaint and how BICMA can contact them.")}</p></div></div>
-      <div className="row">
-        <Field label={individual ? "CID number" : "Registration / licence number"} required={!offline} error={f("cid")} hint={!individual ? "Enter the number the organisation is registered under." : cidState === "loading" ? "Looking up your name…" : cidState === "found" ? "Name filled from the citizen registry." : cidState === "missing" ? "No registry record found. Enter the name by hand." : cidState === "unavailable" ? "Registry lookup is unavailable. Enter the name by hand." : "11 digits. Your name is filled in automatically."}><input required={!offline} inputMode={individual ? "numeric" : "text"} pattern={individual ? "\\d{11}" : undefined} maxLength={individual ? 11 : 20} placeholder={individual ? "11-digit CID" : "Registration number"} value={v.cid as string} onChange={onCid} autoComplete="off" /></Field>
-        <Field label={individual ? "Full name" : "Name of the organisation"} required error={f("complainant_name")}><input required readOnly={cidState === "found"} placeholder={cidState === "loading" ? "Looking up…" : t("Enter your full name", "Enter the complainant’s full name")} value={v.complainant_name as string} onChange={set("complainant_name")} autoComplete="name" /></Field>
-        <Field label="Phone number" required={!offline} error={f("phone")} hint="8-digit Bhutan number"><input required={!offline} type="tel" pattern="(\+975)?\d{8}" placeholder="17123456" value={v.phone as string} onChange={set("phone")} autoComplete="tel" /></Field>
-        <Field label="Email address" required={!offline} error={f("email")} hint={offline ? "Leave empty if the complainant has none." : "Used for the acknowledgement and updates."}><input required={!offline} type="email" placeholder="you@example.com" value={v.email as string} onChange={set("email")} autoComplete="email" /></Field>
-        <Field label="Preferred communication" required>
-          <select required value={v.preferred_contact as string} onChange={set("preferred_contact")}>
-            <option value="email">Email</option><option value="phone">Phone call</option>
-          </select>
-        </Field>
-      </div>
-      <label className="on-behalf">
-        <input type="checkbox" checked={v.confidential as boolean} onChange={check("confidential")} />
-        <span><strong>Keep my identity confidential</strong><small>{t("Your identity will be hidden from the provider and from officers who do not need it.", "Hide the complainant’s identity from the provider and from officers who do not need it.")}</small></span>
-      </label>
-      <label className="on-behalf">
-        <input type="checkbox" checked={v.on_behalf as boolean} onChange={check("on_behalf")} />
-        <span><strong>{t("Submitting for someone else?", "Made on behalf of someone else?")}</strong><small>{t("I am submitting this complaint on behalf of another person.", "The complainant is reporting on behalf of another person.")}</small></span>
-      </label>
-      {v.on_behalf && (
-        <div className="row">
-          <Field label="Name of affected person" required error={f("affected_name")}><input required value={v.affected_name as string} onChange={set("affected_name")} /></Field>
-          <Field label={t("Relationship to you", "Relationship to complainant")} required error={f("affected_relationship")}><input required placeholder="e.g. Parent, spouse or representative" value={v.affected_relationship as string} onChange={set("affected_relationship")} /></Field>
-          <Field label="Their contact details" error={f("affected_contact")}><input value={v.affected_contact as string} onChange={set("affected_contact")} /></Field>
+      <section className="card category-summary" aria-live="polite">
+        <span className="category-summary-icon"><Icon name="category" size={24} /></span>
+        <div className="category-summary-copy">
+          <span className="form-section-step">YOUR COMPLAINT</span>
+          <h2>{cat ? cat.name : "What is your complaint about?"}</h2>
+          <p>{cat ? `${division?.name ?? "Division decided in triage"}` : "Choose the category that best describes your complaint to begin."}</p>
         </div>
-      )}
+        <p className="category-summary-intro">Share what happened, add any supporting documents, and tell us the outcome you’re looking for.</p>
+        <div className="category-summary-actions">
+          <button type="button" className="btn" onClick={() => setOpen(true)}><Icon name={cat ? "edit" : "complaint"} />{cat ? "Open complaint form" : "Start complaint"}</button>
+        </div>
       </section>
 
-      <section className="form-section" aria-labelledby="complaint-heading">
-      <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="complaint" size={23} /></span><div><span className="form-section-step">SECTION {offline ? "03" : "02"}</span><h2 id="complaint-heading">{t("Your complaint", "Complaint details")}</h2><p className="section-description">{t("Choose the category that best fits. It decides which BICMA division handles your complaint.", "Choose the category; it suggests the responsible division, which is reviewed in triage.")}</p></div></div>
-      <div className="row">
-        <Field label="Complaint category" required error={f("category")}>
-          <select required value={v.category as string} onChange={set("category")}>
-            <option value="">Select a category</option>
-            {catGroups.map((g) => <optgroup key={g.d.id} label={g.d.name}>{g.cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>)}
-            {ungrouped.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Suggested division"><input readOnly value={suggested?.name ?? (v.category ? "To be decided in triage" : "")} placeholder="Chosen from the category" /></Field>
-        {cat && cat.subcategories.length > 0 && (
-          <Field label="Sub-category" error={f("subcategory")}><select value={v.subcategory as string} onChange={set("subcategory")}><option value="">Select (optional)</option>{cat.subcategories.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-        )}
-      </div>
-      <Field label="Title" required error={f("subject")}><input required maxLength={200} placeholder={t("Briefly summarise your complaint", "Briefly summarise the complaint")} value={v.subject as string} onChange={set("subject")} /></Field>
-      {isMedia && <Field label="Medium of publication" required error={f("medium_of_publication")}><input required placeholder="e.g. newspaper, TV channel, website, social media page" value={v.medium_of_publication as string} onChange={set("medium_of_publication")} /></Field>}
-      <div className="row">
-        <Field label="Provider / party type" required error={f("provider_type")}>
-          <select required value={v.provider_type as string} onChange={set("provider_type")}><option value="">Select type</option>{meta.provider_types.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-        </Field>
-        <Field label="Provider / company" error={f("provider")} hint="Pick from the list, or type the name below.">
-          <select value={v.provider as string} onChange={set("provider")}><option value="">Not in the list</option>{meta.providers.filter((p) => !v.provider_type || !p.provider_type || p.provider_type === v.provider_type).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}</select>
-        </Field>
-        {!v.provider && <Field label="Company name" error={f("platform")}><input value={v.platform as string} onChange={set("platform")} placeholder="Name of the company or channel" /></Field>}
-      </div>
-      <div className="row">
-        <Field label="Already complained to the provider?" required>
-          <select required value={v.already_complained ? "yes" : "no"} onChange={(e) => setV((p) => ({ ...p, already_complained: e.target.value === "yes" }))}><option value="no">No</option><option value="yes">Yes</option></select>
-        </Field>
-        {v.already_complained && <Field label="Provider reference number" required error={f("provider_reference")}><input required value={v.provider_reference as string} onChange={set("provider_reference")} /></Field>}
-      </div>
-      <div className="row">
-        <Field label="Dzongkhag" required error={f("dzongkhag")}>
-          <select required value={v.dzongkhag as string} onChange={set("dzongkhag")}><option value="">Select Dzongkhag</option>{meta.dzongkhags.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
-        </Field>
-        <Field label="Gewog" error={f("gewog")}>
-          <select value={v.gewog as string} onChange={set("gewog")} disabled={!v.dzongkhag || gewogs.length === 0}>
-            <option value="">{v.dzongkhag ? (gewogs.length ? "Select Gewog" : "No Gewogs listed") : "Select a Dzongkhag first"}</option>
-            {gewogs.map((g) => <option key={g.id} value={g.id}>{g.name}</option>)}
-          </select>
-        </Field>
-        <Field label="Gewog / town / village" required={!v.gewog} error={f("locality")}><input required={!v.gewog} value={v.locality as string} onChange={set("locality")} /></Field>
-        <Field label="Area type" required error={f("area_type")}>
-          <select required value={v.area_type as string} onChange={set("area_type")}><option value="">Select</option><option value="urban">Urban</option><option value="rural">Rural</option></select>
-        </Field>
-        <Field label="Incident date" required error={f("incident_date")}><input required type="date" max={new Date().toISOString().slice(0, 10)} value={v.incident_date as string} onChange={set("incident_date")} /></Field>
-        <Field label="Incident time" required error={f("incident_time")}><input required type="time" value={v.incident_time as string} onChange={set("incident_time")} /></Field>
-      </div>
-      <Field label="Complaint description" required error={f("description")}><textarea required rows={7} placeholder={t("Describe what happened and any steps you have already taken.", "Record what the complainant reported.")} value={v.description as string} onChange={set("description")} /></Field>
-      <Field label="Remedy sought" required error={f("remedy_sought")}><textarea required rows={3} placeholder="What outcome do you want?" value={v.remedy_sought as string} onChange={set("remedy_sought")} /></Field>
-      <Field label="Additional notes" error={f("additional_info")}><textarea rows={3} value={v.additional_info as string} onChange={set("additional_info")} /></Field>
+      <Modal open={open} onClose={() => setOpen(false)} busy={busy || verificationOpen} wide title="What is your complaint about?" icon="complaint">
+      {notices}
+      <section className="form-section" aria-labelledby="form-a-heading">
+        <h2 id="form-a-heading" className="sr-only">Complaint category</h2>
+        <p className="muted">{t("Choose the category that best fits. It decides which BICMA division handles your complaint and which form you fill in.", "Choose the category. It decides the responsible division and the form shown.")}</p>
+        <div className="row">
+          <Field label="Complaint category" required error={f("category")}>
+            <select autoFocus required value={v.category as string} onChange={(e) => { set("category")(e); setDet({}); setSlotFiles({}); }}>
+              <option value="">Select a category</option>
+              {catGroups.map((g) => <optgroup key={g.d.id} label={g.d.name}>{g.cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>)}
+              {ungrouped.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
+            </select>
+          </Field>
+          <Field label="Division" hint="Filled in from the category."><input readOnly value={cat ? (division?.name ?? "Decided in triage") : ""} placeholder="Chosen from the category" /></Field>
+        </div>
+      </section>
+
+      {cat && (
+        <>
+          {spec ? (
+            <>
+              <section className="form-section" aria-labelledby="identity-heading">
+                <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="users" size={23} /></span><div><h2 id="identity-heading">Complainant identity</h2></div></div>
+                <div className="row">
+                  <Field label="CID number" required={!offline} error={f("cid")} hint={cidState === "loading" ? "Looking up the name…" : cidState === "found" ? "Name filled from the citizen registry." : cidState === "missing" ? "No registry record found. Enter the name by hand." : cidState === "unavailable" ? "Registry lookup is unavailable. Enter the name by hand." : "11 digits. The name is filled in automatically."}>
+                    <input required={!offline} inputMode="numeric" pattern="\d{11}" maxLength={11} placeholder="11-digit CID" value={v.cid as string} onChange={onCid} autoComplete="off" />
+                  </Field>
+                  <Field label={spec.division === "mcd" ? "Name of the complainant (person, firm, institute or agency)" : "Name"} required error={f("complainant_name")}>
+                    <input required readOnly={cidState === "found"} placeholder={cidState === "loading" ? "Looking up…" : "Enter the name"} value={v.complainant_name as string} onChange={set("complainant_name")} autoComplete="name" />
+                  </Field>
+                  <Field label="Contact number" required={!offline} error={f("phone")} hint="8-digit Bhutan number"><input required={!offline} type="tel" pattern="(\+975)?\d{8}" autoComplete="tel" placeholder="17123456" value={v.phone as string} onChange={set("phone")} /></Field>
+                  <Field label="Email" error={f("email")} hint="Optional. Used for the acknowledgement and updates."><input type="email" autoComplete="email" placeholder="you@example.com" value={v.email as string} onChange={set("email")} /></Field>
+                </div>
+                {spec.identity.present_address && <Field label="Present address" required error={f("present_address")}><textarea required rows={2} value={v.present_address as string} onChange={set("present_address")} /></Field>}
+                {spec.identity.location && (
+                  <div className="row">
+                    <Field label="Location (Dzongkhag)" required error={f("dzongkhag")}>
+                      <select required value={v.dzongkhag as string} onChange={set("dzongkhag")}><option value="">Select Dzongkhag</option>{meta.dzongkhags.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+                    </Field>
+                  </div>
+                )}
+                {spec.identity.complaining_for && (
+                  <div className="row">
+                    <Field label="Complaining on behalf of" required error={f("complaining_for")}>
+                      <select required value={v.complaining_for as string} onChange={set("complaining_for")}>{spec.identity.complaining_for.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</select>
+                    </Field>
+                    {v.complaining_for !== "self" && <Field label={spec.identity.other_party_label} required error={f("other_party_name")}><input required value={v.other_party_name as string} onChange={set("other_party_name")} /></Field>}
+                  </div>
+                )}
+              </section>
+              <section className="form-section" aria-labelledby="details-heading">
+                <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="complaint" size={23} /></span><div><h2 id="details-heading">Details of the complaint</h2><p className="section-description">Date and time are recorded automatically when the complaint is submitted.</p></div></div>
+                {spec.fields.map(renderField)}
+                {spec.description && <Field label={spec.description.label} required={spec.description.required} error={f("description")}><textarea required={spec.description.required} rows={5} value={v.description as string} onChange={set("description")} /></Field>}
+                {spec.docs.map(renderDoc)}
+              </section>
+            </>
+          ) : (
+            <>
+          <section className="form-section" aria-labelledby="identity-heading">
+            <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="users" size={23} /></span><div><h2 id="identity-heading">{t("About you", "Complainant")}</h2></div></div>
+            <div className="row">
+              {!isMedia && (
+                <Field label="Entity type" required error={f("complainant_type")}>
+                  <select required value={entity} onChange={set("complainant_type")}>{ENTITY_TYPES.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</select>
+                </Field>
+              )}
+              {entity !== "agency" ? (
+                <Field label={individual ? "CID number" : "CID / licence number"} required={!offline} error={f("cid")} hint={!individual ? "CID or the number the organisation is registered under." : cidState === "loading" ? "Looking up the name…" : cidState === "found" ? "Name filled from the citizen registry." : cidState === "missing" ? "No registry record found. Enter the name by hand." : cidState === "unavailable" ? "Registry lookup is unavailable. Enter the name by hand." : "11 digits. The name is filled in automatically."}>
+                  <input required={!offline} inputMode={individual ? "numeric" : "text"} pattern={individual ? "\\d{11}" : undefined} maxLength={individual ? 11 : 20} placeholder={individual ? "11-digit CID" : "CID or licence number"} value={v.cid as string} onChange={onCid} autoComplete="off" />
+                </Field>
+              ) : (
+                <Field label="Agency name" required error={f("agency_name")}><input required maxLength={150} value={v.agency_name as string} onChange={set("agency_name")} /></Field>
+              )}
+              <Field label={entity === "individual" ? "Full name" : entity === "agency" ? "Name of complainant (contact person)" : `Name of the ${entity}`} required error={f("complainant_name")}>
+                <input required readOnly={cidState === "found" && individual} placeholder={cidState === "loading" ? "Looking up…" : "Enter the name"} value={v.complainant_name as string} onChange={set("complainant_name")} autoComplete="name" />
+              </Field>
+              <Field label="Contact number" required={!offline} error={f("phone")} hint="8-digit Bhutan number"><input required={!offline} type="tel" pattern="(\+975)?\d{8}" autoComplete="tel" placeholder="17123456" value={v.phone as string} onChange={set("phone")} /></Field>
+              <Field label="Email" error={f("email")} hint="Optional. Used for the acknowledgement and updates."><input type="email" autoComplete="email" placeholder="you@example.com" value={v.email as string} onChange={set("email")} /></Field>
+            </div>
+            {isMedia && (
+              <>
+                <Field label="Present address" required error={f("present_address")}><textarea required rows={2} value={v.present_address as string} onChange={set("present_address")} /></Field>
+                <label className="on-behalf">
+                  <input type="checkbox" checked={v.on_behalf as boolean} onChange={check("on_behalf")} />
+                  <span><strong>On others’ behalf</strong><small>{t("I am submitting this complaint on behalf of another person.", "The complainant is reporting on behalf of another person.")}</small></span>
+                </label>
+                {v.on_behalf && (
+                  <div className="row">
+                    <Field label="Name of affected person" required error={f("affected_name")}><input required value={v.affected_name as string} onChange={set("affected_name")} /></Field>
+                    <Field label="Relationship" required error={f("affected_relationship")}><input required value={v.affected_relationship as string} onChange={set("affected_relationship")} /></Field>
+                    <Field label="Their contact details" error={f("affected_contact")}><input value={v.affected_contact as string} onChange={set("affected_contact")} /></Field>
+                  </div>
+                )}
+              </>
+            )}
+          </section>
+
+          <section className="form-section" aria-labelledby="details-heading">
+            <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="complaint" size={23} /></span><div><h2 id="details-heading">Details of the complaint</h2><p className="section-description">Date and time are recorded automatically when the complaint is submitted.</p></div></div>
+            {isMedia ? (
+              <>
+                <Field label="Title of the post, article or video published" required error={f("subject")}><input required maxLength={200} value={v.subject as string} onChange={set("subject")} /></Field>
+                <div className="row">
+                  <Field label="Date of publication" required error={f("publication_date")}><input type="date" required max={new Date().toISOString().slice(0, 10)} value={v.publication_date as string} onChange={set("publication_date")} /></Field>
+                  <Field label="Medium of publication" required error={f("medium_of_publication")} hint="Where it was published."><input required placeholder="e.g. newspaper, TV channel, website, social media page" value={v.medium_of_publication as string} onChange={set("medium_of_publication")} /></Field>
+                  <Field label="Media house / publisher" error={f("provider")} hint="Optional.">
+                    <select value={otherProvider ? OTHER : (v.provider as string)} onChange={(e) => pickProvider(e.target.value)}><option value="">Select</option>{meta.providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}<option value={OTHER}>Other / Not listed</option></select>
+                  </Field>
+                  {otherProvider && <Field label="Name of the media house" error={f("platform")}><input value={v.platform as string} onChange={set("platform")} /></Field>}
+                  <Field label="Link to the post, article or video" error={f("publication_url")}><input type="url" maxLength={500} placeholder="https://" value={v.publication_url as string} onChange={set("publication_url")} /></Field>
+                </div>
+                <Field label="Brief description" required error={f("description")} hint="A brief statement of the nature of the complaint."><textarea required rows={4} value={v.description as string} onChange={set("description")} /></Field>
+                <fieldset className="field" style={{ border: 0, padding: 0 }}>
+                  <legend style={{ fontWeight: 600, fontSize: ".9rem", marginBottom: 7 }}>Nature of complaint <span className="req" aria-hidden="true">*</span></legend>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {NATURES.map((n) => <label key={n} style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={natures.includes(n)} onChange={() => toggleNature(n)} />{n}</label>)}
+                  </div>
+                  {f("nature_of_complaint") && <p className="error" role="alert">{f("nature_of_complaint")}</p>}
+                </fieldset>
+                <fieldset className="field" style={{ border: 0, padding: 0 }}>
+                  <legend style={{ fontWeight: 600, fontSize: ".9rem", marginBottom: 7 }}>Remedy sought <span className="req" aria-hidden="true">*</span></legend>
+                  <div style={{ display: "grid", gap: 8 }}>
+                    {REMEDIES.map((r) => <label key={r} style={{ display: "flex", gap: 8, alignItems: "center" }}><input type="checkbox" checked={remedies.includes(r)} onChange={() => toggleRemedy(r)} />{r}</label>)}
+                  </div>
+                  {f("remedy_sought") && <p className="error" role="alert">{f("remedy_sought")}</p>}
+                </fieldset>
+              </>
+            ) : (
+              <>
+                <div className="row">
+                  <Field label="Location (Dzongkhag)" required error={f("dzongkhag")}>
+                    <select required value={v.dzongkhag as string} onChange={set("dzongkhag")}><option value="">Select Dzongkhag</option>{meta.dzongkhags.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+                  </Field>
+                  <Field label="Area type" error={f("area_type")} hint="Urban or rural."><select value={v.area_type as string} onChange={set("area_type")}><option value="">Select</option><option value="urban">Urban</option><option value="rural">Rural</option></select></Field>
+                  {isStd && <Field label="Concerned frequency" error={f("concerned_frequency")} hint="Optional. Frequency or band, if known."><input maxLength={120} value={v.concerned_frequency as string} onChange={set("concerned_frequency")} /></Field>}
+                </div>
+                <div className="row">
+                  <Field label="Concerned service provider" required={isIid} error={f("provider")} hint={isIid ? "Cable or ISP provider." : "Telecom operator or company, if known."}>
+                    <select required={isIid} value={otherProvider ? OTHER : (v.provider as string)} onChange={(e) => pickProvider(e.target.value)}><option value="">Select</option>{meta.providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}<option value={OTHER}>Other / Not listed</option></select>
+                  </Field>
+                  {otherProvider && <Field label="Name of the provider" required error={f("platform")} hint="The Division Head confirms it in triage."><input required value={v.platform as string} onChange={set("platform")} /></Field>}
+                  {isIid && (
+                    <Field label="Already complained to the provider?" required error={f("already_complained")}>
+                      <div style={{ display: "flex", gap: 20, minHeight: 46, alignItems: "center" }}>
+                        <label style={{ display: "flex", gap: 6 }}><input type="radio" name="already" required checked={already === "yes"} onChange={() => { setAlready("yes"); setV((p) => ({ ...p, already_complained: true })); }} />Yes</label>
+                        <label style={{ display: "flex", gap: 6 }}><input type="radio" name="already" required checked={already === "no"} onChange={() => { setAlready("no"); setV((p) => ({ ...p, already_complained: false })); }} />No</label>
+                      </div>
+                    </Field>
+                  )}
+                  {isIid && already === "yes" && <Field label="Provider reference number" required error={f("provider_reference")}><input required value={v.provider_reference as string} onChange={set("provider_reference")} /></Field>}
+                </div>
+                <Field label="Complaint description" required error={f("description")} hint="Detailed description of the complaint."><textarea required rows={6} placeholder={t("Describe what happened and any steps you have already taken.", "Record what the complainant reported.")} value={v.description as string} onChange={set("description")} /></Field>
+              </>
+            )}
       <div className="supporting-documents">
         <div className="supporting-documents-heading"><h3>Supporting documents</h3><span>Optional</span></div>
         <label className="supporting-documents-picker">
@@ -234,7 +420,9 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
         {f("files") && <p className="error" role="alert">{f("files")}</p>}
         {files.length > 0 && <div className="supporting-documents-selected"><p aria-live="polite">{files.length} {files.length === 1 ? "file" : "files"} selected</p><ul>{files.map((file, index) => <li key={`${file.name}-${index}`}><span className="supporting-documents-file-icon"><Icon name="complaint" size={20} /></span><span className="supporting-documents-file-name"><strong>{file.name}</strong><small>{Math.ceil(file.size / 1024)} KB</small></span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}><Icon name="close" size={16} /></button></li>)}</ul></div>}
       </div>
-      </section>
+          </section>
+            </>
+          )}
 
       {!offline && (
         <label className="on-behalf">
@@ -273,6 +461,9 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
         {offline && <button type="button" className="btn secondary" disabled={busy} onClick={(e) => submit(e as unknown as FormEvent, { draft: true })}><Icon name="edit" />Save draft</button>}
         <button className="btn" disabled={busy}><Icon name="send" />{busy ? "Submitting…" : offline ? "Register complaint" : "Submit complaint"}</button>
       </div>
+        </>
+      )}
+      </Modal>
     </form>
   );
 }

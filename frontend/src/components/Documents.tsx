@@ -34,7 +34,7 @@ export function Documents({ c, onDone }: { c: ComplaintDetail; onDone: () => voi
       {c.attachments.length === 0 && <p className="muted">No documents yet.</p>}
       <ul style={{ paddingLeft: 18, margin: "0 0 12px" }}>
         {c.attachments.map((a) => (
-          <li key={a.id}><a href={`/api/complaints/${c.id}/attachments/${a.id}/`}>{a.original_name}</a>{" "}
+          <li key={a.id}><a href={`/api/complaints/${c.id}/attachments/${a.id}/`}>{a.original_name}</a>{a.slot_label && <small className="muted"> · {a.slot_label}</small>}{" "}
             <small className="muted">{Math.ceil(a.size / 1024)} KB · {a.visibility === "public" ? "shared with complainant" : "internal"}</small></li>
         ))}
       </ul>

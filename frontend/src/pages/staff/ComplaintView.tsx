@@ -19,8 +19,8 @@ export function ComplaintView() {
   const words = (t: string) => t.replace(/_/g, " ");
   const sla = SLA[c.sla_state];
   return (
-    <>
-      <p><Link to="/staff/complaints"><Icon name="left" />All complaints</Link></p>
+    <div className="case-detail-page">
+      <p className="case-back"><Link to="/staff/complaints"><Icon name="left" />All complaints</Link></p>
       <section className="card detail-head" aria-label="Complaint summary">
         <span className="icon-tile lg" aria-hidden="true"><Icon name="complaint" size={30} /></span>
         <div style={{ flex: 1, minWidth: 240 }}>
@@ -37,16 +37,36 @@ export function ComplaintView() {
         </div>
       </section>
       <div className="detail-grid">
-        <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
+        <div className="case-main">
+          <section className="card"><PanelTitle icon="history">Case history</PanelTitle>
+            <ol className="timeline case-history">
+              {c.status_history.map((h, i) => (
+                <li key={i}>
+                  <span className="dot" aria-hidden="true"><Icon name={h.previous_status ? "refresh" : "plus"} size={14} /></span>
+                  <div className="what"><StatusBadge value={h.new_status} label={words(h.new_status)} />{h.previous_status && <span className="history-previous">from {words(h.previous_status)}</span>}</div>
+                  <div className="when">{fmt(h.created_at)} · {h.actor ?? "Complainant"}</div>
+                  {h.reason && <div>{h.reason}</div>}
+                </li>
+              ))}
+            </ol>
+          </section>
           <section className="card"><PanelTitle icon="complaint">Complaint</PanelTitle>
             <div className="desc">{c.description}</div>
             <dl className="kv" style={{ marginTop: 14 }}>
+              {c.details_display?.map((d) => row(d.label, d.value))}
+              {c.complaining_for && c.complaining_for !== "self" && row("Complaining on behalf of", `${words(c.complaining_for)}${c.other_party_name ? `: ${c.other_party_name}` : ""}`)}
+              {row("Present address", c.present_address)}
               {row("Remedy sought", c.remedy_sought)}
               {row("Incident", [c.incident_date && fmtDate(c.incident_date), c.incident_time?.slice(0, 5)].filter(Boolean).join(" at "))}
               {row("Provider / company", c.provider_name)}{row("Provider type", c.provider_type_name)}
               {c.already_complained && row("Provider reference", c.provider_reference)}
               {row("Medium of publication", c.medium_of_publication)}
-              {row("Location", [c.locality, c.gewog_name, c.dzongkhag_name].filter(Boolean).join(", "))}
+              {row("Date of publication", c.publication_date && fmtDate(c.publication_date))}
+              {row("Nature of complaint", c.nature_of_complaint)}
+              {row("Post / article link", c.publication_url)}
+              {row("Concerned frequency", c.concerned_frequency)}
+              {row("Authority referred to", [c.authority_referred_to, c.referral_date && fmtDate(c.referral_date)].filter(Boolean).join(" · "))}
+              {row("Location", [c.locality, c.dzongkhag_name].filter(Boolean).join(", "))}
               {row("Area type", c.area_type && c.area_type[0].toUpperCase() + c.area_type.slice(1))}
               {row("Website / social page", c.website_or_social)}
               {row("Additional information", c.additional_info)}
@@ -57,20 +77,8 @@ export function ComplaintView() {
             </dl>
           </section>
           <CaseActions key={`${c.version}-${c.messages.length}`} c={c} onDone={reload} />
-          <section className="card"><PanelTitle icon="history">Case history</PanelTitle>
-            <ol className="timeline">
-              {c.status_history.map((h, i) => (
-                <li key={i}>
-                  <span className="dot" aria-hidden="true"><Icon name={h.previous_status ? "refresh" : "plus"} size={14} /></span>
-                  <div className="what"><strong>{words(h.new_status)}</strong>{h.previous_status && <span className="muted"> (from {words(h.previous_status)})</span>}</div>
-                  <div className="when">{fmt(h.created_at)} · {h.actor ?? "Complainant"}</div>
-                  {h.reason && <div>{h.reason}</div>}
-                </li>
-              ))}
-            </ol>
-          </section>
         </div>
-        <div style={{ display: "grid", gap: 16, alignContent: "start" }}>
+        <aside className="case-sidebar">
           <section className="card"><PanelTitle icon="user">Complainant</PanelTitle>
             <dl className="kv">
               <dt>Name</dt><dd>{c.complainant_name}</dd>
@@ -99,10 +107,10 @@ export function ComplaintView() {
           )}
           <section className="card"><PanelTitle icon="mail">Emails sent</PanelTitle>
             {c.notifications.length === 0 && <p className="muted">None yet.</p>}
-            <ul style={{ paddingLeft: 18 }}>{c.notifications.map((n) => <li key={n.id}>{n.subject}<br /><small className="muted">{fmt(n.created_at)} · {n.recipient} · <span className={n.status === "sent" ? "" : "error"}>{n.status}</span></small></li>)}</ul>
+            <ul className="case-emails">{c.notifications.map((n) => <li key={n.id}><span className="case-email-icon"><Icon name="mail" size={17} /></span><div><strong>{n.subject}</strong><span className="case-email-recipient">{n.recipient}</span><div className="case-email-meta"><time>{fmt(n.created_at)}</time><span className={`badge ${n.status === "sent" ? "ok" : "bad"}`}>{n.status}</span></div></div></li>)}</ul>
           </section>
-        </div>
+        </aside>
       </div>
-    </>
+    </div>
   );
 }

@@ -1,0 +1,29 @@
+/* Bhutan NDI UI Specifications v3: popup #F8F8F8, Inter, green #5AC994, 30px between blocks, 10px inside the small groups. */
+.ndi-popup { width: min(590px, calc(100% - 24px)); max-height: calc(100dvh - 24px); padding: 0; border: 0; border-radius: 30px; background: #F8F8F8; color: #000; overflow: auto; font-family: "Inter", system-ui, sans-serif; font-size: 16px; box-shadow: 0 24px 80px rgb(0 0 0 / 28%); }
+.ndi-popup::backdrop { background: rgb(30 24 18 / 55%); }
+.ndi-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 30px; padding: 30px 24px; text-align: center; }
+.ndi-close { position: absolute; top: 14px; right: 18px; border: 0; background: none; font-size: 28px; line-height: 1; color: #A1A0A0; cursor: pointer; }
+.ndi-title { margin: 0; font-size: 18px; font-weight: 600; color: #000; }
+.ndi-title span { color: #5AC994; }
+.ndi-qr-frame { border: 3px solid #5AC994; border-radius: 22px; padding: 14px; background: #fff; line-height: 0; }
+.ndi-qr-frame img { width: 190px; height: 190px; image-rendering: pixelated; }
+.ndi-open { display: flex; align-items: center; justify-content: center; width: min(300px, 100%); height: 50px; border: 0; border-radius: 8px; background: #5AC994; color: #fff; font: 600 16px "Inter", system-ui, sans-serif; text-decoration: none; cursor: pointer; }
+.ndi-or { display: flex; align-items: center; gap: 12px; width: 100%; color: #A1A0A0; font-size: 14px; }
+.ndi-or::before, .ndi-or::after { content: ""; flex: 1; height: 1px; background: #cfcfcf; }
+.ndi-status { margin: -14px 0 0; color: #A1A0A0; font-size: 14px; }
+.ndi-message { display: grid; gap: 14px; justify-items: center; }
+.ndi-steps { margin: 0; padding: 0 0 0 22px; list-style: decimal; text-align: left; color: #A1A0A0; display: grid; gap: 10px; max-width: 420px; }
+.ndi-steps img { vertical-align: middle; margin: 0 2px; }
+.ndi-video { display: inline-flex; align-items: center; justify-content: center; gap: 12px; width: 200px; height: 40px; border: 2px solid #5AC994; border-radius: 20px; color: #5AC994; font-weight: 500; text-decoration: none; transition: background .15s, color .15s; }
+.ndi-video:hover { background: #5AC994; color: #fff; }
+.ndi-video:hover path { fill: #5AC994; }
+.ndi-download { margin: 0; color: #A1A0A0; }
+.ndi-download strong { color: #5AC994; font-weight: 700; }
+.ndi-stores { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; margin-top: -20px; }
+.ndi-store { display: inline-flex; align-items: center; gap: 8px; height: 46px; padding: 0 14px; border-radius: 8px; background: #000; color: #fff; text-decoration: none; text-align: left; font-size: 18px; font-weight: 500; line-height: 1.1; }
+.ndi-store span { display: grid; }
+.ndi-store small { font-size: 9px; font-weight: 400; letter-spacing: .02em; }
+.ndi-support-title { margin: 0 0 -20px; color: #5AC994; font-size: 16px; font-weight: 600; }
+.ndi-support { margin: 0; display: flex; gap: 22px; justify-content: center; flex-wrap: wrap; font-size: 14px; }
+.ndi-support a { display: inline-flex; align-items: center; gap: 8px; color: #000; text-decoration: none; }
+.ndi-popup a:focus-visible, .ndi-popup button:focus-visible { outline: 3px solid #124143; outline-offset: 2px; }

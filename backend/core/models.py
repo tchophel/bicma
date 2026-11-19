@@ -63,19 +63,6 @@ class Dzongkhag(UUIDModel):
         return self.name
 
 
-class Gewog(UUIDModel):
-    dzongkhag = models.ForeignKey(Dzongkhag, on_delete=models.PROTECT, related_name="gewogs")
-    name = models.CharField(max_length=100)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ["dzongkhag__name", "name"]
-        constraints = [models.UniqueConstraint(fields=["dzongkhag", "name"], name="uniq_gewog_per_dzongkhag")]
-
-    def __str__(self):
-        return f"{self.name} ({self.dzongkhag})"
-
-
 class SystemConfiguration(UUIDModel):
     key = models.CharField(max_length=80, unique=True)
     value = models.TextField(max_length=5000)
@@ -312,3 +299,22 @@ class ApiHealthCheck(UUIDModel):
     class Meta:
         ordering = ["-checked_at"]
         indexes = [models.Index(fields=["service", "checked_at"])]
+
+
+class NdiVerification(models.Model):
+    """One Bhutan NDI proof request used for staff sign-in. The NATS listener (or the webhook) fills in the
+    disclosed attributes; a row signs a user in at most once."""
+
+    thread_id = models.CharField(primary_key=True, max_length=64)  # proofRequestThreadId
+    status = models.CharField(max_length=10, default="pending")  # pending | verified | failed
+    deep_link_url = models.TextField(blank=True)
+    proof_url = models.TextField(blank=True)
+    cid = models.CharField(max_length=64, blank=True, help_text="Disclosed 'ID Number'")
+    full_name = models.CharField(max_length=200, blank=True)
+    holder_did = models.CharField(max_length=200, blank=True)
+    consumed = models.BooleanField(default=False)
+    user = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.SET_NULL, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at"]

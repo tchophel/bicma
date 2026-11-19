@@ -79,6 +79,13 @@ DEFAULT_TEMPLATES = {
     "not_within_mandate": ("Complaint {reference}: outside BICMA jurisdiction", "complainant", "Your complaint {reference} is outside BICMA's jurisdiction and has been closed.\n\n{message}\n\nBICMA"),
     "stakeholder_review": ("Complaint {reference}: BICMA initial review", "provider", "BICMA has completed an initial review of complaint {reference} concerning {category}.\n\n{message}\n\nPlease respond to BICMA.\n\nBICMA"),
     "assignment": ("Complaint {reference} assigned to you", "officer", "Complaint {reference} ({subject}) has been assigned to you."),
+    "referral": ("Complaint {reference} referred to your division", "division_head", "Complaint {reference} ({subject}) has been referred to {division} for review and assignment.\n\n{message}"),
+    "returned": ("Complaint {reference} returned to Division Head", "division_head", "Complaint {reference} ({subject}) has been returned by the assigned officer for reassignment or direction.\n\nReason: {message}"),
+    "resolution_submitted": ("Complaint {reference}: resolution awaiting approval", "division_head", "A resolution for complaint {reference} ({subject}) has been submitted for your approval."),
+    "resolution_rejected": ("Complaint {reference}: resolution returned", "officer", "The resolution for complaint {reference} ({subject}) was returned for further work.\n\n{message}"),
+    "approval_requested": ("Complaint {reference}: resolution awaiting your approval", "management", "The investigating officer has submitted findings for complaint {reference} ({subject}) for management approval."),
+    "management_rejected": ("Complaint {reference}: returned by management", "division_head", "Management did not accept the findings for complaint {reference} ({subject}). Please decide: send it back to the investigating officer or assign another officer.\n\nReason: {message}"),
+    "info_reply": ("Complaint {reference}: complainant replied", "officer", "The complainant has replied to the information request on complaint {reference} ({subject})."),
 }
 
 
@@ -98,6 +105,16 @@ def render_template(event, complaint, message=""):
         tracking_url=f"{settings.FRONTEND_URL.rstrip('/')}/track?ref={complaint.reference}",
     )
     return subject.format_map(values)[:300], body.format_map(values)
+
+
+def email_users(complaint, event, users, message=""):
+    """Email internal users (officer / Division Head) about a case event; each email is logged on the case."""
+    for email in sorted({u.email for u in users if u and u.email and u.is_active}):
+        send_event(complaint, event, email, message=message)
+
+
+def division_heads(division_id):
+    return User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True, division_id=division_id) if division_id else User.objects.none()
 
 
 def deliver(entry):
@@ -152,7 +169,7 @@ def create_complaint(data, *, channel, registered_by=None, request=None, draft=F
     complaint = Complaint(
         **data, channel=channel, registered_by=registered_by, suggested_division=suggested,
         internal_status=S.DRAFT if draft else S.RECEIVED,
-        reference=f"DRAFT-{timezone.now():%y%m%d%H%M%S%f}"[:40] if draft else next_reference(timezone.now()),
+        reference=f"DRAFT-{timezone.now():%y%m%d%H%M%S%f}"[:40] if draft else next_reference(timezone.now(), data.get("division")),
     )
     complaint.save()
     if not draft:
@@ -197,7 +214,7 @@ def register_draft(complaint, *, actor, request=None):
     if complaint.internal_status != S.DRAFT:
         raise WorkflowError("Only a draft can be registered.")
     complaint.internal_status = S.RECEIVED
-    complaint.reference = next_reference(timezone.now())
+    complaint.reference = next_reference(timezone.now(), complaint.division)
     complaint.created_at = timezone.now()
     complaint.save(update_fields=["internal_status", "reference", "created_at"])
     _on_registered(complaint, actor, request)
@@ -209,10 +226,12 @@ ALLOWED = {
     S.RECEIVED: {S.TRIAGE, S.ASSIGNED, S.REFERRED, S.NOT_WITHIN_MANDATE},
     S.TRIAGE: {S.ASSIGNED, S.REFERRED, S.NOT_WITHIN_MANDATE},
     S.REFERRED: {S.ASSIGNED, S.REFERRED, S.NOT_WITHIN_MANDATE},
-    S.ASSIGNED: {S.INVESTIGATING, S.ASSIGNED, S.REFERRED, S.NOT_WITHIN_MANDATE},
-    S.INVESTIGATING: {S.AWAITING_INFORMATION, S.RESOLVED, S.ASSIGNED, S.REFERRED},
-    S.AWAITING_INFORMATION: {S.INVESTIGATING},
-    S.RESOLVED: {S.CLOSED, S.INVESTIGATING},
+    S.ASSIGNED: {S.INVESTIGATING, S.ASSIGNED, S.REFERRED, S.NOT_WITHIN_MANDATE, S.TRIAGE},
+    S.INVESTIGATING: {S.AWAITING_INFORMATION, S.RESOLVED, S.ASSIGNED, S.REFERRED, S.TRIAGE},
+    S.PENDING_APPROVAL: {S.RESOLVED, S.MANAGEMENT_REJECTED},
+    S.MANAGEMENT_REJECTED: {S.INVESTIGATING, S.ASSIGNED},
+    S.AWAITING_INFORMATION: {S.INVESTIGATING, S.TRIAGE},
+    S.RESOLVED: {S.CLOSED, S.INVESTIGATING, S.PENDING_APPROVAL},
     S.CLOSED: {S.INVESTIGATING, S.TRIAGE},  # reopen only
     S.NOT_WITHIN_MANDATE: set(),
     S.DRAFT: set(),
@@ -250,8 +269,8 @@ def move(complaint, new_status, *, actor, reason="", request=None, public_messag
         event = _STATUS_EMAIL.get(new_status)
         if event is None and new_status not in (S.RECEIVED, S.TRIAGE, S.REFERRED):
             event = "status_change"
-        if new_status == S.RESOLVED:
-            event = None  # not final until the Division Head approves
+        if new_status in (S.RESOLVED, S.PENDING_APPROVAL, S.MANAGEMENT_REJECTED):
+            event = None  # internal steps: the complainant hears nothing until the Division Head closes the case
         if event:
             send_event(complaint, event, complaint.email, message=public_message or reason, actor=actor)
     return complaint

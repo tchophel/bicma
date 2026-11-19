@@ -46,7 +46,8 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
   {
     heading: "Complaints",
     items: [
-      { to: "/staff/complaints?scope=triage", label: "Triage queue", icon: "clock", roles: ["focal", "investigator", "super_admin"] },
+      { to: "/staff/complaints?scope=triage", label: "Triage queue", icon: "clock", roles: ["focal", "super_admin"] },
+      { to: "/staff/complaints?status=pending_approval", label: "Awaiting my approval", icon: "check", roles: ["supervisor"] },
       { to: "/staff/complaints", label: "All complaints", icon: "complaint" },
       { to: "/staff/register", label: "Register complaint", icon: "plus", perm: "register_complaint" },
       { to: "/staff/reports", label: "Reports", icon: "chart", perm: "view_reports" },
@@ -66,7 +67,6 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
       { to: "/staff/holidays", label: "Holiday calendar", icon: "clock", roles: ["super_admin"] },
       { to: "/staff/email-templates", label: "Email templates", icon: "mail", roles: ["super_admin"] },
       { to: "/staff/dzongkhags", label: "Dzongkhags", icon: "map", roles: ["super_admin"] },
-      { to: "/staff/gewogs", label: "Gewogs", icon: "pin", roles: ["super_admin"] },
     ],
   },
   {

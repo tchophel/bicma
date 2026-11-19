@@ -9,6 +9,22 @@ holiday calendar, email templates, category→division/priority/urban-rural rout
 tracking with message reply, email notifications logged per case with retry, in-app SLA alerts, dashboard filters/metrics, 7 reports with CSV/Excel/PDF export.
 106 backend tests pass; frontend typechecks and builds. **The UI has not been click-tested in a browser.**
 
+## Management approval step (2026-11-19)
+- Officer submits findings -> **Resolved** (awaiting the Division Head), who chooses: **Accept and close**, **Send to Management Viewer** (`send_to_management`) or Reject (back to the officer). Management Accept -> Resolved again, Head closes (no second round); Management Reject -> **Returned by management** -> Head sends it back to the same officer (`send_back`) or assigns another. Complainant is emailed nothing until the Head closes.
+- The Management Viewer can now decide on submitted cases but still cannot triage, assign, refer, edit or close.
+
+## Gewog removed (2026-11-19)
+- Gewog is gone everywhere: the model and complaint column (migrations complaints 0010, core 0012), the admin page and API, the form fields, the report column. Location is the Dzongkhag only.
+
+## FRD gap pass (2026-11-19) — additive only, nothing removed
+- [x] Reference number `BICMA-Year-Code-Serial` (1 IID, 2 MCD, 3 STD; serial restarts per division per year; length from setting `reference_serial_length`, default 4). Divisions without a code keep the old running number. Division has a new `reference_code` field (data-migrated for existing divisions).
+- [x] Officer "Return to Division Head" (Assigned / Under review / Awaiting information -> Triage, reason required, unassigns, alerts and emails the Division Head); new `return` permission.
+- [x] Emails logged on the case for assignment, referral, return, resolution submitted, resolution rejected and complainant reply (alongside the in-app alerts).
+- [x] Authority referred to + date of referral (Not within mandate; required when the outcome is a referral).
+- [x] New form fields: concerned frequency (STD), date of publication, nature of complaint and post link (MCD). Status label is now "Under review".
+- [x] Location report adds Gewog and excludes MCD.
+- Still open from the FRD: multiple roles per user, MFA, ZESt/BCRS/IBLS/SSO integrations, geo-coordinates capture, masters for channel / remedy sought / submission requirement / declaration per division / response target by category+priority / location urban-rural / provider areas served, master effective dates and per-case configuration version, activation emails and expiring temporary credentials, "Pending Activation" user status.
+
 Legend: [x] built and verified · [~] partly built · [ ] not started
 
 ## Phase 1 — Architecture & foundation
@@ -18,8 +34,7 @@ Legend: [x] built and verified · [~] partly built · [ ] not started
 ## Phase 2 — Core application
 - [x] Authentication (email + password login, no usernames; session, CSRF, lockout, throttling, Argon2) — **MFA not built**
 - [x] Register all Divisional Focals at once (Divisions page): one row per division without a focal, all-or-nothing, each gets an emailed set-password link; division directory shows each focal
-- [x] User, division, category, subcategory, Dzongkhag and Gewog (mapped master data, dependent dropdowns, bulk add) management (API + UI)
-- [ ] Gewog master list is empty: BICMA must load the real Gewogs (Master data > Gewogs)
+- [x] User, division, category, subcategory, Dzongkhag (master data) management (API + UI)
 - [x] Public complaint submission (all required fields, on-behalf, honeypot, self-hosted image CAPTCHA — single-use, 10-min expiry; no audio alternative yet) + reference numbers
 - [x] Offline registration by officials with channel
 - [x] Role-based dashboard (cards, trend, status/category/division breakdowns, recent; every figure links to a filtered list) with sidebar + top-bar layout

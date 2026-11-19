@@ -141,3 +141,153 @@ class ProfilePhotoTests(APITestCase):
             self.assertEqual(self.client.delete("/api/auth/me/photo/").status_code, 200)
             self.assertFalse(user.profile_photo.storage.exists(name))
             self.assertEqual(self.client.get("/api/auth/me/photo/").status_code, 404)
+
+
+NDI_SETTINGS = {
+    "NATS_HOST": "https://nats.example", "NATS_PORT": 4222, "NATS_SEED": "seed", "AUTH_ENDPOINT": "https://auth.example/token",
+    "API_HOST": "https://ndi.example", "CLIENT_ID": "id", "CLIENT_SECRET": "secret", "GRANT_TYPE": "client_credentials",
+    "FOUNDATIONAL_ID_CRED_DEF_ID": "def", "LOGIN_ATTRIBUTES": ["ID Number", "Full Name"], "PROOF_TTL_SECONDS": 300,
+}
+NDI_RESULT = {"verification_result": "ProofValidated", "requested_presentation": {"revealed_attrs": {
+    "ID Number": [{"value": "10101010101", "identifier_index": 0}], "Full Name": [{"value": "Tashi Dorji", "identifier_index": 0}]}}}
+
+
+@override_settings(NDI=NDI_SETTINGS)
+class NdiLoginTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.staff = User.objects.create_user("officer@example.org", "Strong-pass-182!", role=Role.INVESTIGATOR, cid="10101010101")
+
+    def start(self, thread="thr-1"):
+        pr = {"thread_id": thread, "deep_link_url": "ndi://x", "proof_url": "https://ndi.example/p/1"}
+        with patch("core.ndi.create_proof_request", return_value=pr), patch("core.ndi_nats.watch", return_value=True):
+            return self.client.post("/api/auth/ndi/start/", {}, format="json")
+
+    def present(self, thread="thr-1", payload=NDI_RESULT):
+        from core import ndi_nats
+        ndi_nats.persist(thread, {"pattern": thread, "data": payload})
+
+    def status(self, thread="thr-1"):
+        return self.client.get(f"/api/auth/ndi/status/?threadId={thread}")
+
+    def test_start_returns_qr_and_deep_link(self):
+        r = self.start()
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual((r.data["threadId"], r.data["deepLinkURL"]), ("thr-1", "ndi://x"))
+        self.assertTrue(r.data["qr"].startswith("data:image/png;base64,"))
+
+    def test_not_configured_answers_501(self):
+        with override_settings(NDI={**NDI_SETTINGS, "CLIENT_ID": ""}):
+            self.assertEqual(self.client.post("/api/auth/ndi/start/", {}, format="json").status_code, 501)
+
+    def test_authentication_rejection_is_not_reported_as_network_failure(self):
+        from core import ndi
+        with patch("core.ndi._call") as call:
+            call.return_value.status_code = 400
+            with patch.dict(ndi._token, {"value": None, "expires_at": 0}):
+                response = self.client.post("/api/auth/ndi/start/", {}, format="json")
+        self.assertEqual(response.status_code, 502)
+        self.assertIn("rejected", response.data["detail"])
+        self.assertNotIn("not reachable", response.data["detail"])
+
+    def test_connection_failure_returns_unavailable_message(self):
+        from core import ndi
+        with patch("core.ndi.create_proof_request", side_effect=ndi.NDIError("ConnectionError")):
+            response = self.client.post("/api/auth/ndi/start/", {}, format="json")
+        self.assertEqual(response.status_code, 502)
+        self.assertIn("temporarily unavailable", response.data["detail"])
+
+    def test_pending_then_signs_in_matching_staff_once(self):
+        self.start()
+        self.assertEqual(self.status().data["status"], "pending")
+        self.present()
+        r = self.status()
+        self.assertEqual(r.data["status"], "verified", r.data)
+        self.assertEqual(r.data["user"]["email"], self.staff.email)
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 200)
+        self.assertEqual(self.status().status_code, 404)  # one use only; the session link is gone
+
+    def test_unknown_cid_does_not_sign_in(self):
+        self.start()
+        self.present(payload={**NDI_RESULT, "requested_presentation": {"revealed_attrs": {"ID Number": [{"value": "99999999999"}]}}})
+        self.assertEqual(self.status().data["status"], "no_account")
+        self.assertEqual(self.client.get("/api/auth/me/").status_code, 403)
+
+    def test_inactive_account_cannot_sign_in(self):
+        User.objects.filter(pk=self.staff.pk).update(is_active=False)
+        self.start()
+        self.present()
+        self.assertEqual(self.status().data["status"], "no_account")
+
+    def test_another_browser_cannot_poll_the_request(self):
+        self.start()
+        self.present()
+        other = APIClient()
+        self.assertEqual(other.get("/api/auth/ndi/status/?threadId=thr-1").status_code, 404)
+
+    def test_declined_in_wallet_and_expiry(self):
+        from core.models import NdiVerification
+        self.start()
+        self.present(payload={"verification_result": "abandoned"})
+        self.assertEqual(self.status().data["status"], "failed")
+        self.start("thr-2")
+        NdiVerification.objects.filter(pk="thr-2").update(created_at=datetime.now().astimezone() - timedelta(hours=1))
+        self.assertEqual(self.status("thr-2").data["status"], "expired")
+
+    def test_result_cannot_overwrite_a_finished_request(self):
+        self.start()
+        self.present()
+        self.present(payload={**NDI_RESULT, "requested_presentation": {"revealed_attrs": {"ID Number": [{"value": "99999999999"}]}}})
+        from core.models import NdiVerification
+        self.assertEqual(NdiVerification.objects.get(pk="thr-1").cid, "10101010101")
+
+
+class CidLoginTests(APITestCase):
+    def test_staff_sign_in_with_cid_or_email_not_employee_id(self):
+        cache.clear()
+        User.objects.create_user("o@example.org", "Strong-pass-182!", role=Role.INVESTIGATOR, cid="10101010101", employee_id="E1")
+        self.assertEqual(APIClient().post("/api/auth/login/", {"email": "E1", "password": "Strong-pass-182!"}, format="json").status_code, 400)
+        for name in ("10101010101", "o@example.org"):
+            r = APIClient().post("/api/auth/login/", {"email": name, "password": "Strong-pass-182!"}, format="json")
+            self.assertEqual(r.status_code, 200, name)
+        bad = APIClient().post("/api/auth/login/", {"email": "10101010101", "password": "wrong"}, format="json")
+        self.assertEqual(bad.status_code, 400)
+
+
+class AdminSetPasswordTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.admin = User.objects.create_user("admin@example.org", "Admin-pass-182!", role=Role.SUPER_ADMIN)
+        self.staff = User.objects.create_user("staff@example.org", "Staff-pass-182!", role=Role.INVESTIGATOR, cid="10101010101")
+        self.url = f"/api/admin/users/{self.staff.pk}/set-password/"
+
+    def as_(self, user):
+        c = APIClient()
+        c.force_login(user)
+        return c
+
+    def test_admin_sets_a_password_the_user_can_sign_in_with(self):
+        old = self.as_(self.staff)  # a session that is open before the change
+        self.assertEqual(old.get("/api/auth/me/").status_code, 200)
+        r = self.as_(self.admin).post(self.url, {"new_password": "Brand-new-pass-731!", "confirm_password": "Brand-new-pass-731!"}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(len(mail.outbox), 0)  # no email is involved
+        self.assertEqual(APIClient().post("/api/auth/login/", {"email": "10101010101", "password": "Brand-new-pass-731!"}, format="json").status_code, 200)
+        self.assertEqual(APIClient().post("/api/auth/login/", {"email": "10101010101", "password": "Staff-pass-182!"}, format="json").status_code, 400)
+        self.assertEqual(old.get("/api/auth/me/").status_code, 403)  # the old session ended
+        from core.models import AuditLog
+        log = AuditLog.objects.get(action="user.password_set")
+        self.assertNotIn("Brand-new", str(log.detail))
+
+    def test_weak_or_mismatched_passwords_are_refused(self):
+        a = self.as_(self.admin)
+        self.assertIn("new_password", a.post(self.url, {"new_password": "short", "confirm_password": "short"}, format="json").data)
+        self.assertIn("confirm_password", a.post(self.url, {"new_password": "Brand-new-pass-731!", "confirm_password": "other"}, format="json").data)
+        self.assertTrue(self.staff.__class__.objects.get(pk=self.staff.pk).check_password("Staff-pass-182!"))
+
+    def test_only_administrators_and_only_active_accounts(self):
+        body = {"new_password": "Brand-new-pass-731!", "confirm_password": "Brand-new-pass-731!"}
+        self.assertEqual(self.as_(self.staff).post(self.url, body, format="json").status_code, 403)
+        self.assertEqual(APIClient().post(self.url, body, format="json").status_code, 403)
+        User.objects.filter(pk=self.staff.pk).update(is_active=False)
+        self.assertEqual(self.as_(self.admin).post(self.url, body, format="json").status_code, 400)

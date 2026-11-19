@@ -9,7 +9,7 @@ from django.utils import timezone
 from rest_framework.test import APIClient, APITestCase
 
 from accounts.models import Division, Role, User
-from core.models import AuditLog, Category, Dzongkhag, Gewog, Outcome, Priority, ProviderType, Subcategory
+from core.models import AuditLog, Category, Dzongkhag, Outcome, Priority, ProviderType, Subcategory
 from core import captcha
 from complaints.models import Complaint, StatusHistory
 from complaints.services import create_complaint
@@ -28,8 +28,6 @@ class Base(APITestCase):
         cls.other_cat = Category.objects.create(name="Other")
         cls.dz = Dzongkhag.objects.create(name="Thimphu")
         cls.dz2 = Dzongkhag.objects.create(name="Paro")
-        cls.gw = Gewog.objects.create(dzongkhag=cls.dz, name="Chang")
-        cls.gw2 = Gewog.objects.create(dzongkhag=cls.dz2, name="Dokar")
         mk = lambda u, r, d=None: User.objects.create_user(f"{u}@x.bt", password="Str0ng-pass-123", role=r, division=d)
         cls.admin = mk("admin", Role.SUPER_ADMIN)
         cls.sup = mk("sup", Role.SUPERVISOR)
@@ -86,10 +84,8 @@ class PublicSubmissionTests(Base):
 
     def test_validation(self):
         for bad in (
-            self.payload(phone="", email=""),
             self.payload(dzongkhag=999999),
-            self.payload(gewog=self.gw.pk, dzongkhag=self.dz2.pk),
-            self.payload(gewog=self.gw.pk, dzongkhag=None),
+            self.payload(dzongkhag=None),
             self.payload(on_behalf=True),
             self.payload(incident_date=str(timezone.localdate() + timedelta(days=2))),
             self.payload(category=999999),
@@ -188,7 +184,7 @@ class AdminApiTests(Base):
     def test_only_super_admin(self):
         for u in (self.sup, self.focal1, self.inv1):
             c = self.login(u)
-            for url in ("/api/admin/users/", "/api/admin/divisions/", "/api/admin/categories/", "/api/admin/audit-logs/", "/api/admin/dzongkhags/", "/api/admin/gewogs/"):
+            for url in ("/api/admin/users/", "/api/admin/divisions/", "/api/admin/categories/", "/api/admin/audit-logs/", "/api/admin/dzongkhags/"):
                 self.assertEqual(c.get(url).status_code, 403, (u.email, url))
         self.assertEqual(self.client.get("/api/admin/users/").status_code in (401, 403), True)
 
@@ -243,7 +239,6 @@ class AdminApiTests(Base):
         meta = self.client.get("/api/meta/").data
         self.assertIn("Cable TV", [x["name"] for x in meta["categories"]])
         self.assertEqual([d["name"] for d in meta["dzongkhags"]], ["Paro", "Thimphu"])
-        self.assertEqual(meta["dzongkhags"][1]["gewogs"], [{"id": self.gw.id, "name": "Chang"}])
 
 
 class AuthTests(Base):
@@ -323,20 +318,10 @@ class ConcurrentReferenceTests(TransactionTestCase):
 
 
 class MasterLocationTests(Base):
-    def test_valid_mapped_location_is_saved(self):
-        r = self.client.post("/api/public/complaints/", self.payload(gewog=self.gw.pk), format="json")
-        self.assertEqual(r.status_code, 201, r.content)
-        c = Complaint.objects.get()
-        self.assertEqual((c.dzongkhag, c.gewog), (self.dz, self.gw))
-
-    def test_gewog_is_optional(self):
+    def test_location_is_the_dzongkhag(self):
         self.assertEqual(self.client.post("/api/public/complaints/", self.payload(), format="json").status_code, 201)
 
-    def test_inactive_dzongkhag_or_gewog_rejected_and_hidden(self):
-        self.gw.is_active = False
-        self.gw.save()
-        self.assertEqual(self.client.post("/api/public/complaints/", self.payload(gewog=self.gw.pk), format="json").status_code, 400)
-        self.assertEqual(next(d for d in self.client.get("/api/meta/").data["dzongkhags"] if d["id"] == self.dz.id)["gewogs"], [])
+    def test_inactive_dzongkhag_rejected(self):
         self.dz.is_active = False
         self.dz.save()
         self.assertEqual(self.client.post("/api/public/complaints/", self.payload(), format="json").status_code, 400)
@@ -346,29 +331,7 @@ class MasterLocationTests(Base):
         r = c.post("/api/admin/dzongkhags/", {"name": "Haa"}, format="json")
         self.assertEqual(r.status_code, 201, r.content)
         self.assertEqual(c.post("/api/admin/dzongkhags/", {"name": "haa"}, format="json").status_code, 400)
-        g = c.post("/api/admin/gewogs/", {"dzongkhag": r.data["id"], "name": "Bji"}, format="json")
-        self.assertEqual(g.status_code, 201, g.content)
-        self.assertEqual(c.post("/api/admin/gewogs/", {"dzongkhag": r.data["id"], "name": "BJI"}, format="json").status_code, 400)
-        # same name allowed under another Dzongkhag
-        self.assertEqual(c.post("/api/admin/gewogs/", {"dzongkhag": self.dz.pk, "name": "Bji"}, format="json").status_code, 201)
-        self.assertEqual(c.patch(f"/api/admin/gewogs/{g.data['id']}/", {"is_active": False}, format="json").status_code, 200)
-        self.assertEqual(c.delete(f"/api/admin/gewogs/{g.data['id']}/").status_code, 405)
         self.assertEqual(c.delete(f"/api/admin/dzongkhags/{r.data['id']}/").status_code, 405)
-        self.assertEqual([x["name"] for x in c.get(f"/api/admin/gewogs/?dzongkhag={self.dz.pk}").data["results"]], ["Bji", "Chang"])
-        self.assertTrue(AuditLog.objects.filter(action="gewog.create").exists())
-
-    def test_bulk_add_skips_existing_and_duplicates(self):
-        c = self.login(self.admin)
-        r = c.post("/api/admin/gewogs/bulk/", {"dzongkhag": self.dz.pk, "names": ["Chang", "Kawang", " kawang ", "Mewang", ""]}, format="json")
-        self.assertEqual(r.status_code, 201, r.content)
-        self.assertEqual(r.data, {"created": 2, "skipped": 1})
-        self.assertEqual(self.dz.gewogs.count(), 3)
-        self.assertEqual(c.post("/api/admin/gewogs/bulk/", {"dzongkhag": 999, "names": ["x"]}, format="json").status_code, 400)
-        self.assertEqual(c.post("/api/admin/gewogs/bulk/", {"dzongkhag": self.dz.pk, "names": []}, format="json").status_code, 400)
-
-    def test_bulk_requires_super_admin(self):
-        for u in (self.focal1, self.sup):
-            self.assertEqual(self.login(u).post("/api/admin/gewogs/bulk/", {"dzongkhag": self.dz.pk, "names": ["x"]}, format="json").status_code, 403)
 
     def test_dashboard_area_uses_master_name(self):
         self.make(dzongkhag=self.dz)
@@ -485,7 +448,7 @@ class CaptchaTests(Base):
 
     def test_field_errors_do_not_consume_captcha(self):
         ch = captcha.new_challenge()
-        self.assertEqual(self.post(captcha_token=ch.token, captcha_answer=ch.code, subject="").status_code, 400)
+        self.assertEqual(self.post(captcha_token=ch.token, captcha_answer=ch.code, description="").status_code, 400)
         self.assertEqual(self.post(captcha_token=ch.token, captcha_answer=ch.code).status_code, 201)
 
     def test_staff_registration_needs_no_captcha(self):

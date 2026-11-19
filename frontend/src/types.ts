@@ -21,16 +21,27 @@ export interface User {
   permissions?: string[];
 }
 
-export interface Division { id: string; name: string; code: string; is_active: boolean; focal?: { id: string; email: string; name: string } | null }
+export interface Division { id: string; name: string; code: string; reference_code?: string; is_active: boolean; focal?: { id: string; email: string; name: string } | null }
 export interface Subcategory { id: string; name: string; is_active?: boolean; category?: string }
 export interface Category {
   id: string; name: string; is_active: boolean; subcategories: Subcategory[];
-  default_division: string | null; urban_division: string | null; rural_division: string | null; default_priority: string | null;
+  default_division: string | null; urban_division: string | null; rural_division: string | null; default_priority: string | null; form?: CategoryForm | null;
+}
+export interface FormWhen { key: string; equals?: string; includes?: string }
+export interface FormField { key: string; label: string; type: "text" | "textarea" | "date" | "select" | "yesno" | "checks" | "provider"; required: boolean; options?: string[]; when?: FormWhen; past?: boolean }
+export interface FormDoc { key: string; label: string; required: boolean | "when"; when?: FormWhen; image?: boolean }
+/** A category's own form, defined on the server (backend/core/formspecs.py). */
+export interface CategoryForm {
+  division: "std" | "iid" | "mcd";
+  identity: { location: boolean; present_address: boolean; complaining_for: [string, string][] | null; other_party_label: string };
+  fields: FormField[];
+  docs: FormDoc[];
+  description: { label: string; required: boolean } | null;
 }
 export interface Named { id: string; name: string }
 export interface Meta {
   divisions: { id: string; name: string }[];
-  dzongkhags: { id: string; name: string; gewogs: { id: string; name: string }[] }[];
+  dzongkhags: { id: string; name: string }[];
   categories: Category[];
   channels: { value: string; label: string }[];
   provider_types: Named[];
@@ -41,12 +52,14 @@ export interface Meta {
   declaration_text: string;
   limits: Limits;
 }
-export interface DzongkhagRow { id: string; name: string; is_active: boolean; gewog_count: number }
-export interface GewogRow { id: string; dzongkhag: string; dzongkhag_name: string; name: string; is_active: boolean }
+export interface DzongkhagRow { id: string; name: string; is_active: boolean }
 export interface Page<T> { count: number; next: string | null; previous: string | null; results: T[] }
 
 export interface ComplaintRow {
   id: string;
+  can_assign?: boolean;
+  can_refer?: boolean;
+  division: string | null;
   reference: string;
   subject: string;
   channel: string;
@@ -73,15 +86,17 @@ export interface CaseMessage {
   id: string; visibility: "public" | "internal"; kind: string; body: string; author_name: string; created_at: string;
   attachments: AttachmentInfo[];
 }
-export interface AttachmentInfo { id: string; original_name: string; size: number; visibility: string; created_at: string }
+export interface AttachmentInfo { id: string; original_name: string; size: number; visibility: string; slot?: string; slot_label?: string; created_at: string }
 
 export interface ComplaintDetail extends ComplaintRow {
-  complainant_type: string; cid: string; phone: string; email: string; gewog: string | null; gewog_name: string | null; locality: string; area_type: string;
+  complainant_type: string; cid: string; phone: string; email: string; locality: string; area_type: string;
   preferred_contact: string; on_behalf: boolean; affected_name: string; affected_relationship: string; affected_contact: string;
   subcategory: string | null; subcategory_name: string | null; description: string; incident_date: string | null; incident_time: string | null;
   platform: string; provider: string | null; provider_type: string | null; provider_type_name: string | null;
   already_complained: boolean; provider_reference: string; medium_of_publication: string; remedy_sought: string;
-  website_or_social: string; additional_info: string; declaration_accepted: boolean; date_received: string | null;
+  website_or_social: string; additional_info: string; concerned_frequency: string; publication_date: string | null; publication_url: string; nature_of_complaint: string;
+  authority_referred_to: string; referral_date: string | null;
+  details_display: { label: string; value: string }[]; form_division: string; complaining_for: string; other_party_name: string; agency_name: string; present_address: string; declaration_accepted: boolean; date_received: string | null;
   suggested_division: string | null; suggested_division_name: string | null; confidential_case: boolean;
   response_due_at: string | null; first_response_at: string | null; resolved_at: string | null; closed_at: string | null;
   investigation_findings: string; action_taken: string; recommendation: string; outcome: string | null; outcome_name: string | null;

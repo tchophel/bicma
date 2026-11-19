@@ -14,6 +14,7 @@ from accounts.models import Division, Role, User, roles_with_base
 from accounts.perms import has_perm
 from core import audit, captcha
 from core.models import Category, Outcome, Priority
+from core import formspecs
 from core.utils import parse_uuid
 from core.notifications import notify
 
@@ -31,12 +32,40 @@ GENERIC_TRACK_ERROR = "No complaint matches that reference number."
 
 
 def _files(request):
-    return validate_uploads(request.FILES.getlist("files"))
+    """Uploaded files: the general `files` plus one list per requested document (`doc__<slot>`)."""
+    out = validate_uploads(request.FILES.getlist("files"))
+    for key in request.FILES:
+        if key.startswith("doc__"):
+            for att in validate_uploads(request.FILES.getlist(key)):
+                att.slot = key[5:][:60]
+                out.append(att)
+    return out
+
+
+def _slots(request):
+    return {k[5:] for k in request.FILES if k.startswith("doc__") and request.FILES.getlist(k)}
+
+
+def _check_photos(spec, files):
+    """Documents the form marks as photos must be images."""
+    from rest_framework.exceptions import ValidationError
+    for dct in (spec or {}).get("docs", []):
+        if dct.get("image"):
+            for a in files:
+                if a.slot == dct["key"] and a.original_name.rsplit(".", 1)[-1].lower() not in ("jpg", "jpeg", "png"):
+                    raise ValidationError({f"doc__{dct['key']}": ["Attach a photo (JPG or PNG)."]})
 
 
 def _flat(data):
     """QueryDict -> plain dict (multipart forms send lists of one)."""
-    return {k: (v[-1] if isinstance(v, list) else v) for k, v in (data.lists() if hasattr(data, "lists") else data.items())}
+    flat = {k: (v[-1] if isinstance(v, list) else v) for k, v in (data.lists() if hasattr(data, "lists") else data.items())}
+    if isinstance(flat.get("details"), str):  # multipart forms send the category answers as one JSON string
+        import json
+        try:
+            flat["details"] = json.loads(flat["details"] or "{}")
+        except ValueError:
+            flat["details"] = {}
+    return flat
 
 
 class PublicSubmitView(APIView):
@@ -49,9 +78,10 @@ class PublicSubmitView(APIView):
         data = _flat(request.data)
         if data.get("fax_number"):  # honeypot
             return Response({"detail": "Rejected."}, status=status.HTTP_400_BAD_REQUEST)
-        ser = ComplaintCreateSerializer(data=data, context={"offline": False})
+        ser = ComplaintCreateSerializer(data=data, context={"offline": False, "present_slots": _slots(request)})
         ser.is_valid(raise_exception=True)
         files = _files(request)
+        _check_photos(formspecs.spec_for(ser.validated_data.get("category")), files)
         # Checked after field validation so a typo elsewhere does not burn the user's CAPTCHA.
         if not captcha.verify(data.get("captcha_token"), data.get("captcha_answer")):
             return Response({"captcha_answer": ["The characters do not match. Please try again."]}, status=status.HTTP_400_BAD_REQUEST)
@@ -163,7 +193,20 @@ class PublicReplyView(APIView):
             services.move(complaint, S.INVESTIGATING, actor=None, reason="Complainant replied to the information request",
                           request=request, notify_complainant=False)
             services.alert_officers(complaint, f"Complainant replied on {complaint.reference}.")
+            if complaint.assigned_to_id:
+                services.email_users(complaint, "info_reply", [complaint.assigned_to])
         return Response({"detail": "Your reply has been sent to BICMA."}, status=status.HTTP_201_CREATED)
+
+
+def _date_or_none(value, field):
+    import datetime as _dt
+    try:
+        d = _dt.date.fromisoformat(str(value))
+    except ValueError:
+        raise WorkflowError("Enter a valid date (YYYY-MM-DD).", field)
+    if d > timezone.localdate():
+        raise WorkflowError("The date cannot be in the future.", field)
+    return d
 
 
 def _pk(value):
@@ -180,7 +223,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
 
     def get_queryset(self):
         qs = Complaint.objects.visible_to(self.request.user).select_related(
-            "category", "subcategory", "division", "assigned_to", "registered_by", "dzongkhag", "gewog", "provider",
+            "category", "subcategory", "division", "assigned_to", "registered_by", "dzongkhag", "provider",
             "provider_type", "priority", "outcome", "suggested_division",
         )
         qs = apply_filters(qs, self.request.query_params, self.request.user)
@@ -209,9 +252,11 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
         if channel not in {c for c, _ in Channel.choices} or channel == Channel.PORTAL:
             return _bad("Select the channel the complaint was received through.", "channel")
         draft = str(data.get("draft", "")).lower() in ("1", "true", "yes")
-        ser = ComplaintCreateSerializer(data=data, context={"offline": True, "draft": draft})
+        ser = ComplaintCreateSerializer(data=data, context={"offline": True, "draft": draft, "present_slots": _slots(request)})
         ser.is_valid(raise_exception=True)
         vd = ser.validated_data
+        if not draft:
+            _check_photos(formspecs.spec_for(vd.get("category")), _files(request))
         if not vd.get("date_received"):
             vd["date_received"] = timezone.localdate()
         if not draft and not vd.get("confirm_duplicate"):
@@ -275,7 +320,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
     @action(detail=True, methods=["get"], url_path="officers")
     def officers(self, request, pk=None):
         c = self.get_object()
-        users = User.objects.filter(is_active=True, division_id=c.division_id, role__in=roles_with_base(Role.INVESTIGATOR, Role.FOCAL))
+        users = User.objects.filter(is_active=True, division_id=c.division_id, role__in=roles_with_base(Role.INVESTIGATOR))
         return Response([{"id": str(u.pk), "name": u.get_full_name() or u.email, "role": u.role_name} for u in users])
 
     @action(detail=True, methods=["post"])
@@ -284,9 +329,9 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
 
         def run(c):
             officer = User.objects.filter(pk=_pk(d.get("assigned_to")), is_active=True, division_id=c.division_id,
-                                          role__in=roles_with_base(Role.INVESTIGATOR, Role.FOCAL)).first() if d.get("assigned_to") else None
+                                          role__in=roles_with_base(Role.INVESTIGATOR)).first() if d.get("assigned_to") else None
             if not officer:
-                raise WorkflowError("Select an officer of this division.", "assigned_to")
+                raise WorkflowError("Select an Investigating Officer of this division.", "assigned_to")
             reason = str(d.get("reason", "")).strip()
             if c.assigned_to_id and not reason:
                 raise WorkflowError("A reason is required to reassign.", "reason")
@@ -300,6 +345,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
                 c.confidential_case = True
             services.move(c, S.ASSIGNED, actor=request.user, reason=reason or "Assigned to officer", request=request, notify_complainant=False)
             notify([officer], f"Complaint {c.reference} assigned to you.", f"/staff/complaints/{c.pk}")
+            services.email_users(c, "assignment", [officer])
         return self._run(request, "assign", run)
 
     @action(detail=True, methods=["post"])
@@ -318,6 +364,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
             c.assigned_to = None
             services.move(c, S.REFERRED, actor=request.user, reason=f"Referred to {target.name}: {reason}", request=request, notify_complainant=False)
             notify(User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True, division=target), f"Complaint {c.reference} referred to your division.", f"/staff/complaints/{c.pk}")
+            services.email_users(c, "referral", services.division_heads(target.pk), message=reason)
         return self._run(request, "refer", run)
 
     @action(detail=True, methods=["post"], url_path="not-in-mandate")
@@ -330,6 +377,8 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
                 raise WorkflowError("Give a reason.", "reason")
             c.closure_reason = reason
             c.closed_at = timezone.now()
+            c.authority_referred_to = str(d.get("authority_referred_to", "")).strip()[:200]
+            c.referral_date = _date_or_none(d.get("referral_date"), "referral_date") if d.get("referral_date") else (timezone.localdate() if c.authority_referred_to else None)
             services.move(c, S.NOT_WITHIN_MANDATE, actor=request.user, reason=reason, request=request, public_message=reason)
         return self._run(request, "not_in_mandate", run)
 
@@ -342,6 +391,10 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
         for f in ("investigation_findings", "action_taken", "recommendation"):
             if f in d:
                 setattr(c, f, str(d[f]).strip())
+        if "authority_referred_to" in d:
+            c.authority_referred_to = str(d["authority_referred_to"]).strip()[:200]
+        if d.get("referral_date"):
+            c.referral_date = _date_or_none(d["referral_date"], "referral_date")
         if d.get("outcome"):
             oc = Outcome.objects.filter(pk=_pk(d["outcome"]), is_active=True).first()
             if not oc:
@@ -366,6 +419,22 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
             services.move(c, S.AWAITING_INFORMATION, actor=request.user, reason="Information requested", request=request, public_message=msg)
         return self._run(request, "request_info", run)
 
+    @action(detail=True, methods=["post"], url_path="return")
+    def return_to_head(self, request, pk=None):
+        """The assigned officer sends the case back to the Division Head (back to Triage) with a reason."""
+        def run(c):
+            reason = str(request.data.get("reason", "")).strip()
+            if not reason:
+                raise WorkflowError("Give the reason for returning this complaint.", "reason")
+            officer = c.assigned_to
+            c.assigned_to = None
+            services.move(c, S.TRIAGE, actor=request.user, reason=f"Returned to Division Head: {reason}", request=request, notify_complainant=False)
+            services.add_message(c, author=request.user, body=f"Returned to Division Head: {reason}", visibility="internal")
+            heads = services.division_heads(c.division_id)
+            notify(heads, f"{c.reference} returned by {(officer.get_full_name() or officer.email) if officer else 'the officer'}: {reason}"[:300], f"/staff/complaints/{c.pk}")
+            services.email_users(c, "returned", heads, message=reason)
+        return self._run(request, "return", run)
+
     @action(detail=True, methods=["post"])
     def resume(self, request, pk=None):
         return self._run(request, "resume", lambda c: services.move(
@@ -378,9 +447,67 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
             missing = [f for f, v in (("investigation_findings", c.investigation_findings), ("action_taken", c.action_taken), ("outcome", c.outcome_id)) if not v]
             if missing:
                 raise WorkflowError("Record the findings, action taken and outcome before resolving.", missing[0])
-            services.move(c, S.RESOLVED, actor=request.user, reason="Resolution proposed", request=request)
-            services.alert_officers(c, f"{c.reference}: resolution awaiting your approval.", include_head=True)
+            if "referred" in c.outcome.name.lower() and not c.authority_referred_to:
+                raise WorkflowError("Enter the authority the complaint was referred to.", "authority_referred_to")
+            services.move(c, S.RESOLVED, actor=request.user, reason="Findings submitted to the Division Head", request=request)
+            services.alert_officers(c, f"{c.reference}: findings submitted. Accept them, or send them to the Management Viewer.", include_head=True)
+            services.email_users(c, "resolution_submitted", services.division_heads(c.division_id))
         return self._run(request, "resolve", run)
+
+    @action(detail=True, methods=["post"], url_path="send-to-management")
+    def send_to_management(self, request, pk=None):
+        """Division Head sends the officer's findings to the Management Viewer(s) for approval instead of accepting them."""
+        def run(c):
+            note = str(request.data.get("note", "")).strip()
+            managers = User.objects.filter(role__in=roles_with_base(Role.SUPERVISOR), is_active=True)
+            if not managers.exists():  # check first so the case is never left waiting for nobody
+                raise WorkflowError("There is no active Management Viewer to send this to. Ask an Administrator to create one.")
+            services.move(c, S.PENDING_APPROVAL, actor=request.user, reason=f"Sent to the Management Viewer{': ' + note if note else ''}", request=request, notify_complainant=False)
+            notify(managers, f"{c.reference}: findings awaiting your approval.", f"/staff/complaints/{c.pk}")
+            services.email_users(c, "approval_requested", managers, message=note)
+            if c.assigned_to_id:
+                notify([c.assigned_to], f"{c.reference}: findings sent to management for approval.", f"/staff/complaints/{c.pk}")
+        return self._run(request, "send_to_management", run)
+
+    @action(detail=True, methods=["post"], url_path="mgmt-approve")
+    def mgmt_approve(self, request, pk=None):
+        """Management Viewer accepts the findings: the case becomes Resolved and goes to the Division Head to close."""
+        def run(c):
+            remarks = str(request.data.get("remarks", "")).strip()
+            services.move(c, S.RESOLVED, actor=request.user, reason=f"Accepted by management{': ' + remarks if remarks else ''}", request=request)
+            services.alert_officers(c, f"{c.reference}: accepted by management. Awaiting the Division Head's approval.", include_head=True)
+            services.email_users(c, "resolution_submitted", services.division_heads(c.division_id))
+        return self._run(request, "mgmt_approve", run)
+
+    @action(detail=True, methods=["post"], url_path="mgmt-reject")
+    def mgmt_reject(self, request, pk=None):
+        """Management Viewer does not accept the findings: the Division Head decides what happens next."""
+        def run(c):
+            reason = str(request.data.get("reason", "")).strip()
+            if not reason:
+                raise WorkflowError("Say why the findings are not accepted.", "reason")
+            services.add_message(c, author=request.user, body=f"Returned by management: {reason}", visibility="internal")
+            services.move(c, S.MANAGEMENT_REJECTED, actor=request.user, reason=f"Rejected by management: {reason}", request=request, notify_complainant=False)
+            heads = services.division_heads(c.division_id)
+            notify(heads, f"{c.reference}: returned by management. Decide the next step.", f"/staff/complaints/{c.pk}")
+            services.email_users(c, "management_rejected", heads, message=reason)
+            if c.assigned_to_id:
+                notify([c.assigned_to], f"{c.reference}: management did not accept the findings.", f"/staff/complaints/{c.pk}")
+        return self._run(request, "mgmt_reject", run)
+
+    @action(detail=True, methods=["post"], url_path="send-back")
+    def send_back(self, request, pk=None):
+        """Division Head sends a case rejected by management back to the same Investigating Officer."""
+        def run(c):
+            reason = str(request.data.get("reason", "")).strip()
+            if not reason:
+                raise WorkflowError("Give the officer instructions for the further work.", "reason")
+            if not c.assigned_to_id:
+                raise WorkflowError("No officer is assigned. Assign an officer instead.", "reason")
+            services.add_message(c, author=request.user, body=f"Sent back to the officer: {reason}", visibility="internal")
+            services.move(c, S.INVESTIGATING, actor=request.user, reason=f"Sent back to the officer: {reason}", request=request, notify_complainant=False)
+            notify([c.assigned_to], f"{c.reference}: sent back to you for further work.", f"/staff/complaints/{c.pk}")
+        return self._run(request, "send_back", run)
 
     @action(detail=True, methods=["post"])
     def approve(self, request, pk=None):
@@ -405,6 +532,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
             services.move(c, S.INVESTIGATING, actor=request.user, reason=f"Resolution returned: {reason}", request=request, notify_complainant=False)
             if c.assigned_to_id:
                 notify([c.assigned_to], f"{c.reference}: resolution returned for further work.", f"/staff/complaints/{c.pk}")
+                services.email_users(c, "resolution_rejected", [c.assigned_to], message=reason)
         return self._run(request, "reject", run)
 
     @action(detail=True, methods=["post"])

@@ -2,26 +2,26 @@ import { Icon, type IconName } from "../../components/Icon";
 import { Loader } from "../../components/Loader";
 import { useEffect, useRef, type ReactNode } from "react";
 import { Link } from "react-router-dom";
+import { RowActions } from "../../components/RowActions";
+import { ManagementTrail } from "../../components/CaseActions";
 import { StatusBadge, fmt } from "../../components/ui";
 import { type ComplaintDetail } from "../../types";
 import { useList } from "../../useList";
 import "../../styles/ComplaintPopup.css";
 
-export function ComplaintPanel({ id, onClose }: { id: string; onClose: () => void }) {
-  const { data: c, err } = useList<ComplaintDetail>(`/complaints/${id}/`);
+export function ComplaintPanel({ id, onClose, onChanged }: { id: string; onClose: () => void; onChanged?: () => void }) {
+  const { data: c, err, reload } = useList<ComplaintDetail>(`/complaints/${id}/`);
+  const changed = () => { reload(); onChanged?.(); };
   const closeBtn = useRef<HTMLButtonElement>(null);
   useEffect(() => {
     closeBtn.current?.focus();
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = "hidden"; // keep the page behind the popup from scrolling
-    return () => { document.body.style.overflow = prev; };
   }, []);
   const words = (t: string) => t.replace(/_/g, " ");
   const prop = (icon: IconName, label: string, value: ReactNode) => (
     <div className="prop"><dt><Icon name={icon} size={16} />{label}</dt><dd>{value}</dd></div>
   );
   return (
-    <div className="side-panel" role="dialog" aria-modal="true" aria-label="Complaint details">
+    <aside className="side-panel" aria-label="Complaint details">
       <div className="side-panel-bar">
         <span className="complaint-reference"><Icon name="complaint" size={17} />{c?.reference ?? "Complaint details"}</span>
         <div>
@@ -40,16 +40,18 @@ export function ComplaintPanel({ id, onClose }: { id: string; onClose: () => voi
           </header>
           <section className="complaint-popup-summary" aria-label="Complaint overview">
           <dl className="props">
+            {prop("activity", "Status", <StatusBadge value={c.internal_status} label={c.internal_status_display} />)}
             {prop("user", "Assignee", c.assigned_to_name ? <span className="cell-user"><span className="avatar-sm" aria-hidden="true">{c.assigned_to_name[0].toUpperCase()}</span>{c.assigned_to_name}</span> : <span className="muted">Unassigned</span>)}
             {prop("division", "Division", c.division_name ?? <span className="muted">Unassigned</span>)}
             {prop("category", "Category", <>{c.category_name}{c.subcategory_name ? ` / ${c.subcategory_name}` : ""}</>)}
             {prop("clock", "Priority", c.priority_name ?? "Not set")}
             {prop("alert", "Resolution due", c.resolution_due_at ? new Date(c.resolution_due_at).toLocaleDateString() : "—")}
-            {prop("send", "Received via", c.channel === "portal" ? "Public portal" : words(c.channel).replace(/^./, (letter) => letter.toUpperCase()))}
+            {prop("inbox", "Received via", c.channel === "portal" ? "Public portal" : words(c.channel).replace(/^./, (letter) => letter.toUpperCase()))}
             {prop("pin", "Location", [c.locality, c.dzongkhag_name].filter(Boolean).join(", ") || "Not provided")}
-            {prop("history", "Received", fmt(c.created_at))}
+            {prop("calendar", "Received", fmt(c.created_at))}
           </dl>
           </section>
+          <div style={{ marginBottom: 22 }}><ManagementTrail c={c} /></div>
           <div className="complaint-popup-grid">
           <div className="complaint-popup-main">
           <section className="complaint-popup-card">
@@ -85,8 +87,11 @@ export function ComplaintPanel({ id, onClose }: { id: string; onClose: () => voi
           </aside>
           </div>
           <footer className="complaint-popup-footer"><span className="muted">Last updated {fmt(c.updated_at)}</span><Link className="btn" to={`/staff/complaints/${id}`}>Open case<Icon name="right" size={16} /></Link></footer>
+          {(c.can_assign || c.can_refer) && (
+            <div className="side-panel-actions" aria-label="Quick actions"><RowActions c={c} onDone={changed} /><span className="muted">{c.assigned_to_name ? `Assigned to ${c.assigned_to_name}` : "Not assigned yet"}</span></div>
+          )}
         </div>
       )}
-    </div>
+    </aside>
   );
 }

@@ -12,8 +12,8 @@ export function Loader({ label = "Loading", size = 56, block = true }: { label?:
   );
 }
 
-const SHOW_AFTER_MS = 400; // requests that finish sooner never show the spinner
-const MIN_VISIBLE_MS = 400; // once shown it stays a moment so it doesn't flash
+const SHOW_AFTER_MS = 600; // requests that finish sooner never show the spinner
+const MIN_VISIBLE_MS = 150; // once shown it stays a moment so it doesn't flash
 
 /** The one loading spinner: big, in the middle of the screen, shown only when the server is slow. A fast response
  *  shows nothing. It sits in the browser's top layer so it also shows above popup dialogs. */

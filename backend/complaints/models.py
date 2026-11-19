@@ -4,7 +4,7 @@ from django.db.models import Q
 
 from core.base import UUIDModel
 from core.models import (
-    Category, Dzongkhag, Gewog, ImmutableQuerySet, Outcome, Priority, Provider, ProviderType, Subcategory, SystemConfiguration,
+    Category, Dzongkhag, ImmutableQuerySet, Outcome, Priority, Provider, ProviderType, Subcategory, SystemConfiguration,
 )
 from accounts.models import Division, Role
 
@@ -26,9 +26,11 @@ class InternalStatus(models.TextChoices):
     RECEIVED = "received", "Received"
     TRIAGE = "triage", "Triage"
     ASSIGNED = "assigned", "Assigned"
-    INVESTIGATING = "investigating", "Investigating"
+    INVESTIGATING = "investigating", "Under review"
     AWAITING_INFORMATION = "awaiting_information", "Awaiting information"
     REFERRED = "referred", "Referred"
+    PENDING_APPROVAL = "pending_approval", "Awaiting management approval"
+    MANAGEMENT_REJECTED = "management_rejected", "Returned by management"
     RESOLVED = "resolved", "Resolved"
     NOT_WITHIN_MANDATE = "not_within_mandate", "Not within mandate"
     CLOSED = "closed", "Closed"
@@ -36,7 +38,8 @@ class InternalStatus(models.TextChoices):
 
 OPEN_STATUSES = (
     InternalStatus.RECEIVED, InternalStatus.TRIAGE, InternalStatus.ASSIGNED, InternalStatus.INVESTIGATING,
-    InternalStatus.AWAITING_INFORMATION, InternalStatus.REFERRED, InternalStatus.RESOLVED,
+    InternalStatus.AWAITING_INFORMATION, InternalStatus.REFERRED, InternalStatus.PENDING_APPROVAL, InternalStatus.MANAGEMENT_REJECTED,
+    InternalStatus.RESOLVED,
 )
 FINAL_STATUSES = (InternalStatus.CLOSED, InternalStatus.NOT_WITHIN_MANDATE)
 
@@ -80,11 +83,8 @@ class ComplaintQuerySet(models.QuerySet):
         if user.base_role == Role.FOCAL:
             return self.filter((Q(division=user.division) & ~Q(internal_status=InternalStatus.DRAFT)) | own_drafts)
         if user.base_role == Role.INVESTIGATOR:
-            # whole division, except confidential cases which are restricted to the named officer
-            return self.filter(
-                (Q(division=user.division) & ~Q(internal_status=InternalStatus.DRAFT) & (Q(confidential_case=False) | Q(assigned_to=user)))
-                | Q(assigned_to=user) | own_drafts
-            )
+            # only the cases assigned to this officer, plus the ones this officer registered (including their own drafts)
+            return self.filter(Q(assigned_to=user) | Q(registered_by=user))
         return self.none()
 
 
@@ -98,11 +98,15 @@ class Complaint(UUIDModel):
         max_length=12, default="individual",
         choices=[("individual", "Individual"), ("firm", "Firm"), ("institute", "Institute"), ("agency", "Agency")])
     cid = models.CharField(max_length=20, blank=True, help_text="CID for an individual; registration or licence number otherwise")
+    complaining_for = models.CharField(max_length=20, default="self", help_text="self, or who the complaint is made for")
+    other_party_name = models.CharField(max_length=200, blank=True, help_text="Name of the other concerned party when not complaining for self")
+    details = models.JSONField(default=dict, blank=True, help_text="Answers to the category-specific questions (core/formspecs.py)")
+    agency_name = models.CharField(max_length=150, blank=True, help_text="Name of the agency when the complainant is an agency")
+    present_address = models.TextField(blank=True, help_text="Present address (media content complaints)")
     confidential = models.BooleanField(default=False, help_text="Complainant asked to keep their identity confidential")
     phone = models.CharField(max_length=30, blank=True)
     email = models.EmailField(blank=True)
     dzongkhag = models.ForeignKey(Dzongkhag, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
-    gewog = models.ForeignKey(Gewog, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
     preferred_contact = models.CharField(
         max_length=10, choices=[("email", "Email"), ("sms", "SMS"), ("phone", "Phone")], default="email"
     )
@@ -123,7 +127,7 @@ class Complaint(UUIDModel):
     already_complained = models.BooleanField(default=False)
     provider_reference = models.CharField(max_length=80, blank=True)
     area_type = models.CharField(max_length=10, choices=[("urban", "Urban"), ("rural", "Rural")], blank=True)
-    locality = models.CharField(max_length=150, blank=True, help_text="Gewog / town / village")
+    locality = models.CharField(max_length=150, blank=True, help_text="Town or village (no longer asked on the form)")
     incident_time = models.TimeField(null=True, blank=True)
     medium_of_publication = models.CharField(max_length=150, blank=True)
     remedy_sought = models.TextField(blank=True)
@@ -131,6 +135,12 @@ class Complaint(UUIDModel):
     date_received = models.DateField(null=True, blank=True)
     suggested_division = models.ForeignKey(Division, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
     website_or_social = models.CharField(max_length=300, blank=True)
+    concerned_frequency = models.CharField(max_length=120, blank=True, help_text="Frequency or band, if known (STD)")
+    geo_latitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    geo_longitude = models.DecimalField(max_digits=9, decimal_places=6, null=True, blank=True)
+    publication_date = models.DateField(null=True, blank=True, help_text="Date the post, article or video was published (MCD)")
+    publication_url = models.URLField(max_length=500, blank=True, help_text="Link to the post, article or video (MCD)")
+    nature_of_complaint = models.CharField(max_length=500, blank=True, help_text="Nature of the media complaint (MCD)")
     additional_info = models.TextField(blank=True)
 
     # workflow
@@ -151,6 +161,8 @@ class Complaint(UUIDModel):
     recommendation = models.TextField(blank=True)
     outcome = models.ForeignKey(Outcome, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
     closure_reason = models.TextField(blank=True)
+    authority_referred_to = models.CharField(max_length=200, blank=True, help_text="Agency the complainant was directed or referred to")
+    referral_date = models.DateField(null=True, blank=True)
     registered_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="registered_complaints")
     version = models.PositiveIntegerField(default=1)  # optimistic concurrency for workflow actions
 
@@ -219,7 +231,31 @@ class StatusHistory(UUIDModel):
         raise PermissionError("Status history is immutable.")
 
 
-def next_reference(now):
+class ReferenceSerial(models.Model):
+    """Running serial per division reference code and year (BICMA-Year-Code-Serial), never reused."""
+
+    year = models.PositiveIntegerField()
+    code = models.CharField(max_length=10)
+    last_number = models.PositiveIntegerField(default=0)
+
+    class Meta:
+        constraints = [models.UniqueConstraint(fields=["year", "code"], name="uniq_reference_serial")]
+
+
+def next_reference(now, division=None):
+    """BICMA-Year-Code-Serial when the division has a reference code (serial restarts each year per division,
+    length from the `reference_serial_length` setting); otherwise the configurable-prefix running number."""
+    code = (getattr(division, "reference_code", "") or "").strip()
+    if code:
+        ReferenceSerial.objects.get_or_create(year=now.year, code=code)
+        serial = ReferenceSerial.objects.select_for_update().get(year=now.year, code=code)
+        serial.last_number += 1
+        serial.save(update_fields=["last_number"])
+        try:
+            width = max(1, min(10, int(SystemConfiguration.get("reference_serial_length", "4"))))
+        except ValueError:
+            width = 4
+        return f"BICMA-{now.year}-{code}-{serial.last_number:0{width}d}"
     prefix = SystemConfiguration.get("reference_prefix", "BICMA-CMS")
     counter, _ = ReferenceCounter.objects.get_or_create(year=now.year)
     counter = ReferenceCounter.objects.select_for_update().get(pk=now.year)
@@ -272,6 +308,7 @@ class Attachment(UUIDModel):
     complaint = models.ForeignKey(Complaint, on_delete=models.PROTECT, related_name="attachments")
     message = models.ForeignKey(CaseMessage, null=True, blank=True, on_delete=models.PROTECT, related_name="attachments")
     file = models.FileField(upload_to=attachment_path)
+    slot = models.CharField(max_length=60, blank=True, help_text="Which requested document this file answers")
     original_name = models.CharField(max_length=255)
     size = models.PositiveIntegerField(default=0)
     content_type = models.CharField(max_length=100, blank=True)

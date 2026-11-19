@@ -9,7 +9,7 @@ from .models import DIVISIONAL_ROLES, Division, Role, RoleDef, User, roles_with_
 class DivisionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Division
-        fields = ["id", "name", "code", "is_active"]
+        fields = ["id", "name", "code", "reference_code", "is_active"]
 
 
 class DivisionAdminSerializer(DivisionSerializer):

@@ -4,9 +4,10 @@ from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 
+from accounts.models import Division
 from complaints.models import Complaint, InternalStatus as S
 from complaints.tests import Base, OfflineRegistrationTests
-from core.models import EmailTemplate, Holiday, NotificationLog, Provider
+from core.models import Category, EmailTemplate, Holiday, NotificationLog, Provider
 
 
 class WorkflowBase(Base):
@@ -29,6 +30,15 @@ class WorkflowBase(Base):
         self.to_assigned()
         self.assertEqual(self.act(self.inv1, "start").status_code, 200)
 
+    def submit(self, **kw):
+        """The officer submits findings (-> Resolved, awaiting the Division Head)."""
+        body = {"investigation_findings": "F", "action_taken": "A", "outcome": str(self.outcome.pk), **kw}
+        self.assertEqual(self.act(self.inv1, "resolve", body).status_code, 200)
+
+    def to_resolved(self):
+        self.to_investigating()
+        self.submit()
+
 
 class LifecycleTests(WorkflowBase):
     def test_full_happy_path_requires_division_head_approval(self):
@@ -37,7 +47,7 @@ class LifecycleTests(WorkflowBase):
         self.assertEqual(r.status_code, 400)  # no findings / action / outcome
         r = self.act(self.inv1, "resolve", {"investigation_findings": "Found", "action_taken": "Refunded", "outcome": str(self.outcome.pk)})
         self.assertEqual(r.status_code, 200, r.content)
-        self.assertEqual(self.reload().internal_status, S.RESOLVED)
+        self.assertEqual(self.reload().internal_status, S.RESOLVED)  # waiting for the Division Head
         # the officer alone cannot close
         self.assertEqual(self.act(self.inv1, "approve", {"closure_reason": "Done"}).status_code, 403)
         self.assertEqual(self.act(self.focal1, "approve", {}).status_code, 400)  # reason required
@@ -67,7 +77,7 @@ class LifecycleTests(WorkflowBase):
 
     def test_cannot_skip_steps(self):
         self.assertEqual(self.act(self.focal1, "approve", {"closure_reason": "x"}).status_code, 403)
-        self.assertEqual(self.act(self.inv1, "start").status_code, 403)  # not assigned
+        self.assertEqual(self.act(self.inv1, "start").status_code, 404)  # not assigned, so the officer cannot even see the case
         self.assertEqual(self.act(self.focal1, "start").status_code, 403)  # still Received
 
     def test_assignment_requires_priority_and_reason_on_reassign(self):
@@ -104,7 +114,9 @@ class LifecycleTests(WorkflowBase):
         self.assertEqual(self.act(self.focal1, "reopen", {"reason": "x"}).status_code, 403)
 
     def test_investigator_cannot_assign_or_approve(self):
-        self.assertEqual(self.act(self.inv1, "assign", {"assigned_to": str(self.inv1.pk), "priority": str(self.prio.pk)}).status_code, 403)
+        self.assertEqual(self.act(self.inv1, "assign", {"assigned_to": str(self.inv1.pk), "priority": str(self.prio.pk)}).status_code, 404)  # unassigned: not visible
+        self.to_assigned()
+        self.assertEqual(self.act(self.inv1, "assign", {"assigned_to": str(self.inv1.pk), "priority": str(self.prio.pk)}).status_code, 403)  # assigned: visible, still not allowed
 
     def test_supervisor_is_read_only(self):
         for name in ("triage", "assign", "refer", "approve", "internal-note"):
@@ -115,12 +127,12 @@ class LifecycleTests(WorkflowBase):
         self.assertEqual(self.act(self.focal2, "refer", {"division": str(self.d1.pk), "reason": "x"}).status_code, 404)
 
     def test_triage_sets_priority_and_due_dates(self):
-        r = self.act(self.inv1, "triage", {"category": str(self.cat.pk), "priority": str(self.prio.pk)})
+        r = self.act(self.focal1, "triage", {"category": str(self.cat.pk), "priority": str(self.prio.pk)})
         self.assertEqual(r.status_code, 200, r.content)
         c = self.reload()
         self.assertEqual(c.internal_status, S.TRIAGE)
         self.assertIsNotNone(c.resolution_due_at)
-        self.assertEqual(self.act(self.inv1, "triage", {"category": str(self.cat.pk)}).status_code, 400)
+        self.assertEqual(self.act(self.focal1, "triage", {"category": str(self.cat.pk)}).status_code, 400)
 
     def test_working_day_timeline_skips_weekends_and_holidays(self):
         from complaints.services import add_working_days
@@ -219,7 +231,7 @@ class UploadTests(Base):
 class RegistrationRuleTests(Base):
     def test_public_form_enforces_brd_fields(self):
         p = self.payload()
-        for f in ("cid", "email", "incident_time", "remedy_sought", "area_type", "provider_type", "declaration_accepted"):
+        for f in ("cid", "phone", "dzongkhag", "declaration_accepted"):
             q = dict(p)
             q.pop(f)
             r = self.client.post("/api/public/complaints/", q, format="json")
@@ -229,6 +241,25 @@ class RegistrationRuleTests(Base):
         self.assertIn("cid", r.data)
         r = self.client.post("/api/public/complaints/", self.payload(already_complained=True), format="json")
         self.assertIn("provider_reference", r.data)
+
+    def test_email_optional_phone_required_on_public_form(self):
+        q = self.payload()
+        q.pop("email")
+        self.assertEqual(self.client.post("/api/public/complaints/", q, format="json").status_code, 201)
+        q = self.payload()
+        q.pop("phone")
+        self.assertEqual(self.client.post("/api/public/complaints/", q, format="json").status_code, 400)
+
+    def test_title_is_generated_and_agency_needs_its_name(self):
+        q = self.payload()
+        q.pop("subject", None)
+        r = self.client.post("/api/public/complaints/", q, format="json")
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertTrue(Complaint.objects.get(reference=r.data["reference"]).subject)
+        r = self.client.post("/api/public/complaints/", self.payload(complainant_type="agency"), format="json")
+        self.assertIn("agency_name", r.data)
+        r = self.client.post("/api/public/complaints/", self.payload(complainant_type="agency", agency_name="Ministry X", cid=""), format="json")
+        self.assertEqual(r.status_code, 201, r.content)
 
     def test_acknowledgement_email_sent_and_logged(self):
         mail.outbox.clear()
@@ -311,7 +342,7 @@ class StakeholderEmailTests(WorkflowBase):
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(mail.outbox[0].to, ["legal@acme.bt"])
         self.assertNotIn("X", mail.outbox[0].body.replace("Please respond", "").replace("Issue", ""))  # complainant name absent
-        self.assertEqual(self.act(self.inv1, "stakeholder-review", {}).status_code, 403)
+        self.assertEqual(self.act(self.inv1, "stakeholder-review", {}).status_code, 404)  # not assigned: not visible
 
     def test_failed_emails_are_logged_and_retried(self):
         from django.core.management import call_command
@@ -496,7 +527,9 @@ class RoleMasterTests(WorkflowBase):
         from accounts.models import User
         so = User.objects.get(email="so@x.bt")
         self.assertEqual(so.base_role, "investigator")
-        self.assertEqual(self.login(so).get(f"/api/complaints/{self.c.pk}/").status_code, 200)  # sees its division
+        self.assertEqual(self.login(so).get(f"/api/complaints/{self.c.pk}/").status_code, 404)  # only sees cases assigned to it
+        Complaint.objects.filter(pk=self.c.pk).update(assigned_to=so)
+        self.assertEqual(self.login(so).get(f"/api/complaints/{self.c.pk}/").status_code, 200)
         self.assertEqual(self.login(self.focal2).get(f"/api/complaints/{self.c.pk}/").status_code, 404)
         me = self.login(so).get("/api/auth/me/").data
         self.assertEqual((me["role_display"], me["base_role"]), ("Senior Officer", "investigator"))
@@ -821,3 +854,347 @@ class SchedulerTests(WorkflowBase):
             self.assertEqual(run_scheduler.run_due(last, T + 100), [])          # nothing due yet
             self.assertEqual(run_scheduler.run_due(last, T + 300), ["check_apis", "retry_failed_emails"])
             self.assertEqual(run_scheduler.run_due(last, T + 3600), ["check_apis", "retry_failed_emails", "sla_alerts"])
+
+
+class FrdGapTests(WorkflowBase):
+    def test_officer_can_return_case_to_division_head_with_reason(self):
+        self.to_investigating()
+        self.assertEqual(self.act(self.focal1, "return", {"reason": "x"}).status_code, 403)  # only the assigned officer
+        self.assertEqual(self.act(self.inv1, "return", {}).status_code, 400)  # reason required
+        mail.outbox.clear()
+        r = self.act(self.inv1, "return", {"reason": "Needs another division's input"})
+        self.assertEqual(r.status_code, 200, r.content)
+        c = self.reload()
+        self.assertEqual(c.internal_status, S.TRIAGE)
+        self.assertIsNone(c.assigned_to)
+        self.assertIn("Returned to Division Head", c.status_history.last().reason)
+        self.assertTrue(NotificationLog.objects.filter(complaint=c, event="returned", recipient=self.focal1.email).exists())
+        self.assertEqual(self.act(self.inv1, "return", {"reason": "again"}).status_code, 404)  # no longer assigned, so no longer visible
+
+    def test_assignment_emails_the_officer_and_logs_it(self):
+        self.to_assigned()
+        self.assertTrue(NotificationLog.objects.filter(complaint=self.c, event="assignment", recipient=self.inv1.email).exists())
+
+    def test_resolution_submitted_and_rejected_emails(self):
+        self.to_investigating()
+        self.act(self.inv1, "resolve", {"investigation_findings": "F", "action_taken": "A", "outcome": str(self.outcome.pk)})
+        self.assertTrue(NotificationLog.objects.filter(complaint=self.c, event="resolution_submitted", recipient=self.focal1.email).exists())
+        self.act(self.focal1, "reject", {"reason": "More evidence"})
+        self.assertTrue(NotificationLog.objects.filter(complaint=self.c, event="resolution_rejected", recipient=self.inv1.email).exists())
+
+    def test_referred_outcome_requires_authority(self):
+        from core.models import Outcome
+        ref = Outcome.objects.create(name="Referred to another authority")
+        self.to_investigating()
+        body = {"investigation_findings": "F", "action_taken": "A", "outcome": str(ref.pk)}
+        r = self.act(self.inv1, "resolve", body)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("authority_referred_to", r.data)
+        r = self.act(self.inv1, "resolve", {**body, "authority_referred_to": "Royal Bhutan Police", "referral_date": "2026-01-02"})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self.reload().authority_referred_to, "Royal Bhutan Police")
+
+    def test_not_in_mandate_records_authority_referred_to(self):
+        r = self.act(self.focal1, "not-in-mandate", {"reason": "Not within BICMA jurisdiction", "authority_referred_to": "Ministry X"})
+        self.assertEqual(r.status_code, 200, r.content)
+        c = self.reload()
+        self.assertEqual((c.internal_status, c.authority_referred_to), (S.NOT_WITHIN_MANDATE, "Ministry X"))
+        self.assertIsNotNone(c.referral_date)
+
+    def test_under_review_label(self):
+        self.assertEqual(S.INVESTIGATING.label, "Under review")
+
+
+class ReferenceFormatTests(Base):
+    def test_division_code_reference_with_per_division_serial(self):
+        from complaints.models import next_reference
+        self.d1.reference_code, self.d2.reference_code = "3", "1"
+        self.d1.save(); self.d2.save()
+        now = timezone.now()
+        y = now.year
+        self.assertEqual(next_reference(now, self.d1), f"BICMA-{y}-3-0001")
+        self.assertEqual(next_reference(now, self.d1), f"BICMA-{y}-3-0002")
+        self.assertEqual(next_reference(now, self.d2), f"BICMA-{y}-1-0001")  # serial restarts per division
+        from core.models import SystemConfiguration
+        SystemConfiguration.objects.create(key="reference_serial_length", value="6")
+        self.assertEqual(next_reference(now, self.d1), f"BICMA-{y}-3-000003")
+
+    def test_division_without_code_keeps_running_number(self):
+        from complaints.models import next_reference
+        self.assertTrue(next_reference(timezone.now(), self.d1).startswith("BICMA-CMS-"))
+
+
+class CategoryFormTests(Base):
+    """The per-division forms in core/formspecs.py: server-side validation, conditional questions and required documents."""
+
+    @classmethod
+    def setUpTestData(cls):
+        super().setUpTestData()
+        cls.std = Division.objects.create(name="Spectrum and Technology Division", code="SPT", reference_code="3")
+        cls.iid = Division.objects.create(name="InfoComm and Infrastructure Division", code="ICI", reference_code="1")
+        cls.mcd = Division.objects.create(name="Media and Content Division", code="MCD", reference_code="2")
+        mk = lambda name, d: Category.objects.create(name=name, default_division=d)
+        cls.rf = mk("Radio-frequency interference", cls.std)
+        cls.bts = mk("Requests for addition or removal of BTS sites", cls.std)
+        cls.tower = mk("Telecom tower structure", cls.std)
+        cls.net = mk("Network/Coverage issues", cls.std)
+        cls.isp = mk("Internet Services", cls.iid)
+        cls.rural_comm = mk("Rural communication program", cls.iid)
+        cls.rural_cov = mk("Coverage issues in Rural areas", cls.iid)
+        cls.journalist = mk("Journalist/Media Conduct", cls.mcd)
+        cls.content = mk("Content", cls.mcd)
+        cls.reality = mk("Online Reality Show", cls.mcd)
+        cls.film = mk("Film Production-related", cls.mcd)
+
+    def body(self, cat, details=None, files=None, **kw):
+        import json
+        p = self.payload(category=cat.pk, **kw)
+        for k in ("provider_type", "incident_date", "incident_time", "remedy_sought", "area_type", "subject"):
+            p.pop(k, None)
+        p = {k: v for k, v in p.items() if v not in (None, "")}
+        p["details"] = json.dumps(details or {})
+        p.update(files or {})
+        return p
+
+    def post(self, *a, **kw):
+        return self.client.post("/api/public/complaints/", self.body(*a, **kw), format="multipart")
+
+    def photo(self, name="tower.png"):
+        return SimpleUploadedFile(name, b"\x89PNG\r\n\x1a\n" + b"0" * 30, content_type="image/png")
+
+    def test_each_category_matches_its_own_form(self):
+        from core.formspecs import spec_for
+        self.assertEqual(spec_for(self.rural_comm)["fields"][0]["key"], "operator")  # not the rural-coverage form
+        self.assertEqual(spec_for(self.rural_cov)["fields"][0]["key"], "operator")
+        self.assertEqual(spec_for(self.isp)["fields"][0]["key"], "isp")
+        self.assertEqual([spec_for(c)["division"] for c in (self.rf, self.isp, self.content)], ["std", "iid", "mcd"])
+        self.assertIsNone(spec_for(self.cat))  # unlisted categories keep the generic form
+
+    def test_std_frequency_required_and_company_optional(self):
+        self.assertIn("details.frequency", self.post(self.rf).data)
+        r = self.post(self.rf, {"frequency": "900 MHz"})
+        self.assertEqual(r.status_code, 201, r.content)
+        c = Complaint.objects.get(reference=r.data["reference"])
+        self.assertEqual(c.details["frequency"], "900 MHz")
+        self.assertEqual(c.subject[:20], "Radio-frequency inte")  # generated title
+
+    def test_std_on_behalf_needs_the_other_party_name(self):
+        d = {"frequency": "900 MHz"}
+        r = self.post(self.rf, d, complaining_for="agency")
+        self.assertIn("other_party_name", r.data)
+        self.assertEqual(self.post(self.rf, d, complaining_for="agency", other_party_name="Ministry of X").status_code, 201)
+        self.assertIn("complaining_for", self.post(self.rf, d, complaining_for="nobody").data)
+
+    def test_bts_removal_requires_a_tower_photo(self):
+        add = {"request_type": "Addition of a BTS site", "operator": "B-Mobile"}
+        rem = {"request_type": "Removal of a BTS site", "operator": "B-Mobile"}
+        self.assertEqual(self.post(self.bts, add).status_code, 201)  # no photo needed for an addition
+        r = self.post(self.bts, rem)
+        self.assertIn("doc__tower_photo", r.data)
+        self.assertEqual(self.post(self.bts, rem, {"doc__tower_photo": self.photo()}).status_code, 201)
+        pdf = SimpleUploadedFile("x.pdf", b"%PDF-1.4 x", content_type="application/pdf")
+        self.assertIn("doc__tower_photo", self.post(self.bts, rem, {"doc__tower_photo": pdf}).data)  # must be an image
+
+    def test_tower_structure_photo_is_mandatory_and_saved_with_its_slot(self):
+        d = {"operator": "B-Mobile"}
+        self.assertIn("doc__photo", self.post(self.tower, d).data)
+        r = self.post(self.tower, d, {"doc__photo": self.photo()})
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(Complaint.objects.get().attachments.get().slot, "photo")
+
+    def test_iid_provider_required(self):
+        self.assertIn("details.isp", self.post(self.isp).data)
+        self.assertEqual(self.post(self.isp, {"isp": "Druknet", "isp_contact": "17000000"}).status_code, 201)
+
+    def test_journalist_checkboxes_and_date(self):
+        from core.formspecs import MISCONDUCT
+        base = {"journalist": "A. B.", "media_org": "Daily", "misconduct_date": "2026-01-05", "misconduct": [MISCONDUCT[0]]}
+        kw = dict(complaining_for="self", present_address="Thimphu", dzongkhag=None, locality="")
+        self.assertEqual(self.post(self.journalist, base, **kw).status_code, 201)
+        self.assertIn("details.misconduct", self.post(self.journalist, {**base, "misconduct": []}, **kw).data)
+        self.assertIn("details.misconduct", self.post(self.journalist, {**base, "misconduct": ["made up"]}, **kw).data)
+        self.assertIn("details.misconduct_date", self.post(self.journalist, {**base, "misconduct_date": "2999-01-01"}, **kw).data)
+
+    def test_content_other_needs_specifying(self):
+        base = {"title": "T", "creator": "C", "nature": ["Others (Specify)"], "published_on": "2026-01-05", "medium": "Facebook",
+                "language": "English", "remedy": "Remove it"}
+        kw = dict(present_address="Thimphu", dzongkhag=None, locality="")
+        r = self.post(self.content, base, **kw)
+        self.assertIn("details.nature_other", r.data)
+        self.assertEqual(self.post(self.content, {**base, "nature_other": "Spam"}, **kw).status_code, 201)
+
+    def test_reality_show_branches(self):
+        kw = dict(present_address="Thimphu", dzongkhag=None, locality="")
+        common = {"show": "Star", "organisers": "Org", "previous": "No"}
+        r = self.post(self.reality, {**common, "nature": "Voting procedures"}, **kw)
+        for k in ("voting_method", "voting_start", "voting_end", "voting_details"):
+            self.assertIn(f"details.{k}", r.data)
+        self.assertNotIn("details.actual_prize", r.data)
+        ok = {**common, "nature": "Voting procedures", "voting_method": "SMS voting", "voting_start": "2026-01-01", "voting_end": "2026-01-10", "voting_details": "Votes lost"}
+        self.assertEqual(self.post(self.reality, ok, **kw).status_code, 201)
+        r = self.post(self.reality, {**common, "nature": "Non-payment of prizes"}, **kw)
+        for k in ("actual_prize", "announced_prize", "winner_date"):
+            self.assertIn(f"details.{k}", r.data)
+        self.assertNotIn("details.voting_method", r.data)
+
+    def test_film_complaint_has_no_description_and_gets_a_title(self):
+        d = {"film": "My Film", "company": "Prod Co", "role": "Editor", "agreed_payment": "Nu 50,000", "amount_received": "Nu 10,000"}
+        r = self.post(self.film, d, present_address="Thimphu", dzongkhag=None, locality="", description="")
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertTrue(Complaint.objects.get().subject)
+
+    def test_details_are_shown_to_officers_with_their_labels(self):
+        self.post(self.rf, {"frequency": "900 MHz"})
+        c = Complaint.objects.get()
+        r = self.login(self.admin).get(f"/api/complaints/{c.pk}/")
+        self.assertEqual(r.data["details_display"], [{"label": "Specific frequency / frequency range", "value": "900 MHz"}])
+        self.assertEqual(r.data["form_division"], "std")
+
+    def test_meta_sends_the_forms_to_the_page(self):
+        r = self.client.get("/api/meta/")
+        forms = {c["name"]: c["form"] for c in r.data["categories"]}
+        self.assertEqual(forms["Internet Services"]["division"], "iid")
+        self.assertIsNone(forms["Telecom service"])
+
+
+class ListRowActionTests(WorkflowBase):
+    def test_list_tells_the_division_head_which_rows_can_be_assigned_or_referred(self):
+        rows = self.login(self.focal1).get("/api/complaints/").data["results"]
+        self.assertTrue(rows[0]["can_assign"] and rows[0]["can_refer"])
+        self.assertEqual(self.login(self.inv1).get("/api/complaints/").data["results"], [])  # an officer sees nothing until a case is assigned
+        self.to_assigned()
+        rows = self.login(self.inv1).get("/api/complaints/").data["results"]
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0]["can_assign"] or rows[0]["can_refer"])  # and still cannot assign or refer it
+
+
+class OnlyInvestigatingOfficersTests(WorkflowBase):
+    def test_division_head_is_not_offered_or_accepted_as_the_officer(self):
+        r = self.login(self.focal1).get(f"/api/complaints/{self.c.pk}/officers/")
+        self.assertEqual([o["id"] for o in r.data], [str(self.inv1.pk)])
+        body = {"assigned_to": str(self.focal1.pk), "priority": str(self.prio.pk)}
+        self.assertEqual(self.act(self.focal1, "assign", body).status_code, 400)
+
+
+class OfficerSeesOnlyAssignedTests(WorkflowBase):
+    def test_officer_list_and_dashboard_hold_only_assigned_or_self_registered_cases(self):
+        other, _ = self.make(division=self.d1)  # a second case in the same division
+        inv = self.login(self.inv1)
+        self.assertEqual(inv.get("/api/complaints/").data["count"], 0)
+        self.act(self.focal1, "assign", {"assigned_to": str(self.inv1.pk), "priority": str(self.prio.pk)})
+        ids = [r["id"] for r in inv.get("/api/complaints/").data["results"]]
+        self.assertEqual(ids, [str(self.c.pk)])
+        self.assertEqual(inv.get(f"/api/complaints/{other.pk}/").status_code, 404)
+        self.assertEqual(inv.get("/api/dashboard/").data["cards"][0]["count"], 1)
+        # the Division Head and the Administrator still see the whole division / everything
+        self.assertEqual(self.login(self.focal1).get("/api/complaints/").data["count"], 2)
+        self.assertEqual(self.login(self.admin).get("/api/complaints/").data["count"], 2)
+
+    def test_officer_still_sees_what_they_registered(self):
+        r = self.login(self.inv1).post("/api/complaints/", OfflineRegistrationTests.body(self), format="json")
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual(self.login(self.inv1).get("/api/complaints/").data["count"], 1)
+
+
+class ManagementApprovalTests(WorkflowBase):
+    """The Division Head decides when the officer submits: accept (and close), or send to the Management Viewer."""
+
+    def send(self, note=""):
+        return self.act(self.focal1, "send-to-management", {"note": note})
+
+    def test_head_gets_both_options_after_the_officer_submits(self):
+        self.to_investigating()
+        self.assertEqual(self.send().status_code, 403)  # nothing submitted yet
+        self.submit()
+        p = self.login(self.focal1).get(f"/api/complaints/{self.c.pk}/").data["permissions"]
+        self.assertTrue(p["approve"] and p["send_to_management"])
+        # the officer and the Management Viewer cannot make that choice
+        self.assertEqual(self.act(self.inv1, "send-to-management").status_code, 403)
+        self.assertEqual(self.act(self.sup, "send-to-management").status_code, 403)
+
+    def test_head_can_simply_accept(self):
+        self.to_investigating()
+        self.submit()
+        self.assertEqual(self.act(self.focal1, "approve", {"closure_reason": "Fine"}).status_code, 200)
+        self.assertEqual(self.reload().internal_status, S.CLOSED)
+
+    def test_sending_to_management_alerts_them_and_the_complainant_hears_nothing(self):
+        self.sup.email = "sup@x.bt"; self.sup.save()
+        self.to_investigating()
+        self.submit()
+        mail.outbox.clear()
+        self.assertEqual(self.send("Please review").status_code, 200)
+        c = self.reload()
+        self.assertEqual(c.internal_status, S.PENDING_APPROVAL)
+        self.assertTrue(NotificationLog.objects.filter(complaint=c, event="approval_requested", recipient="sup@x.bt").exists())
+        self.assertFalse(NotificationLog.objects.filter(complaint=c, recipient=self.contact).exclude(event="acknowledgement").exists())
+        self.assertTrue(self.login(self.sup).get("/api/notifications/").data["unread_count"] >= 1)
+
+    def test_cannot_send_when_there_is_no_management_viewer(self):
+        from accounts.models import User
+        User.objects.filter(pk=self.sup.pk).update(is_active=False)
+        self.to_investigating()
+        self.submit()
+        r = self.send()
+        self.assertEqual(r.status_code, 400)
+        self.assertEqual(self.reload().internal_status, S.RESOLVED)  # nothing changed
+
+    def test_management_accepts_then_head_closes(self):
+        self.to_investigating()
+        self.submit()
+        self.send()
+        self.assertEqual(self.act(self.focal1, "approve", {"closure_reason": "x"}).status_code, 403)  # waiting on management
+        self.assertEqual(self.act(self.inv1, "mgmt-approve").status_code, 403)
+        self.assertEqual(self.act(self.focal1, "mgmt-approve").status_code, 403)
+        self.assertEqual(self.act(self.sup, "mgmt-approve", {"remarks": "Good"}).status_code, 200)
+        self.assertEqual(self.reload().internal_status, S.RESOLVED)
+        p = self.login(self.focal1).get(f"/api/complaints/{self.c.pk}/").data["permissions"]
+        self.assertTrue(p["approve"] and not p["send_to_management"])  # already accepted by management: no second round
+        self.assertEqual(self.act(self.focal1, "approve", {"closure_reason": "Done"}).status_code, 200)
+        self.assertEqual([h.new_status for h in self.c.status_history.all()][-4:], ["resolved", "pending_approval", "resolved", "closed"])
+
+    def test_management_reject_needs_a_reason_and_goes_back_to_the_division_head(self):
+        self.to_investigating()
+        self.submit()
+        self.send()
+        self.assertEqual(self.act(self.sup, "mgmt-reject", {}).status_code, 400)
+        self.assertEqual(self.act(self.inv1, "mgmt-reject", {"reason": "x"}).status_code, 403)
+        self.assertEqual(self.act(self.sup, "mgmt-reject", {"reason": "Evidence is thin"}).status_code, 200)
+        self.assertEqual(self.reload().internal_status, S.MANAGEMENT_REJECTED)
+        self.assertTrue(NotificationLog.objects.filter(complaint=self.c, event="management_rejected", recipient=self.focal1.email).exists())
+        self.assertTrue(self.login(self.focal1).get("/api/notifications/").data["unread_count"] >= 1)
+        self.assertEqual(self.act(self.sup, "send-back", {"reason": "x"}).status_code, 403)
+        self.assertEqual(self.act(self.inv1, "send-back", {"reason": "x"}).status_code, 403)
+
+    def test_division_head_sends_it_back_to_the_same_officer_and_the_cycle_repeats(self):
+        self.to_investigating()
+        self.submit()
+        self.send()
+        self.act(self.sup, "mgmt-reject", {"reason": "Evidence is thin"})
+        self.assertEqual(self.act(self.focal1, "send-back", {}).status_code, 400)  # instructions required
+        self.assertEqual(self.act(self.focal1, "send-back", {"reason": "Interview the provider"}).status_code, 200)
+        c = self.reload()
+        self.assertEqual((c.internal_status, c.assigned_to), (S.INVESTIGATING, self.inv1))
+        self.submit()
+        self.assertEqual(self.reload().internal_status, S.RESOLVED)
+        self.assertEqual(self.send().status_code, 200)  # the Head may choose again
+
+    def test_division_head_can_change_the_officer_instead(self):
+        from accounts.models import User
+        other = User.objects.create_user("inv1b@x.bt", password="Str0ng-pass-123", role="investigator", division=self.d1)
+        self.to_investigating()
+        self.submit()
+        self.send()
+        self.act(self.sup, "mgmt-reject", {"reason": "Needs fresh eyes"})
+        self.assertEqual(self.act(self.focal1, "assign", {"assigned_to": str(other.pk)}).status_code, 400)  # reassigning needs a reason
+        r = self.act(self.focal1, "assign", {"assigned_to": str(other.pk), "reason": "Fresh investigator"})
+        self.assertEqual(r.status_code, 200, r.content)
+        c = self.reload()
+        self.assertEqual((c.internal_status, c.assigned_to), (S.ASSIGNED, other))
+
+    def test_supervisor_still_cannot_edit_cases(self):
+        self.to_investigating()
+        self.submit()
+        self.send()
+        for name in ("triage", "assign", "refer", "approve", "internal-note"):
+            self.assertEqual(self.act(self.sup, name, {"body": "x"}).status_code, 403, name)

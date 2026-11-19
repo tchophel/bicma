@@ -2,6 +2,7 @@ import { useConfirm } from "../../components/Confirm";
 import { Icon } from "../../components/Icon";
 import { IconBtn } from "../../components/IconBtn";
 import { Loader } from "../../components/Loader";
+import { Modal } from "../../components/Modal";
 import { useToast } from "../../components/Toast";
 import { useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../../api";
@@ -44,6 +45,22 @@ export function Users() {
     try { await api(`/admin/users/${u.id}/`, { method: "PATCH", json: { is_active: !u.is_active } }); reload(); toast.success(`${u.email} is now ${u.is_active ? "inactive" : "active"}.`); }
     catch (x) { toast.error((x as ApiError).message); }
   }
+  const [pwUser, setPwUser] = useState<User | null>(null);
+  const [pw, setPw] = useState({ new_password: "", confirm_password: "" });
+  const [pwErr, setPwErr] = useState<ApiError | null>(null);
+  const [pwBusy, setPwBusy] = useState(false);
+  const [pwShow, setPwShow] = useState(false);
+  function openPw(u: User) { setPwUser(u); setPw({ new_password: "", confirm_password: "" }); setPwErr(null); setPwShow(false); }
+  async function savePw(e: FormEvent) {
+    e.preventDefault();
+    if (!pwUser || pwBusy) return;
+    setPwBusy(true); setPwErr(null);
+    try {
+      const r = await api<{ detail: string }>(`/admin/users/${pwUser.id}/set-password/`, { json: pw });
+      toast.success(r.detail); setPwUser(null);
+    } catch (x) { setPwErr(x as ApiError); }
+    finally { setPwBusy(false); }
+  }
   const chosen = roles.data?.results.find((r) => r.code === form.role);
   const needsDiv = ["focal", "investigator"].includes(chosen?.base ?? form.role);
   const users = data?.results ?? [];
@@ -68,7 +85,7 @@ export function Users() {
               <td><span className="chip">{u.role_display}</span></td>
               <td><span className={u.division_name ? "" : "muted"}>{u.division_name ?? "No division"}</span></td>
               <td><span className={`badge ${u.is_active ? "ok" : "bad"}`}><span className="status-dot" />{u.is_active ? "Active" : "Inactive"}</span></td>
-              <td className="users-actions-cell"><IconBtn icon="power" tone={u.is_active ? "danger" : "ok"} onClick={() => toggle(u)} label={`${u.is_active ? "Deactivate" : "Activate"} ${u.email}`} /></td>
+              <td className="users-actions-cell"><IconBtn icon="lock" disabled={!u.is_active} onClick={() => openPw(u)} label={`Set a new password for ${u.email}`} /><IconBtn icon="power" tone={u.is_active ? "danger" : "ok"} onClick={() => toggle(u)} label={`${u.is_active ? "Deactivate" : "Activate"} ${u.email}`} /></td>
             </tr>))}
             {loading && <tr><td colSpan={5}><Loader size={40} label="Loading staff accounts" /></td></tr>}
             {!loading && visible.length === 0 && <tr><td colSpan={5} className="users-empty"><Icon name="users" size={28} /><p>{query ? "No users match your search." : "No staff accounts yet. Create your first user below."}</p></td></tr>}
@@ -86,7 +103,7 @@ export function Users() {
           <fieldset disabled={busy}>
             <legend><span className="users-section-number">01</span> Personal details</legend>
             <div className="row">
-              <Field label="Employee ID" hint="Becomes the username. Staff can also sign in with their email."><input placeholder="e.g. EMP001" autoComplete="off" value={form.employee_id} onChange={set("employee_id")} /></Field>
+              <Field label="Employee ID" hint="Not used to sign in. Staff sign in with their CID or email."><input placeholder="e.g. EMP001" autoComplete="off" value={form.employee_id} onChange={set("employee_id")} /></Field>
               <Field label="Designation"><input placeholder="e.g. Senior Officer" value={form.designation} onChange={set("designation")} /></Field>
               <Field label="First name"><input placeholder="Enter first name" autoComplete="given-name" value={form.first_name} onChange={set("first_name")} /></Field>
               <Field label="Last name"><input placeholder="Enter last name" autoComplete="family-name" value={form.last_name} onChange={set("last_name")} /></Field>
@@ -107,6 +124,23 @@ export function Users() {
         </form>
       </section>
       </dialog>
+      <Modal open={pwUser !== null} onClose={() => setPwUser(null)} busy={pwBusy} title="Set a new password" icon="lock">
+        <form onSubmit={savePw}>
+          <p className="muted">Choose a new password for <strong>{pwUser?.email}</strong>. Tell them the password in person; no email is sent. They are signed out of any open session.</p>
+          {pwErr && !pwErr.fields.new_password && !pwErr.fields.confirm_password && <p className="error" role="alert">{pwErr.message}</p>}
+          <Field label="New password" required error={pwErr?.fields.new_password} hint="At least 10 characters; not a common or all-numeric password.">
+            <input required autoFocus type={pwShow ? "text" : "password"} autoComplete="new-password" minLength={10} value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} />
+          </Field>
+          <Field label="Confirm new password" required error={pwErr?.fields.confirm_password}>
+            <input required type={pwShow ? "text" : "password"} autoComplete="new-password" value={pw.confirm_password} onChange={(e) => setPw({ ...pw, confirm_password: e.target.value })} />
+          </Field>
+          <label style={{ display: "flex", gap: 8, alignItems: "center", margin: "4px 0 14px" }}><input type="checkbox" checked={pwShow} onChange={(e) => setPwShow(e.target.checked)} />Show password</label>
+          <div className="modal-actions">
+            <button type="button" className="btn secondary" disabled={pwBusy} onClick={() => setPwUser(null)}>Cancel</button>
+            <button className="btn" disabled={pwBusy}><Icon name="check" />{pwBusy ? "Saving…" : "Set password"}</button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }

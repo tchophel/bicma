@@ -12,11 +12,15 @@ CATALOG = [
     ("start", "Start an investigation", "Investigation"),
     ("save_findings", "Record findings, action taken and recommendation", "Investigation"),
     ("request_info", "Request information from the complainant", "Investigation"),
+    ("return", "Return a case to the Division Head with a reason", "Investigation"),
     ("resume", "Resume after waiting for information", "Investigation"),
     ("resolve", "Propose a resolution", "Investigation"),
     ("message", "Send public messages to the complainant", "Communication"),
     ("note", "Add internal notes", "Communication"),
     ("stakeholder_review", "Send the notice to the provider", "Communication"),
+    ("mgmt_approve", "Accept or reject a resolution submitted for management approval", "Decision"),
+    ("send_back", "Send a case returned by management back to the officer", "Decision"),
+    ("send_to_management", "Send submitted findings to the Management Viewer for approval", "Decision"),
     ("approve", "Approve a resolution and close the case", "Decision"),
     ("reject", "Return a resolution to the officer", "Decision"),
     ("reopen", "Reopen a closed case", "Decision"),
@@ -25,12 +29,12 @@ CATALOG = [
 ]
 CODES = [c for c, _, _ in CATALOG]
 
-_OFFICER = {"register_complaint", "triage", "start", "save_findings", "request_info", "resume", "resolve", "message", "note", "view_reports"}
+_OFFICER = {"register_complaint", "triage", "start", "save_findings", "request_info", "resume", "return", "resolve", "message", "note", "view_reports"}
 DEFAULTS = {
     Role.INVESTIGATOR: set(_OFFICER),
-    Role.FOCAL: _OFFICER | {"assign", "refer", "not_in_mandate", "stakeholder_review", "approve", "reject", "reopen", "export_reports"},
+    Role.FOCAL: _OFFICER | {"assign", "refer", "not_in_mandate", "stakeholder_review", "send_back", "send_to_management", "approve", "reject", "reopen", "export_reports"},
     Role.SUPER_ADMIN: {"view_reports", "export_reports"},
-    Role.SUPERVISOR: {"view_reports", "export_reports"},
+    Role.SUPERVISOR: {"view_reports", "export_reports", "mgmt_approve"},
 }
 
 

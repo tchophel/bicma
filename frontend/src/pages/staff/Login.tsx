@@ -1,8 +1,9 @@
 import { useToast } from "../../components/Toast";
 import { Icon } from "../../components/Icon";
+import { NdiLogin } from "../../components/NdiLogin";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { api, ApiError } from "../../api";
+import { ApiError } from "../../api";
 import { useAuth } from "../../auth";
 import "../../styles/Login.css";
 
@@ -30,10 +31,10 @@ export function Login() {
       </div>
       <form className="card staff-login-card" onSubmit={go}>
         <div className="field">
-          <label className="login-label" htmlFor="login-email">Employee ID or email <span className="req" aria-hidden="true">*</span></label>
+          <label className="login-label" htmlFor="login-email">CID or email <span className="req" aria-hidden="true">*</span></label>
           <div className="input-icon-wrap">
             <Icon name="mail" />
-            <input id="login-email" placeholder="Employee ID or email address" required type="text" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input id="login-email" placeholder="CID or email address" required type="text" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
         </div>
         <div className="field">
@@ -50,10 +51,7 @@ export function Login() {
         {err && <p className="error" role="alert">{err}</p>}
         <button className="btn" disabled={busy} style={{ width: "100%" }}><Icon name="login" />{busy ? "Signing in…" : "Sign in"}</button>
         <div className="login-or" aria-hidden="true"><span>or</span></div>
-        <button type="button" className="ndi-btn" onClick={async () => { setErr(""); try { const r = await api<{ url?: string }>("/auth/ndi/start/"); if (r.url) window.location.href = r.url; } catch (x) { setErr((x as ApiError).message); } }}>
-          <img src="/ndi-logo.png" alt="" width={34} height={34} />
-          <span>Login with Bhutan NDI</span>
-        </button>
+        <NdiLogin onError={(m) => { setErr(m); toast.error(m); }} />
       </form>
     </div>
   );

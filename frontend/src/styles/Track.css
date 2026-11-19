@@ -45,3 +45,26 @@
   .tracking-facts > div:last-child { border-bottom: 0; }
   .tracking-result-footer { padding: 16px 20px; }
 }
+
+.track-page { --c-primary: #1750b0; --c-primary-dark: #103b85; --c-primary-soft: #eaf2fd; --c-text: #172d4c; --c-muted: #56677d; --c-border: #dce4ee; color: var(--c-text); max-width: 880px; padding-top: 48px; padding-bottom: 72px; }
+.track-hero { margin-bottom: 30px; }
+.track-eyebrow { display: inline-flex; align-items: center; gap: 8px; color: var(--c-primary); font-size: .75rem; font-weight: 700; letter-spacing: .12em; }
+.track-hero h1 { color: #102d53; font-size: clamp(2rem, 4vw, 2.75rem); letter-spacing: -.035em; margin: 14px 0 10px; }
+.track-hero > p { color: var(--c-muted); font-size: 1rem; line-height: 1.7; margin: 0; }
+.track-search-card { padding: 32px; border: 1px solid var(--c-border); border-radius: 16px; box-shadow: 0 8px 30px rgb(17 46 82 / 4%); }
+.track-search-heading { display: flex; align-items: center; gap: 16px; margin-bottom: 28px; }
+.track-search-heading .icon-tile { background: var(--c-primary-soft); color: var(--c-primary); flex-shrink: 0; }
+.track-search-heading h2 { font-size: 1.25rem; margin: 0 0 6px; }
+.track-search-heading p { margin: 0; color: var(--c-muted); font-size: .9375rem; line-height: 1.6; }
+.track-search-card .field > span { font-size: .9375rem; }
+.track-search-card input { min-height: 54px; border: 1px solid #b8c7d8; border-radius: 9px; padding: 12px 14px; font-size: 1rem; letter-spacing: .025em; }
+.track-search-card input:focus { border-color: var(--c-primary); outline: 3px solid #dceaff; outline-offset: 1px; }
+.track-search-card .btn { min-height: 48px; padding: 12px 24px; margin-top: 8px; }
+.track-search-note { display: flex; gap: 10px; align-items: flex-start; border-top: 1px solid var(--c-border); margin-top: 28px; padding-top: 20px; color: var(--c-muted); }
+.track-search-note .icon { flex-shrink: 0; color: var(--c-primary); margin-top: 2px; }
+.track-search-note p { margin: 0; font-size: .875rem; line-height: 1.7; }
+.track-page .tracking-result-header { background: #f3f7fe; border-top-color: var(--c-primary); }
+.track-page .tracking-eyebrow { font-size: .75rem; }
+.track-page .tracking-step-caption, .track-page .tracking-facts dt, .track-page .tracking-result-footer { font-size: .875rem; }
+.track-page .tracking-result-footer { background: #f8fafc; }
+@media (max-width: 600px) { .track-page { padding-top: 28px; padding-bottom: 40px; } .track-search-card { padding: 24px 20px; } .track-search-heading { align-items: flex-start; gap: 12px; } .track-search-heading h2 { font-size: 1.125rem; } .track-search-card .btn { width: 100%; justify-content: center; } }

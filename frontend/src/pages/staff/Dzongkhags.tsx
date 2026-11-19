@@ -4,7 +4,6 @@ import { IconBtn } from "../../components/IconBtn";
 import { Loader } from "../../components/Loader";
 import { useToast } from "../../components/Toast";
 import { useState, type FormEvent } from "react";
-import { Link } from "react-router-dom";
 import { api, ApiError } from "../../api";
 import { Field, PageHeader } from "../../components/ui";
 import { Modal } from "../../components/Modal";
@@ -60,19 +59,18 @@ export function Dzongkhags() {
       <div className="locations-layout">
         <section className="card users-directory" aria-labelledby="dzongkhag-directory">
           <div className="users-toolbar">
-            <div><h2 id="dzongkhag-directory">Dzongkhag directory <span className="chip">{data?.count ?? "—"}</span></h2><p className="muted">Select a Gewog count to manage its locations.</p></div>
+            <div><h2 id="dzongkhag-directory">Dzongkhag directory <span className="chip">{data?.count ?? "—"}</span></h2><p className="muted">The Dzongkhags a complainant can choose as their location.</p></div>
             <label className="users-search"><span className="sr-only">Search loaded Dzongkhags</span><Icon name="search" /><input type="search" placeholder="Search Dzongkhags…" value={query} onChange={(e) => { setQuery(e.target.value); setPage(1); }} /></label>
           </div>
           <div className="table-wrap"><table>
-            <thead><tr><th>Dzongkhag</th><th>Gewogs</th><th>Status</th><th className="users-actions-cell">Actions</th></tr></thead>
+            <thead><tr><th>Dzongkhag</th><th>Status</th><th className="users-actions-cell">Actions</th></tr></thead>
             <tbody>{pageRows.map((d) => <tr key={d.id}>
               <td><div className="location-name"><span className="icon-tile"><Icon name="pin" size={17} /></span><strong>{d.name}</strong></div></td>
-              <td><Link className="gewog-count" to={`/staff/gewogs?dzongkhag=${d.id}`} aria-label={`Manage ${d.gewog_count} Gewogs in ${d.name}`}><Icon name="map" size={15} />{d.gewog_count}<Icon name="right" size={14} /></Link></td>
               <td><span className={`badge ${d.is_active ? "ok" : "bad"}`}><span className="status-dot" />{d.is_active ? "Active" : "Inactive"}</span></td>
               <td className="users-actions-cell"><IconBtn icon="power" tone={d.is_active ? "danger" : "ok"} disabled={changing !== null} onClick={() => toggle(d)} label={`${d.is_active ? "Deactivate" : "Activate"} ${d.name}`} /></td>
             </tr>)}
-            {loading && <tr><td colSpan={4}><Loader size={40} label="Loading Dzongkhags" /></td></tr>}
-            {!loading && visible.length === 0 && <tr><td colSpan={4} className="users-empty"><Icon name="map" size={28} /><p>{query ? "No Dzongkhags match your search." : "No Dzongkhags yet. Add one to get started."}</p></td></tr>}
+            {loading && <tr><td colSpan={3}><Loader size={40} label="Loading Dzongkhags" /></td></tr>}
+            {!loading && visible.length === 0 && <tr><td colSpan={3} className="users-empty"><Icon name="map" size={28} /><p>{query ? "No Dzongkhags match your search." : "No Dzongkhags yet. Add one to get started."}</p></td></tr>}
             </tbody>
           </table></div>
           <div className="users-directory-footer location-pagination">

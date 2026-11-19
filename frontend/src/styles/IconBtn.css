@@ -8,3 +8,4 @@
 .icon-action-ok { color: #1f7a4d; }
 .icon-action-ok:hover:not(:disabled) { background: #e8f6ee; border-color: #1f7a4d; }
 .icon-actions { display: inline-flex; gap: 6px; align-items: center; }
+.users-actions-cell .icon-action + .icon-action { margin-left: 6px; }

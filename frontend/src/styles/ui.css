@@ -45,3 +45,10 @@ button.chip { border: 0; cursor: pointer; font: inherit; font-size: .82rem; font
 @media (max-width: 600px) { .page-head { flex-wrap: wrap; } .page-head-actions { margin-left: 64px; flex-basis: 100%; } .page-head .icon-tile { width: 44px; height: 44px; } }
 .linklike { background: none; border: 0; padding: 0; font: inherit; cursor: pointer; color: var(--c-primary); }
 .linklike:hover { text-decoration: underline; }
+
+/* Horizontal timeline: steps run left to right and scroll sideways when there are many. */
+.timeline-row { display: flex; overflow-x: auto; padding-bottom: 6px; }
+.timeline-row li { flex: 0 0 220px; padding: 34px 18px 0 0; }
+.timeline-row li:last-child { padding-bottom: 0; }
+.timeline-row li::before { left: 28px; right: 4px; top: 11px; bottom: auto; width: auto; height: 2px; }
+.timeline-row li:last-child::before { display: none; }

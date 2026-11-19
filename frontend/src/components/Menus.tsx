@@ -34,6 +34,8 @@ export function NotificationBell() {
   const { open, setOpen, ref } = usePopover();
   const [items, setItems] = useState<AppNotification[]>([]);
   const [unread, setUnread] = useState(0);
+  const [clearing, setClearing] = useState(false);
+  const [clearError, setClearError] = useState("");
   const nav = useNavigate();
   const load = useCallback(() => {
     api<{ unread_count: number; results: AppNotification[] }>("/notifications/").then((d) => { setItems(d.results); setUnread(d.unread_count); }).catch(() => {});
@@ -45,6 +47,15 @@ export function NotificationBell() {
     if (!n.read) { await api(`/notifications/${n.id}/read/`, { method: "POST" }).catch(() => {}); load(); }
     if (n.link) nav(n.link);
   }
+  async function clearAll() {
+    if (clearing) return;
+    setClearing(true); setClearError("");
+    try {
+      await api("/notifications/", { method: "DELETE" });
+      setItems([]); setUnread(0);
+    } catch { setClearError("Could not clear notifications. Please try again."); }
+    finally { setClearing(false); }
+  }
   async function readAll() { await api("/notifications/read-all/", { method: "POST" }); load(); }
 
   return (
@@ -55,7 +66,8 @@ export function NotificationBell() {
       </button>
       {open && (
         <div className={css.panel} role="region" aria-label="Notifications">
-          <div className={css.panelHead}><strong>Notifications</strong>{unread > 0 && <button className={css.linkBtn} onClick={readAll}>Mark all as read</button>}</div>
+          <div className={css.panelHead}><strong>Notifications</strong><div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>{unread > 0 && <button className={css.linkBtn} disabled={clearing} onClick={readAll}>Mark all as read</button>}{items.length > 0 && <button className={css.linkBtn} disabled={clearing} onClick={clearAll}>{clearing ? "Clearing…" : "Clear all"}</button>}</div></div>
+          {clearError && <p className="error" role="alert">{clearError}</p>}
           {items.length === 0 && <p className={css.empty}>You have no notifications.</p>}
           <ul className={css.notes}>
             {items.map((n) => (
@@ -94,7 +106,7 @@ export function UserMenu() {
     <div className={css.pop} ref={ref}>
       <button className={css.userBtn} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span className={css.avatar} aria-hidden="true">{user.profile_photo && failedPhoto !== user.profile_photo ? <img src={user.profile_photo} alt="" onError={() => setFailedPhoto(user.profile_photo)} /> : initials}</span>
-        <span className={css.who}><strong>{name}</strong><small>{user.role_display}{user.division_name ? ` · ${user.division_name}` : ""}</small></span>
+        <span className={css.who}><strong>{name}</strong><small>{user.role_display}</small></span>
         <Icon name="chev" size={14} />
       </button>
       {open && (

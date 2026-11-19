@@ -143,3 +143,21 @@ EMAIL_HOST_PASSWORD = os.environ.get("EMAIL_HOST_PASSWORD", "")
 EMAIL_USE_TLS = os.environ.get("EMAIL_USE_TLS", "1") == "1"
 EMAIL_TIMEOUT = 10
 DEFAULT_FROM_EMAIL = os.environ.get("DEFAULT_FROM_EMAIL", "BICMA <noreply@example.org>")
+
+
+# Bhutan NDI (National Digital Identity) staff sign-in: proof request + QR, result delivered over NATS. See core/ndi.py.
+# The client id / secret and the NATS seed key are secrets: set them in .env, never in the code.
+NDI = {
+    "NATS_HOST": (os.environ.get("NDI_NATS_HOST") or "https://natsdemoclient.bhutanndi.com"),
+    "NATS_PORT": int(os.environ.get("NDI_NATS_PORT") or "4222"),
+    "NATS_SEED": (os.environ.get("NDI_NATS_SEED_KEY") or ""),
+    "AUTH_ENDPOINT": (os.environ.get("NDI_API_AUTH_ENDPOINT") or "https://staging.bhutanndi.com/authentication/v1/authenticate"),
+    "API_HOST": (os.environ.get("NDI_API_HOST") or "https://demo-client.bhutanndi.com"),
+    "CLIENT_ID": (os.environ.get("NDI_API_CLIENT_ID") or ""),
+    "CLIENT_SECRET": (os.environ.get("NDI_API_CLIENT_SECRET") or ""),
+    "GRANT_TYPE": (os.environ.get("NDI_API_GRANT_TYPE") or "client_credentials"),
+    "FOUNDATIONAL_ID_CRED_DEF_ID": (os.environ.get("NDI_FOUNDATIONAL_ID_CRED_DEF_ID")
+                                    or "https://schema.ngotag.com/schemas/fb675203-b317-4675-a657-be7f5d1d57fb"),
+    "LOGIN_ATTRIBUTES": ["ID Number", "Full Name"],
+    "PROOF_TTL_SECONDS": int((os.environ.get("NDI_PROOF_TTL_SECONDS") or "300")),
+}

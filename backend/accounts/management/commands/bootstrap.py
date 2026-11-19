@@ -17,18 +17,24 @@ DZONGKHAGS = [
 ]
 # category -> (default division code, [subcategories], urban division code, rural division code)
 DEFAULT_CATEGORIES = {
-    "Radio-frequency interference": ("SPT", ["Interference"], None, None),
-    "Spectrum / apparatus licensing and type approval": ("SPT", ["Type approval", "Apparatus licence"], None, None),
-    "Quality of service": ("SPT", ["Voice quality", "Data speed"], None, None),
-    "Network coverage": ("SPT", ["Coverage"], "SPT", "ICI"),
-    "Billing dispute": ("ICI", ["Overcharging", "Unrecognised charges"], None, None),
-    "Service interruption": ("ICI", ["Outage", "Slow service"], None, None),
-    "Tariffs": ("ICI", [], None, None),
-    "Breach of licence conditions": ("ICI", [], None, None),
-    "Harmful or unlawful online content": ("MCD", ["Harassment", "Impersonation", "Privacy"], None, None),
-    "Media fairness and conduct": ("MCD", ["Inaccurate reporting", "Advertising"], None, None),
-    "Regulated broadcast or published content": ("MCD", [], None, None),
-    "Film classification": ("MCD", [], None, None),
+    # the categories each division asked for (forms in core/formspecs.py)
+    "Radio-frequency interference": ("SPT", [], None, None),
+    "Unauthorised spectrum use": ("SPT", [], None, None),
+    "Network/Coverage issues": ("SPT", [], None, None),
+    "Requests for addition or removal of BTS sites": ("SPT", [], None, None),
+    "EMF radiation level measurement": ("SPT", [], None, None),
+    "Telecom tower structure": ("SPT", [], None, None),
+    "Internet Services": ("ICI", [], None, None),
+    "Cable Television": ("ICI", [], None, None),
+    "Rural communication program": ("ICI", [], None, None),
+    "Data Center Services": ("ICI", [], None, None),
+    "Tariff, service terms and potential market-abuse issues": ("ICI", [], None, None),
+    "Coverage issues in Rural areas": ("ICI", [], None, None),
+    "MSO's": ("ICI", [], None, None),
+    "Journalist/Media Conduct": ("MCD", [], None, None),
+    "Content": ("MCD", [], None, None),
+    "Online Reality Show": ("MCD", [], None, None),
+    "Film Production-related": ("MCD", [], None, None),
 }
 PRIORITIES = [("Urgent", 4, 1, 5), ("High", 3, 2, 10), ("Normal", 2, 3, 15), ("Low", 1, 5, 30)]
 PROVIDER_TYPES = ["Telecom operator", "ISP", "Cable TV operator", "Broadcaster", "Publisher", "OTT platform", "Other"]
@@ -51,13 +57,15 @@ class Command(BaseCommand):
         from core.models import ClosureReason, EmailTemplate, Outcome, Priority, ProviderType
         if not Division.objects.exists():
             for name, code in DEFAULT_DIVISIONS:
-                Division.objects.create(name=name, code=code)
+                Division.objects.create(
+                    name=name, code=code,
+                    reference_code="1" if "InfoComm" in name else "2" if "Media" in name else "3")
             self.stdout.write("Created BICMA's three divisions (editable in the UI).")
         if not SystemConfiguration.objects.filter(key="dzongkhags_seeded").exists():
             have = {n.lower() for n in Dzongkhag.objects.values_list("name", flat=True)}
             Dzongkhag.objects.bulk_create([Dzongkhag(name=n) for n in DZONGKHAGS if n.lower() not in have])
             SystemConfiguration.objects.create(key="dzongkhags_seeded", value="1", description="Initial Dzongkhag list loaded (one-time)")
-            self.stdout.write("Loaded the 20 Dzongkhags. Gewogs are added in the admin UI (Master data > Gewogs).")
+            self.stdout.write("Loaded the 20 Dzongkhags.")
         if not Priority.objects.exists():
             for name, rank, resp, resol in PRIORITIES:
                 Priority.objects.create(name=name, rank=rank, response_days=resp, resolution_days=resol)

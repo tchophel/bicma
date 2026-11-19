@@ -5,6 +5,7 @@ from django.contrib.auth.tokens import default_token_generator
 from django.core.mail import send_mail
 from django.db import transaction
 from django.db.models import Prefetch
+from django.utils import timezone
 from django.utils.encoding import force_bytes
 from django.utils.http import urlsafe_base64_encode, urlsafe_base64_decode
 from rest_framework import serializers
@@ -16,6 +17,7 @@ from django.middleware.csrf import get_token
 from django.utils.decorators import method_decorator
 from django.views.decorators.csrf import ensure_csrf_cookie
 from rest_framework import status, viewsets, mixins
+from rest_framework.decorators import action
 from rest_framework.filters import SearchFilter
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -58,8 +60,8 @@ class LoginView(APIView):
         email = str(request.data.get("email", "")).strip().lower()
         password = str(request.data.get("password", ""))
         key = f"login_fail:{email}"
-        if email and "@" not in email:  # BRD: the username is the Employee ID
-            match = User.objects.filter(employee_id__iexact=email).values_list("email", flat=True).first()
+        if email and "@" not in email:  # BRD: the username is the CID
+            match = User.objects.filter(cid=email).values_list("email", flat=True).first()
             email_for_auth = match or email
         else:
             email_for_auth = email
@@ -249,6 +251,26 @@ class UserViewSet(AuditedModelViewSet):
                       detail={"reason": str(self.request.data.get("reason", ""))[:300]})
 
 
+    @action(detail=True, methods=["post"], url_path="set-password")
+    def set_password(self, request, pk=None):
+        """Administrator: choose a new password for this user. No email is involved; the user's open sessions end."""
+        user = self.get_object()
+        if not user.is_active:
+            return Response({"detail": "This account is deactivated. Activate it first."}, status=status.HTTP_400_BAD_REQUEST)
+        password = str(request.data.get("new_password", ""))
+        if password != str(request.data.get("confirm_password", password)):
+            return Response({"confirm_password": "The two passwords do not match."}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            validate_password(password, user)
+        except DjangoValidationError as exc:
+            return Response({"new_password": " ".join(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
+        user.set_password(password)
+        user.save(update_fields=["password"])  # the password hash is part of the session key, so open sessions end
+        cache.delete(f"login_fail:{user.email}")
+        audit.log(request, "user.password_set", entity_type="user", entity_id=user.pk)
+        return Response({"detail": f"The password for {user.email} was changed."})
+
+
 class DivisionViewSet(AuditedModelViewSet):
     filter_backends = [SearchFilter]
     search_fields = ["name", "code"]
@@ -343,14 +365,73 @@ class DivisionListView(APIView):
 
 
 class NdiStartView(APIView):
-    """Bhutan NDI sign-in. The verifier connection (credentials, proof request, callback) is not configured yet,
-    so this answers 501 until GovTech provides the integration details."""
+    """Bhutan NDI sign-in, step 1: create a proof request and return the QR code and wallet deep link.
+    The thread id is remembered in this browser's session so only this browser can complete the sign-in."""
 
-    authentication_classes = []
+    authentication_classes = [CsrfOnlyAuthentication]
     permission_classes = [AllowAny]
+    throttle_scope = "login"
+
+    def _start(self, request):
+        from core import ndi, ndi_nats
+        from core.models import NdiVerification
+        try:
+            pr = ndi.create_proof_request()
+        except ndi.NotConfigured:
+            return Response({"detail": "Bhutan NDI sign-in is not set up yet. Sign in with your CID or email."}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        except ndi.AuthenticationRejected:
+            return Response({"detail": "Bhutan NDI rejected this portal’s authentication request. Please contact the administrator to check the NDI credentials and environment. You can sign in with your CID or email."}, status=status.HTTP_502_BAD_GATEWAY)
+        except ndi.NDIError:
+            return Response({"detail": "Bhutan NDI is temporarily unavailable. Sign in with your CID or email."}, status=status.HTTP_502_BAD_GATEWAY)
+        rec = NdiVerification.objects.create(thread_id=pr["thread_id"], deep_link_url=pr["deep_link_url"], proof_url=pr["proof_url"])
+        ndi_nats.watch(rec.thread_id)
+        request.session["ndi_thread"] = rec.thread_id
+        qr = ""
+        if rec.proof_url:
+            try:
+                qr = ndi.qr_data_url(rec.proof_url)
+            except Exception:
+                qr = ""
+        return Response({"threadId": rec.thread_id, "deepLinkURL": rec.deep_link_url, "qr": qr,
+                         "expiresIn": settings.NDI["PROOF_TTL_SECONDS"]}, status=status.HTTP_201_CREATED)
+
+    def post(self, request):
+        return self._start(request)
+
+    def get(self, request):  # kept for the original button, which called GET
+        return self._start(request)
+
+
+class NdiStatusView(APIView):
+    """Bhutan NDI sign-in, step 2 (polled): once the wallet result has arrived, sign in the active user whose CID matches."""
+
+    authentication_classes = [CsrfOnlyAuthentication]
+    permission_classes = [AllowAny]
+    throttle_scope = "login"
 
     def get(self, request):
-        return Response({"detail": "Bhutan NDI sign-in is not set up yet. Use your Employee ID or email."}, status=status.HTTP_501_NOT_IMPLEMENTED)
+        from datetime import timedelta
+        from core.models import NdiVerification
+        thread_id = request.query_params.get("threadId", "")
+        if not thread_id or request.session.get("ndi_thread") != thread_id:
+            return Response({"detail": "Unknown sign-in request."}, status=status.HTTP_404_NOT_FOUND)
+        rec = NdiVerification.objects.filter(pk=thread_id).first()
+        if rec is None:
+            return Response({"detail": "Unknown sign-in request."}, status=status.HTTP_404_NOT_FOUND)
+        if rec.consumed or timezone.now() - rec.created_at > timedelta(seconds=settings.NDI["PROOF_TTL_SECONDS"]):
+            return Response({"status": "expired", "detail": "This sign-in request has expired. Start again."})
+        if rec.status != "verified":
+            return Response({"status": rec.status, **({"detail": "The request was declined in the NDI wallet."} if rec.status == "failed" else {})})
+        user = User.objects.filter(cid=rec.cid, is_active=True).first() if rec.cid else None
+        NdiVerification.objects.filter(pk=rec.pk).update(consumed=True, user=user)  # one use only
+        request.session.pop("ndi_thread", None)
+        if user is None:
+            audit.log(request, "auth.login_failed", detail={"method": "ndi", "reason": "no active account for this CID"})
+            return Response({"status": "no_account", "detail": "No active BICMA account is registered with this NDI identity. Contact your Administrator."})
+        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        request.session.set_expiry(0)
+        audit.log(request, "auth.login", actor=user, detail={"method": "ndi"})
+        return Response({"status": "verified", "user": _with_perms(UserSerializer(user).data, user)})
 
 
 class StaffCidLookupView(APIView):

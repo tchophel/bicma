@@ -5,16 +5,19 @@ from django.utils import timezone
 from rest_framework import serializers
 
 from accounts.models import Division, Role
-from core.models import Category, Dzongkhag, Gewog, Outcome, Priority, Provider, ProviderType, Subcategory
+from core import formspecs
+from core.models import Category, Dzongkhag, Outcome, Priority, Provider, ProviderType, Subcategory
 
 from .models import Attachment, CaseMessage, Complaint, StatusHistory
 
 CREATE_FIELDS = [
-    "complainant_type", "complainant_name", "cid", "phone", "email", "confidential", "dzongkhag", "gewog", "locality", "area_type",
+    "complainant_type", "complainant_name", "cid", "phone", "email", "confidential", "dzongkhag", "locality", "area_type",
     "preferred_contact", "on_behalf", "affected_name", "affected_relationship", "affected_contact",
     "category", "division", "subcategory", "subject", "description", "incident_date", "incident_time",
     "platform", "provider", "provider_type", "already_complained", "provider_reference", "medium_of_publication",
     "remedy_sought", "website_or_social", "additional_info", "declaration_accepted", "date_received",
+    "concerned_frequency", "geo_latitude", "geo_longitude", "publication_date", "publication_url", "nature_of_complaint",
+    "agency_name", "present_address", "complaining_for", "other_party_name", "details",
 ]
 PHONE_RE = re.compile(r"^(\+975)?\d{8}$")
 CID_RE = re.compile(r"^\d{11}$")
@@ -27,7 +30,6 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
     provider = serializers.PrimaryKeyRelatedField(queryset=Provider.objects.filter(is_active=True), required=False, allow_null=True)
     provider_type = serializers.PrimaryKeyRelatedField(queryset=ProviderType.objects.filter(is_active=True), required=False, allow_null=True)
     dzongkhag = serializers.PrimaryKeyRelatedField(queryset=Dzongkhag.objects.filter(is_active=True), required=False, allow_null=True)
-    gewog = serializers.PrimaryKeyRelatedField(queryset=Gewog.objects.filter(is_active=True), required=False, allow_null=True)
     confirm_duplicate = serializers.BooleanField(required=False, default=False, write_only=True)
 
     class Meta:
@@ -40,6 +42,11 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
     def validate_incident_date(self, value):
         if value and value > timezone.localdate():
             raise serializers.ValidationError("The incident date cannot be in the future.")
+        return value
+
+    def validate_publication_date(self, value):
+        if value and value > timezone.localdate():
+            raise serializers.ValidationError("The date of publication cannot be in the future.")
         return value
 
     def validate_phone(self, value):
@@ -62,42 +69,82 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
             if not attrs.get(field):
                 errors[field] = msg
 
-        for f in ("complainant_name", "subject", "description", "category"):
-            need(f)
-        individual = attrs.get("complainant_type", "individual") == "individual"
-        if attrs.get("cid"):
-            if individual and not CID_RE.match(attrs["cid"]):
-                errors["cid"] = "The CID must be 11 digits."
-            elif not individual and len(attrs["cid"]) > 20:
-                errors["cid"] = "Enter at most 20 characters."
-        need("provider_type", "Select the provider / party type.")
-        need("dzongkhag", "Select a Dzongkhag.")
-        need("locality", "Enter the Gewog / town / village.") if not attrs.get("gewog") else None
-        need("area_type", "Select urban or rural.")
-        need("incident_date")
-        need("incident_time", "Enter the incident time.")
-        need("remedy_sought", "State the remedy you are seeking.")
-        if not offline:
-            need("cid", "Enter your CID." if individual else "Enter the registration or licence number.")
-            need("phone", "Enter your phone number.")
-            need("email", "Enter your email address.")
-            if not attrs.get("declaration_accepted"):
-                errors["declaration_accepted"] = "You must accept the declaration."
-        if attrs.get("already_complained") and not attrs.get("provider_reference"):
-            errors["provider_reference"] = "Enter the provider's reference number."
         cat = attrs.get("category")
-        if cat and cat.default_division_id and cat.default_division.name.lower().startswith("media"):
-            need("medium_of_publication", "Enter the medium of publication.")
+        spec = formspecs.spec_for(cat)
+        if spec:
+            ident = spec["identity"]
+            need("complainant_name", "Enter the name.")
+            if spec["description"] and spec["description"]["required"]:
+                need("description")
+            if attrs.get("cid") and not CID_RE.match(attrs["cid"]):
+                errors["cid"] = "The CID must be 11 digits."
+            if not offline:
+                need("cid", "Enter your CID.")
+                need("phone", "Enter your contact number.")
+                if not attrs.get("declaration_accepted"):
+                    errors["declaration_accepted"] = "You must accept the declaration."
+            if ident["location"]:
+                need("dzongkhag", "Select a Dzongkhag.")
+            if ident["present_address"]:
+                need("present_address", "Enter the present address.")
+            if ident["complaining_for"]:
+                allowed = [c for c, _ in ident["complaining_for"]]
+                who = attrs.get("complaining_for") or "self"
+                if who not in allowed:
+                    errors["complaining_for"] = "Choose who the complaint is for."
+                elif who != "self":
+                    need("other_party_name", "Enter the name of the other concerned party.")
+            errors.update(formspecs.validate(spec, attrs.get("details"), self.context.get("present_slots", set())))
+        else:
+            cat = attrs.get("category")
+            division_name = cat.default_division.name.lower() if cat and cat.default_division_id else ""
+            media = division_name.startswith("media")
+            iid = division_name.startswith("infocomm")
+            ctype = attrs.get("complainant_type", "individual")
+            individual = ctype == "individual"
+            for f in ("complainant_name", "description", "category"):
+                need(f)
+            if ctype == "agency":
+                need("agency_name", "Enter the agency name.")
+            else:
+                if attrs.get("cid"):
+                    if individual and not CID_RE.match(attrs["cid"]):
+                        errors["cid"] = "The CID must be 11 digits."
+                    elif not individual and len(attrs["cid"]) > 20:
+                        errors["cid"] = "Enter at most 20 characters."
+                if not offline:
+                    need("cid", "Enter your CID." if individual else "Enter the CID or licence number.")
+            if not offline:
+                need("phone", "Enter your contact number.")
+                if not attrs.get("declaration_accepted"):
+                    errors["declaration_accepted"] = "You must accept the declaration."
+            if media:
+                need("subject", "Enter the title of the post, article or video.")
+                need("present_address", "Enter the present address.")
+                need("medium_of_publication", "Enter the medium of publication.")
+                need("publication_date", "Enter the date of publication.")
+                need("nature_of_complaint", "Select at least one nature of complaint.")
+                need("remedy_sought", "Select at least one remedy sought.")
+            else:
+                need("dzongkhag", "Select a Dzongkhag.")
+                if iid and not (attrs.get("provider") or attrs.get("platform")):
+                    errors["provider"] = "Select the service provider, or choose Other / Not listed and type its name."
+            if attrs.get("already_complained") and not attrs.get("provider_reference"):
+                errors["provider_reference"] = "Enter the provider's reference number."
         if errors:
             raise serializers.ValidationError(errors)
         return self._tidy(attrs)
 
     def _tidy(self, attrs):
-        dz, gw = attrs.get("dzongkhag"), attrs.get("gewog")
-        if gw and not dz:
-            raise serializers.ValidationError({"dzongkhag": "Select the Dzongkhag for the chosen Gewog."})
-        if gw and gw.dzongkhag_id != dz.pk:
-            raise serializers.ValidationError({"gewog": "This Gewog does not belong to the selected Dzongkhag."})
+        spec, det = formspecs.spec_for(attrs.get("category")), attrs.get("details") or {}
+        if spec and isinstance(det, dict):
+            for f in spec["fields"]:
+                if f["type"] == "provider" and det.get(f["key"]) and not attrs.get("platform") and not attrs.get("provider"):
+                    attrs["platform"] = str(det[f["key"]])[:150]
+        if not attrs.get("subject"):
+            first = next((str(v) for v in det.values() if isinstance(v, str) and v.strip()), "") if isinstance(det, dict) else ""
+            cat, desc = attrs.get("category"), ((attrs.get("description") or first) or "").strip().replace("\n", " ")
+            attrs["subject"] = ((f"{cat.name}: " if cat else "") + desc)[:200]
         sub = attrs.get("subcategory")
         if sub and (not attrs.get("category") or sub.category_id != attrs["category"].pk):
             raise serializers.ValidationError({"subcategory": "Subcategory does not belong to the selected category."})
@@ -130,9 +177,14 @@ class StatusHistorySerializer(serializers.ModelSerializer):
 
 
 class AttachmentSerializer(serializers.ModelSerializer):
+    slot_label = serializers.SerializerMethodField()
+
+    def get_slot_label(self, obj):
+        return formspecs.slot_label(formspecs.spec_for(obj.complaint.category), obj.slot) if obj.slot else ""
+
     class Meta:
         model = Attachment
-        fields = ["id", "original_name", "size", "content_type", "visibility", "created_at"]
+        fields = ["id", "original_name", "size", "content_type", "visibility", "slot", "slot_label", "created_at"]
 
 
 class MessageSerializer(serializers.ModelSerializer):
@@ -160,6 +212,8 @@ class ComplaintListSerializer(serializers.ModelSerializer):
     public_status = serializers.CharField(read_only=True)
     sla_state = serializers.CharField(read_only=True)
     complainant_name = serializers.SerializerMethodField()
+    can_assign = serializers.SerializerMethodField()
+    can_refer = serializers.SerializerMethodField()
 
     class Meta:
         model = Complaint
@@ -167,8 +221,26 @@ class ComplaintListSerializer(serializers.ModelSerializer):
             "id", "reference", "subject", "channel", "category", "category_name", "division", "division_name",
             "assigned_to", "assigned_to_name", "internal_status", "internal_status_display", "public_status",
             "complainant_name", "dzongkhag", "dzongkhag_name", "provider_name", "priority", "priority_name",
-            "resolution_due_at", "sla_state", "confidential", "created_at",
+            "resolution_due_at", "sla_state", "confidential", "created_at", "can_assign", "can_refer",
         ]
+
+    def _actions(self, obj):
+        """What this user may do to this row (the role's permissions are looked up once per request)."""
+        from accounts.perms import role_perms
+        from .workflow import allowed_actions
+        request = self.context.get("request")
+        if request is None or not request.user.is_authenticated:
+            return {}
+        cache = self.context.setdefault("_role_perms", {})
+        if request.user.role not in cache:
+            cache[request.user.role] = role_perms(request.user.role)
+        return allowed_actions(request.user, obj, cache[request.user.role])
+
+    def get_can_assign(self, obj):
+        return bool(self._actions(obj).get("assign"))
+
+    def get_can_refer(self, obj):
+        return bool(self._actions(obj).get("refer"))
 
     def get_assigned_to_name(self, obj):
         return (obj.assigned_to.get_full_name() or obj.assigned_to.email) if obj.assigned_to else None
@@ -201,7 +273,6 @@ def can_see_identity(user, complaint):
 
 class ComplaintDetailSerializer(ComplaintListSerializer):
     subcategory_name = serializers.CharField(source="subcategory.name", read_only=True, default=None)
-    gewog_name = serializers.CharField(source="gewog.name", read_only=True, default=None)
     provider_type_name = serializers.CharField(source="provider_type.name", read_only=True, default=None)
     outcome_name = serializers.CharField(source="outcome.name", read_only=True, default=None)
     suggested_division_name = serializers.CharField(source="suggested_division.name", read_only=True, default=None)
@@ -213,15 +284,19 @@ class ComplaintDetailSerializer(ComplaintListSerializer):
     related = serializers.SerializerMethodField()
     permissions = serializers.SerializerMethodField()
     paused = serializers.SerializerMethodField()
+    details_display = serializers.SerializerMethodField()
+    form_division = serializers.SerializerMethodField()
 
     class Meta(ComplaintListSerializer.Meta):
         fields = ComplaintListSerializer.Meta.fields + [
-            "complainant_type", "cid", "phone", "email", "gewog", "gewog_name", "locality", "area_type", "preferred_contact", "on_behalf",
+            "complainant_type", "cid", "phone", "email", "locality", "area_type", "preferred_contact", "on_behalf",
             "affected_name", "affected_relationship", "affected_contact", "subcategory", "subcategory_name",
             "description", "incident_date", "incident_time", "platform", "provider", "provider_type", "provider_type_name",
             "already_complained", "provider_reference", "medium_of_publication", "remedy_sought", "website_or_social",
             "additional_info", "declaration_accepted", "date_received", "suggested_division", "suggested_division_name",
-            "confidential_case", "response_due_at", "first_response_at", "resolved_at", "closed_at",
+            "concerned_frequency", "geo_latitude", "geo_longitude", "publication_date", "publication_url", "nature_of_complaint",
+            "authority_referred_to", "referral_date", "agency_name", "present_address", "complaining_for", "other_party_name",
+            "details", "details_display", "form_division", "confidential_case", "response_due_at", "first_response_at", "resolved_at", "closed_at",
             "investigation_findings", "action_taken", "recommendation", "outcome", "outcome_name", "closure_reason",
             "registered_by_name", "updated_at", "version", "paused", "status_history", "messages", "attachments",
             "notifications", "related", "permissions",
@@ -233,6 +308,14 @@ class ComplaintDetailSerializer(ComplaintListSerializer):
             for f in ("cid", "phone", "email", "affected_name", "affected_relationship", "affected_contact"):
                 data[f] = ""
         return data
+
+    def get_details_display(self, obj):
+        spec = formspecs.spec_for(obj.category)
+        return formspecs.label_details(spec, obj.details) if spec else []
+
+    def get_form_division(self, obj):
+        spec = formspecs.spec_for(obj.category)
+        return spec["division"] if spec else ""
 
     def get_registered_by_name(self, obj):
         return (obj.registered_by.get_full_name() or obj.registered_by.email) if obj.registered_by else None

@@ -4,8 +4,6 @@
 .locations-layout .users-search { width: 100%; }
 .location-name { display: flex; align-items: center; gap: 12px; white-space: nowrap; }
 .location-name .icon-tile { width: 32px; height: 32px; border-radius: 9px; }
-.gewog-count { display: inline-flex; align-items: center; gap: 8px; min-width: 74px; justify-content: space-between; text-decoration: none; padding: 6px 9px; border: 1px solid var(--c-border); border-radius: 8px; font-weight: 600; background: var(--c-bg); }
-.gewog-count:hover { background: var(--c-primary-soft); border-color: var(--c-primary); }
 .location-create { padding: 0; overflow: hidden; scroll-margin-top: 100px; }
 .location-create-heading { padding: 24px; background: #fff5e8; border-bottom: 1px solid var(--c-border); }
 .location-create-heading h2 { margin: 16px 0 8px; font-size: 1.25rem; }
@@ -34,7 +32,6 @@
 .locations-page .location-name { gap: 8px; }
 .locations-page .location-name .icon-tile { width: 26px; height: 26px; border-radius: 7px; }
 .locations-page .location-name .icon { width: 14px; height: 14px; }
-.locations-page .gewog-count { min-width: 64px; gap: 6px; padding: 3px 7px; font-size: .82rem; }
 .locations-page .users-actions-cell .btn { padding: 4px 8px; font-size: .78rem; gap: 5px; }
 .locations-page .users-actions-cell .icon { width: 14px; height: 14px; }
 .locations-page .users-directory-footer { padding: 10px 16px; font-size: .78rem; }
@@ -61,7 +58,6 @@
 .locations-page .location-name { gap: 10px; }
 .locations-page .location-name .icon-tile { width: 30px; height: 30px; }
 .locations-page .location-name .icon { width: 16px; height: 16px; }
-.locations-page .gewog-count { padding: 5px 8px; font-size: .9rem; }
 .locations-page .users-actions-cell .btn { padding: 6px 10px; font-size: .85rem; }
 .locations-page .users-directory-footer { padding: 14px 20px; font-size: .85rem; }
 .locations-page .location-pagination .btn { padding: 6px 10px; font-size: .85rem; }

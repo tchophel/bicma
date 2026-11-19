@@ -10,6 +10,8 @@ interface AuthState {
   loading: boolean;
   login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => Promise<void>;
+  /** Accept a user the server has already signed in (for example through Bhutan NDI). */
+  acceptUser: (u: User) => Promise<void>;
 }
 
 const Ctx = createContext<AuthState | null>(null);
@@ -26,8 +28,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     // Never overwrite a user who signed in while this first check was still running.
-    ensureCsrf().then(() => api<User>("/auth/me/"))
-      .then((u) => setUser((prev) => prev ?? u))
+    // The CSRF cookie and "who am I" do not depend on each other, so ask for both at once.
+    Promise.all([ensureCsrf(), api<User>("/auth/me/")])
+      .then(([, u]) => setUser((prev) => prev ?? u))
       .catch(() => { /* not signed in: user stays null */ })
       .finally(() => setLoading(false));
   }, []);
@@ -39,6 +42,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await ensureCsrf(); // CSRF token rotates on login
   }, []);
 
+  const acceptUser = useCallback(async (u: User) => {
+    setUser(u);
+    setFeedback({ kind: "login", id: Date.now() });
+    await ensureCsrf();
+  }, []);
+
   const logout = useCallback(async () => {
     await api("/auth/logout/", { method: "POST" });
     setUser(null);
@@ -46,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     await ensureCsrf();
   }, []);
 
-  return <Ctx.Provider value={{ user, setUser, loading, login, logout }}>{children}
+  return <Ctx.Provider value={{ user, setUser, loading, login, logout, acceptUser }}>{children}
     {feedback && createPortal(<div className="auth-feedback" key={feedback.id}>
       <div className="auth-feedback-card" role="status" aria-live="polite">
         <span className="auth-feedback-face" aria-hidden="true">{feedback.kind === "login" ? "😊" : "😌"}</span>

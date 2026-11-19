@@ -65,3 +65,22 @@ class CategoryDeletionTests(APITestCase):
             self.client.force_authenticate(user)
             for url in (f"/api/admin/categories/{self.category.pk}/", f"/api/admin/subcategories/{self.subcategory.pk}/"):
                 self.assertIn(self.client.delete(url).status_code, (401, 403))
+
+
+class NotificationClearTests(APITestCase):
+    def test_clear_all_removes_only_the_current_users_notifications(self):
+        from .models import Notification
+        from django.utils import timezone
+        mine = User.objects.create_user("notifications@example.org", "Secure-pass-243!", role=Role.INVESTIGATOR)
+        other = User.objects.create_user("other-notifications@example.org", "Secure-pass-243!", role=Role.INVESTIGATOR)
+        Notification.objects.create(user=mine, message="Unread")
+        Notification.objects.create(user=mine, message="Read", read_at=timezone.now())
+        kept = Notification.objects.create(user=other, message="Other user")
+        self.assertIn(self.client.delete("/api/notifications/").status_code, (401, 403))
+        self.assertEqual(Notification.objects.count(), 3)
+        self.client.force_authenticate(mine)
+        self.assertEqual(self.client.delete("/api/notifications/").status_code, 204)
+        self.assertFalse(Notification.objects.filter(user=mine).exists())
+        self.assertTrue(Notification.objects.filter(pk=kept.pk).exists())
+        self.assertEqual(self.client.get("/api/notifications/").data["unread_count"], 0)
+        self.assertEqual(self.client.delete("/api/notifications/").status_code, 204)

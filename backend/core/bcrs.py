@@ -123,5 +123,5 @@ def lookup(cid, _retry=True):
     return {
         "first_name": first or "", "middle_name": middle or "", "last_name": last or "", "full_name": " ".join(parts),
         "mobile": _find(body, "mobileNumber") or "", "dzongkhag": _find(body, "dzongkhagName") or "",
-        "gewog": _find(body, "gewogName") or "", "occupation": _find(body, "occupation") or "",
+        "occupation": _find(body, "occupation") or "",
     }

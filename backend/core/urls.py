@@ -8,7 +8,6 @@ router.register("faqs", views.FAQAdminViewSet, basename="admin-faq")
 router.register("categories", views.CategoryAdminViewSet, basename="admin-category")
 router.register("subcategories", views.SubcategoryAdminViewSet, basename="admin-subcategory")
 router.register("dzongkhags", views.DzongkhagAdminViewSet, basename="admin-dzongkhag")
-router.register("gewogs", views.GewogAdminViewSet, basename="admin-gewog")
 for _route, _vs in (("provider-types", views.ProviderTypeAdminViewSet), ("providers", views.ProviderAdminViewSet),
                     ("priorities", views.PriorityAdminViewSet), ("outcomes", views.OutcomeAdminViewSet),
                     ("closure-reasons", views.ClosureReasonAdminViewSet), ("holidays", views.HolidayAdminViewSet),

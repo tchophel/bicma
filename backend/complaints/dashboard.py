@@ -41,12 +41,13 @@ class DashboardView(APIView):
         cards = [
             {"label": "Total complaints received", "count": qs.count(), "query": ""},
             {"label": "Pending", "count": open_qs.count(), "query": "scope=pending"},
+            {"label": "Awaiting management approval", "count": qs.filter(internal_status=S.PENDING_APPROVAL).count(), "query": f"status={S.PENDING_APPROVAL}"},
             {"label": "Resolved (awaiting approval)", "count": qs.filter(internal_status=S.RESOLVED).count(), "query": f"status={S.RESOLVED}"},
             {"label": "Closed", "count": qs.filter(internal_status__in=CLOSED).count(), "query": "scope=closed"},
             {"label": "Overdue", "count": open_qs.filter(paused_at__isnull=True, resolution_due_at__lt=now).count(), "query": "scope=overdue"},
             {"label": "Due soon", "count": apply_filters(qs, {"scope": "due_soon"}).count(), "query": "scope=due_soon"},
         ]
-        if user.base_role in (Role.FOCAL, Role.INVESTIGATOR, Role.SUPER_ADMIN):
+        if user.base_role in (Role.FOCAL, Role.SUPER_ADMIN):
             cards.insert(1, {"label": "Awaiting triage", "count": qs.filter(internal_status__in=[S.RECEIVED, S.TRIAGE, S.REFERRED]).count(), "query": "scope=triage"})
         if user.base_role == Role.INVESTIGATOR:
             cards.insert(2, {"label": "My assigned", "count": qs.filter(assigned_to=user, internal_status__in=OPEN_STATUSES).count(), "query": "scope=mine"})
