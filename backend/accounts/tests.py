@@ -21,13 +21,15 @@ class AccountRecoveryTests(APITestCase):
     def reset_data(self):
         return {"uid": urlsafe_base64_encode(force_bytes(self.user.pk)), "token": default_token_generator.make_token(self.user), "new_password": "New-strong-pass-294!"}
 
-    def test_reset_request_is_generic_and_email_uses_trusted_origin(self):
+    def test_reset_request_is_generic_and_emails_a_six_digit_code_not_a_link(self):
         known = self.client.post("/api/auth/password-reset/", {"email": self.user.email})
         missing = self.client.post("/api/auth/password-reset/", {"email": "unknown@example.org"})
         self.assertEqual(known.status_code, 200)
         self.assertEqual(known.data, missing.data)
         self.assertEqual(len(mail.outbox), 1)
-        self.assertIn("https://cms.example.org/staff/reset-password/", mail.outbox[0].body)
+        import re
+        self.assertRegex(mail.outbox[0].body, r"\n\s+\d{6}\n")
+        self.assertNotIn("http", mail.outbox[0].body)
         self.assertNotIn("token", known.data)
 
     def test_inactive_account_does_not_receive_email(self):
@@ -71,7 +73,7 @@ class AccountRecoveryTests(APITestCase):
     def test_recovery_requires_csrf_and_is_throttled(self):
         client = APIClient(enforce_csrf_checks=True)
         self.assertEqual(client.post("/api/auth/password-reset/", {"email": self.user.email}).status_code, 403)
-        for _ in range(5):
+        for _ in range(10):
             self.assertEqual(self.client.post("/api/auth/password-reset/", {"email": "missing@example.org"}).status_code, 200)
         self.assertEqual(self.client.post("/api/auth/password-reset/", {"email": "missing@example.org"}).status_code, 429)
 
@@ -291,3 +293,60 @@ class AdminSetPasswordTests(APITestCase):
         self.assertEqual(APIClient().post(self.url, body, format="json").status_code, 403)
         User.objects.filter(pk=self.staff.pk).update(is_active=False)
         self.assertEqual(self.as_(self.admin).post(self.url, body, format="json").status_code, 400)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend")
+class PasswordResetOtpTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.user = User.objects.create_user("official@example.org", "Old-strong-pass-182!", role=Role.INVESTIGATOR)
+
+    def request_code(self):
+        import re
+        mail.outbox.clear()
+        self.client.post("/api/auth/password-reset/", {"email": self.user.email})
+        return re.search(r"\n\s+(\d{6})\n", mail.outbox[0].body).group(1)
+
+    def verify(self, code, password="Brand-new-pass-731!", email=None):
+        return self.client.post("/api/auth/password-reset/verify/", {"email": email or self.user.email, "code": code, "new_password": password}, format="json")
+
+    def test_code_resets_the_password_once(self):
+        code = self.request_code()
+        r = self.verify(code)
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(APIClient().post("/api/auth/login/", {"email": self.user.email, "password": "Brand-new-pass-731!"}, format="json").status_code, 200)
+        self.assertEqual(self.verify(code, "Another-pass-5521!").status_code, 400)  # the code is spent
+
+    def test_wrong_code_expired_code_and_unknown_email_all_fail_the_same_way(self):
+        code = self.request_code()
+        wrong = "000000" if code != "000000" else "111111"
+        bodies = {self.verify(wrong).data["detail"], self.verify(code, email="nobody@example.org").data["detail"]}
+        from accounts.models import PasswordResetCode
+        PasswordResetCode.objects.update(expires_at=datetime.now().astimezone() - timedelta(minutes=1))
+        bodies.add(self.verify(code).data["detail"])
+        self.assertEqual(len(bodies), 1)  # no hint about which of these it was
+
+    def test_five_wrong_tries_kill_the_code(self):
+        code = self.request_code()
+        wrong = "000000" if code != "000000" else "111111"
+        for _ in range(5):
+            self.assertEqual(self.verify(wrong).status_code, 400)
+        self.assertEqual(self.verify(code).status_code, 400)  # even the right code no longer works
+
+    def test_a_new_request_replaces_the_old_code(self):
+        first = self.request_code()
+        second = self.request_code()
+        if first != second:
+            self.assertEqual(self.verify(first).status_code, 400)
+        self.assertEqual(self.verify(second).status_code, 200)
+
+    def test_weak_password_is_refused_and_code_kept(self):
+        code = self.request_code()
+        self.assertEqual(self.verify(code, "short").status_code, 400)
+        self.assertEqual(self.verify(code).status_code, 200)
+
+    def test_code_is_stored_hashed_and_must_be_six_digits(self):
+        code = self.request_code()
+        from accounts.models import PasswordResetCode
+        self.assertNotIn(code, PasswordResetCode.objects.get().code_hash)
+        self.assertEqual(self.verify("12ab56").status_code, 400)

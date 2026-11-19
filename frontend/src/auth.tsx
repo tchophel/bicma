@@ -58,7 +58,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   return <Ctx.Provider value={{ user, setUser, loading, login, logout, acceptUser }}>{children}
     {feedback && createPortal(<div className="auth-feedback" key={feedback.id}>
       <div className="auth-feedback-card" role="status" aria-live="polite">
-        <span className="auth-feedback-face" aria-hidden="true">{feedback.kind === "login" ? "😊" : "😌"}</span>
+        <span className={`auth-feedback-animation ${feedback.kind}`} aria-hidden="true">
+          <span className="auth-feedback-halo" />
+          <svg viewBox="0 0 80 80" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+            <circle className="auth-feedback-ring" cx="40" cy="40" r="33" />
+            {feedback.kind === "login" ? <path className="auth-feedback-check" d="m24 40 11 11 22-24" /> : <>
+              <path className="auth-feedback-shackle" d="M29 35v-9a11 11 0 0 1 22 0v9" />
+              <rect className="auth-feedback-lock" x="24" y="35" width="32" height="25" rx="6" />
+              <path className="auth-feedback-key" d="M40 45v6" />
+            </>}
+          </svg>
+        </span>
         <strong>{feedback.kind === "login" ? "Welcome back!" : "See you soon!"}</strong>
         <span>{feedback.kind === "login" ? "You’re signed in." : "You’re signed out."}</span>
         <button type="button" aria-label="Dismiss message" onClick={() => setFeedback(null)}>×</button>

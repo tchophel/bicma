@@ -84,3 +84,20 @@ class NotificationClearTests(APITestCase):
         self.assertTrue(Notification.objects.filter(pk=kept.pk).exists())
         self.assertEqual(self.client.get("/api/notifications/").data["unread_count"], 0)
         self.assertEqual(self.client.delete("/api/notifications/").status_code, 204)
+
+
+class BrandedEmailTests(APITestCase):
+    def test_email_has_plain_text_html_and_embedded_logo(self):
+        from django.core import mail
+        from core.email import send_mail
+        body = 'Your reference: BICMA-2026-1-0005\n\n<script>alert("x")</script>'
+        self.assertEqual(send_mail("Complaint update", body, "cms@example.org", ["recipient@example.org"]), 1)
+        message = mail.outbox[-1]
+        self.assertEqual(message.body, body)
+        html = message.alternatives[0][0]
+        self.assertIn("cid:bicma-logo", html)
+        self.assertIn("&lt;script&gt;", html)
+        self.assertNotIn("<script>", html)
+        self.assertIn("Complaint update", html)
+        mime = message.message()
+        self.assertTrue(any(part.get("Content-ID") == "<bicma-logo>" for part in mime.walk()))

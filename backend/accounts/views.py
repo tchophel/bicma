@@ -1,8 +1,9 @@
 import logging
 import secrets
+from datetime import timedelta
 from django.conf import settings
 from django.contrib.auth.tokens import default_token_generator
-from django.core.mail import send_mail
+from core.email import send_mail
 from django.db import transaction
 from django.db.models import Prefetch
 from django.utils import timezone
@@ -90,7 +91,13 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
     new_password = serializers.CharField(min_length=10, max_length=128, trim_whitespace=False)
 
 
+OTP_MINUTES = 10
+OTP_MAX_TRIES = 5
+
+
 class PasswordResetRequestView(APIView):
+    """Forgot password, step 1: email a 6-digit one-time code. The answer is the same whether or not the account exists."""
+
     authentication_classes = [CsrfOnlyAuthentication]
     permission_classes = [AllowAny]
     throttle_scope = "password_reset"
@@ -99,24 +106,71 @@ class PasswordResetRequestView(APIView):
         ser = PasswordResetRequestSerializer(data=request.data)
         ser.is_valid(raise_exception=True)
         email = ser.validated_data["email"].strip().lower()
-        # Use a trusted configured URL, never the request Host header.
         user = User.objects.filter(email__iexact=email, is_active=True).first()
         if user and user.has_usable_password():
-            uid = urlsafe_base64_encode(force_bytes(user.pk))
-            token = default_token_generator.make_token(user)
-            url = f"{settings.FRONTEND_URL.rstrip('/')}/staff/reset-password/{uid}/{token}"
+            code = f"{secrets.randbelow(10 ** 6):06d}"
+            from django.contrib.auth.hashers import make_password
+            from .models import PasswordResetCode
+            PasswordResetCode.objects.update_or_create(user=user, defaults={
+                "code_hash": make_password(code), "expires_at": timezone.now() + timedelta(minutes=OTP_MINUTES), "attempts": 0})
+            subject = "Your BICMA password reset code"
             try:
-                email_logged = False
-                send_mail(
-                    "Reset your BICMA password",
-                    f"A password reset was requested for your BICMA account.\n\nOpen this link to choose a new password:\n{url}\n\nThis link expires in one hour and can be used once. If you did not request this, you can ignore this email.",
-                    settings.DEFAULT_FROM_EMAIL, [user.email],
-                )
-                logs.email("password_reset", user.email, "Reset your BICMA password", True)
+                send_mail(subject,
+                          f"Your BICMA password reset code is:\n\n    {code}\n\nIt expires in {OTP_MINUTES} minutes and can be used once. "
+                          "Never share it with anyone. If you did not request this, you can ignore this email.",
+                          settings.DEFAULT_FROM_EMAIL, [user.email])
+                logs.email("password_reset", user.email, subject, True)
             except Exception as exc:
                 logging.getLogger(__name__).exception("Password reset email delivery failed")
-                logs.email("password_reset", user.email, "Reset your BICMA password", False, str(exc))
-        return Response({"detail": "If an active account exists for this email, a password reset link will be sent. Check your inbox and spam folder."})
+                logs.email("password_reset", user.email, subject, False, str(exc))
+        return Response({"detail": "If an active account exists for this email, a 6-digit code has been sent. Check your inbox and spam folder. It is valid for 10 minutes."})
+
+
+class PasswordResetOtpConfirmSerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=254)
+    code = serializers.RegexField(r"^\d{6}$", error_messages={"invalid": "Enter the 6-digit code."})
+    new_password = serializers.CharField(min_length=10, max_length=128, trim_whitespace=False)
+
+
+class PasswordResetOtpConfirmView(APIView):
+    """Forgot password, step 2: the emailed code plus a new password."""
+
+    authentication_classes = [CsrfOnlyAuthentication]
+    permission_classes = [AllowAny]
+    throttle_scope = "password_reset_verify"  # typing the code has its own limit; each code also dies after 5 wrong tries
+
+    def post(self, request):
+        ser = PasswordResetOtpConfirmSerializer(data=request.data)
+        ser.is_valid(raise_exception=True)
+        data = ser.validated_data
+        bad = Response({"detail": "That code is incorrect or has expired. Request a new code."}, status=status.HTTP_400_BAD_REQUEST)
+        from django.contrib.auth.hashers import check_password
+        from .models import PasswordResetCode
+        with transaction.atomic():
+            user = User.objects.filter(email__iexact=data["email"].strip().lower(), is_active=True).first()
+            row = PasswordResetCode.objects.select_for_update().filter(user=user).first() if user else None
+            if row is None or row.expires_at < timezone.now():
+                if row is not None:
+                    row.delete()
+                return bad
+            if not check_password(data["code"], row.code_hash):
+                row.attempts += 1
+                if row.attempts >= OTP_MAX_TRIES:
+                    row.delete()  # too many wrong guesses: this code is dead
+                else:
+                    row.save(update_fields=["attempts"])
+                audit.log(request, "auth.password_reset_code_failed", detail={"email": user.email[:254]})
+                return bad
+            try:
+                validate_password(data["new_password"], user)
+            except DjangoValidationError as exc:
+                return Response({"new_password": list(exc.messages)}, status=status.HTTP_400_BAD_REQUEST)
+            user.set_password(data["new_password"])
+            user.save(update_fields=["password"])
+            row.delete()  # one use only
+            cache.delete(f"login_fail:{user.email}")
+            audit.log(request, "auth.password_reset", actor=user, detail={"method": "otp"})
+        return Response({"detail": "Password reset successfully. Sign in with your new password."})
 
 
 class PasswordResetConfirmView(APIView):

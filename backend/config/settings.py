@@ -100,7 +100,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "core.pagination.StandardPagination",
     "PAGE_SIZE": 25,
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"public_submit": "10/hour", "track": "30/hour", "login": "10/minute", "captcha": "60/hour", "password_reset": "5/hour", "cid_lookup": "20/hour"},
+    "DEFAULT_THROTTLE_RATES": {"public_submit": "10/hour", "track": "30/hour", "login": "10/minute", "captcha": "60/hour", "password_reset": "10/hour", "password_reset_verify": "40/hour", "cid_lookup": "20/hour"},
 }
 
 # --- Security ---

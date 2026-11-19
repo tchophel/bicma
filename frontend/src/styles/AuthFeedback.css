@@ -1,9 +1,27 @@
 .auth-feedback { position: fixed; inset: 0; z-index: 10001; display: grid; place-items: center; padding: 20px; pointer-events: none; background: rgb(12 35 70 / 35%); backdrop-filter: blur(5px); }
 .auth-feedback-card { position: relative; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 32px 44px; max-width: calc(100vw - 40px); box-sizing: border-box; background: linear-gradient(145deg, #eb7825, #9f4e15); border: 1px solid #ffa768; border-radius: 24px; box-shadow: 0 20px 80px rgb(30 25 20 / 18%); animation: auth-feedback-in .25s ease-out; text-align: center; }
-.auth-feedback-face { font-size: 72px; line-height: 1.2; margin-bottom: 6px; }
+/* SVG motion replaces platform-dependent emoji. */
+.auth-feedback-animation { position: relative; display: grid; place-items: center; width: 104px; height: 104px; margin-bottom: 10px; color: #fff4bd; }
+.auth-feedback-animation svg { position: relative; width: 88px; height: 88px; overflow: visible; }
+.auth-feedback-halo { position: absolute; inset: 2px; border-radius: 50%; background: rgb(255 229 0 / 10%); animation: auth-halo 1.8s ease-out both; }
+.auth-feedback-ring { stroke: rgb(255 255 255 / 35%); stroke-dasharray: 208; stroke-dashoffset: 208; transform-origin: center; transform: rotate(-90deg); animation: auth-ring .65s ease-out forwards; }
+.auth-feedback-check { stroke-dasharray: 50; stroke-dashoffset: 50; animation: auth-check .45s .35s ease-out forwards; }
+.auth-feedback-shackle { transform: translateY(-7px); opacity: 0; animation: auth-lock .5s .2s ease-out forwards; }
+.auth-feedback-lock { opacity: 0; animation: auth-lock .35s .1s ease-out forwards; }
+.auth-feedback-key { opacity: 0; animation: auth-lock .3s .55s ease-out forwards; }
+@keyframes auth-ring { to { stroke-dashoffset: 0; } }
+@keyframes auth-check { to { stroke-dashoffset: 0; } }
+@keyframes auth-lock { to { transform: translateY(0); opacity: 1; } }
+@keyframes auth-halo { from { transform: scale(.7); opacity: 0; } 35% { opacity: 1; } to { transform: scale(1.12); opacity: 1; } }
 .auth-feedback-card strong { font-size: 1.4rem; color: #fff; }
 .auth-feedback-card > span:last-of-type { font-size: .88rem; color: #fceee4; }
 .auth-feedback-card button { pointer-events: auto; position: absolute; top: 8px; right: 10px; width: 32px; height: 32px; border: 0; border-radius: 50%; background: transparent; color: #fceee4; font-size: 22px; cursor: pointer; }
 .auth-feedback-card button:hover { background: rgb(255 255 255 / 15%); }
 @keyframes auth-feedback-in { from { opacity: 0; transform: translateY(8px) scale(.95); } to { opacity: 1; transform: translateY(0) scale(1); } }
 @media (prefers-reduced-motion: reduce) { .auth-feedback-card { animation: none; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-feedback-animation *, .auth-feedback-animation svg * { animation: none; }
+  .auth-feedback-ring, .auth-feedback-check { stroke-dashoffset: 0; }
+  .auth-feedback-shackle, .auth-feedback-lock, .auth-feedback-key { transform: none; opacity: 1; }
+}

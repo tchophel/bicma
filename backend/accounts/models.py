@@ -142,3 +142,13 @@ def roles_with_base(*bases):
     codes = set(b for b in bases)
     codes.update(RoleDef.objects.filter(base__in=bases).values_list("code", flat=True))
     return list(codes)
+
+
+class PasswordResetCode(UUIDModel):
+    """A one-time code emailed for "Forgot password". Only a hash is kept; one live code per user; five wrong tries end it."""
+
+    user = models.OneToOneField(User, on_delete=models.CASCADE, related_name="reset_code")
+    code_hash = models.CharField(max_length=200)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now_add=True)

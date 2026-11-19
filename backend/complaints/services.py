@@ -2,7 +2,7 @@ import datetime as dt
 import logging
 
 from django.conf import settings
-from django.core.mail import send_mail
+from core.email import send_mail
 from django.db import transaction
 from django.utils import timezone
 
