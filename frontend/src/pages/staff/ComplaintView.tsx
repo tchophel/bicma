@@ -24,7 +24,7 @@ export function ComplaintView() {
       <section className="card detail-head" aria-label="Complaint summary">
         <span className="icon-tile lg" aria-hidden="true"><Icon name="complaint" size={30} /></span>
         <div style={{ flex: 1, minWidth: 240 }}>
-          <h1>{c.subject}</h1>
+          <h1>{c.subject.startsWith(`${c.category_name}: `) ? c.subject.slice(c.category_name.length + 2) : c.subject}</h1>
           <div className="meta">
             <strong>{c.reference}</strong>
             <StatusBadge value={c.internal_status} label={c.internal_status_display} />
@@ -38,18 +38,6 @@ export function ComplaintView() {
       </section>
       <div className="detail-grid">
         <div className="case-main">
-          <section className="card"><PanelTitle icon="history">Case history</PanelTitle>
-            <ol className="timeline case-history">
-              {c.status_history.map((h, i) => (
-                <li key={i}>
-                  <span className="dot" aria-hidden="true"><Icon name={h.previous_status ? "refresh" : "plus"} size={14} /></span>
-                  <div className="what"><StatusBadge value={h.new_status} label={words(h.new_status)} />{h.previous_status && <span className="history-previous">from {words(h.previous_status)}</span>}</div>
-                  <div className="when">{fmt(h.created_at)} · {h.actor ?? "Complainant"}</div>
-                  {h.reason && <div>{h.reason}</div>}
-                </li>
-              ))}
-            </ol>
-          </section>
           <section className="card"><PanelTitle icon="complaint">Complaint</PanelTitle>
             <div className="desc">{c.description}</div>
             <dl className="kv" style={{ marginTop: 14 }}>
@@ -77,6 +65,19 @@ export function ComplaintView() {
             </dl>
           </section>
           <CaseActions key={`${c.version}-${c.messages.length}`} c={c} onDone={reload} />
+          <details className="card case-history-disclosure"><summary><Icon name="history" size={19} /><strong>Case history</strong><span>{c.status_history.length} updates</span><Icon name="chev" size={16} /></summary>
+            <ol className="timeline case-history">
+              {c.status_history.map((h, i) => (
+                <li key={i}>
+                  <span className="dot" aria-hidden="true"><Icon name={h.previous_status ? "refresh" : "plus"} size={14} /></span>
+                  <div className="what"><StatusBadge value={h.new_status} label={words(h.new_status)} />{h.previous_status && <span className="history-previous">from {words(h.previous_status)}</span>}</div>
+                  <div className="when">{fmt(h.created_at)} · {h.actor ?? "Complainant"}</div>
+                  {h.reason && <div>{h.reason}</div>}
+                </li>
+              ))}
+            </ol>
+          </details>
+
         </div>
         <aside className="case-sidebar">
           <section className="card"><PanelTitle icon="user">Complainant</PanelTitle>
@@ -91,24 +92,28 @@ export function ComplaintView() {
             <dl className="kv">
               <dt>Division</dt><dd>{c.division_name ?? "Unassigned"}</dd>
               <dt>Officer</dt><dd>{c.assigned_to_name ?? "—"}</dd>
-              <dt>Public status</dt><dd>{words(c.public_status)}</dd>
+              <dt>Public status</dt><dd><StatusBadge value={c.public_status} label={words(c.public_status)} /></dd>
               {row("First response", c.first_response_at && fmt(c.first_response_at))}
               {row("Resolution due", c.resolution_due_at && fmt(c.resolution_due_at))}
               {row("Resolved", c.resolved_at && fmt(c.resolved_at))}
               {row("Closed", c.closed_at && fmt(c.closed_at))}
             </dl>
           </section>
-          <Documents c={c} onDone={reload} />
+          <details className="card case-sidebar-disclosure">
+            <summary><Icon name="complaint" size={19} /><strong>Documents</strong><span>{c.attachments.length} files</span><Icon name="chev" size={16} /></summary>
+            <Documents c={c} onDone={reload} />
+          </details>
           {c.related.length > 0 && (
             <section className="card"><PanelTitle icon="refresh">Recurring complaints</PanelTitle>
               <p className="muted">Same category, provider and location.</p>
               <ul>{c.related.map((r) => <li key={r.id}><Link to={`/staff/complaints/${r.id}`}>{r.reference}</Link> · {r.status}</li>)}</ul>
             </section>
           )}
-          <section className="card"><PanelTitle icon="mail">Emails sent</PanelTitle>
+          <details className="card case-sidebar-disclosure">
+            <summary><Icon name="mail" size={19} /><strong>Emails sent</strong><span>{c.notifications.length} emails</span><Icon name="chev" size={16} /></summary>
             {c.notifications.length === 0 && <p className="muted">None yet.</p>}
             <ul className="case-emails">{c.notifications.map((n) => <li key={n.id}><span className="case-email-icon"><Icon name="mail" size={17} /></span><div><strong>{n.subject}</strong><span className="case-email-recipient">{n.recipient}</span><div className="case-email-meta"><time>{fmt(n.created_at)}</time><span className={`badge ${n.status === "sent" ? "ok" : "bad"}`}>{n.status}</span></div></div></li>)}</ul>
-          </section>
+          </details>
         </aside>
       </div>
     </div>

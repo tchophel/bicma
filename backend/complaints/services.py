@@ -83,8 +83,8 @@ DEFAULT_TEMPLATES = {
     "returned": ("Complaint {reference} returned to Division Head", "division_head", "Complaint {reference} ({subject}) has been returned by the assigned officer for reassignment or direction.\n\nReason: {message}"),
     "resolution_submitted": ("Complaint {reference}: resolution awaiting approval", "division_head", "A resolution for complaint {reference} ({subject}) has been submitted for your approval."),
     "resolution_rejected": ("Complaint {reference}: resolution returned", "officer", "The resolution for complaint {reference} ({subject}) was returned for further work.\n\n{message}"),
-    "approval_requested": ("Complaint {reference}: resolution awaiting your approval", "management", "The investigating officer has submitted findings for complaint {reference} ({subject}) for management approval."),
-    "management_rejected": ("Complaint {reference}: returned by management", "division_head", "Management did not accept the findings for complaint {reference} ({subject}). Please decide: send it back to the investigating officer or assign another officer.\n\nReason: {message}"),
+    "approval_requested": ("Complaint {reference}: resolution awaiting your approval", "supervisor", "The investigating officer has submitted findings for complaint {reference} ({subject}) for supervisor approval."),
+    "management_rejected": ("Complaint {reference}: returned by supervisor", "division_head", "The Supervisor did not accept the findings for complaint {reference} ({subject}). Please decide: send it back to the investigating officer or assign another officer.\n\nReason: {message}"),
     "info_reply": ("Complaint {reference}: complainant replied", "officer", "The complainant has replied to the information request on complaint {reference} ({subject})."),
 }
 
@@ -227,11 +227,12 @@ ALLOWED = {
     S.TRIAGE: {S.ASSIGNED, S.REFERRED, S.NOT_WITHIN_MANDATE},
     S.REFERRED: {S.ASSIGNED, S.REFERRED, S.NOT_WITHIN_MANDATE},
     S.ASSIGNED: {S.INVESTIGATING, S.ASSIGNED, S.REFERRED, S.NOT_WITHIN_MANDATE, S.TRIAGE},
-    S.INVESTIGATING: {S.AWAITING_INFORMATION, S.RESOLVED, S.ASSIGNED, S.REFERRED, S.TRIAGE},
+    S.INVESTIGATING: {S.AWAITING_INFORMATION, S.SUBMITTED, S.ASSIGNED, S.REFERRED, S.TRIAGE},
+    S.SUBMITTED: {S.RESOLVED, S.INVESTIGATING, S.PENDING_APPROVAL},
     S.PENDING_APPROVAL: {S.RESOLVED, S.MANAGEMENT_REJECTED},
     S.MANAGEMENT_REJECTED: {S.INVESTIGATING, S.ASSIGNED},
     S.AWAITING_INFORMATION: {S.INVESTIGATING, S.TRIAGE},
-    S.RESOLVED: {S.CLOSED, S.INVESTIGATING, S.PENDING_APPROVAL},
+    S.RESOLVED: {S.CLOSED, S.INVESTIGATING},
     S.CLOSED: {S.INVESTIGATING, S.TRIAGE},  # reopen only
     S.NOT_WITHIN_MANDATE: set(),
     S.DRAFT: set(),
@@ -269,7 +270,7 @@ def move(complaint, new_status, *, actor, reason="", request=None, public_messag
         event = _STATUS_EMAIL.get(new_status)
         if event is None and new_status not in (S.RECEIVED, S.TRIAGE, S.REFERRED):
             event = "status_change"
-        if new_status in (S.RESOLVED, S.PENDING_APPROVAL, S.MANAGEMENT_REJECTED):
+        if new_status in (S.SUBMITTED, S.RESOLVED, S.PENDING_APPROVAL, S.MANAGEMENT_REJECTED):
             event = None  # internal steps: the complainant hears nothing until the Division Head closes the case
         if event:
             send_event(complaint, event, complaint.email, message=public_message or reason, actor=actor)

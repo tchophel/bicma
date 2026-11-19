@@ -1,7 +1,7 @@
 # Progress checklist (last updated 2026-11-18)
 
 ## BRD alignment pass (2026-11-18) — see "BRD gaps" at the bottom
-Built to the BICMA FRD: roles (Administrator, Investigating Officer, Division Head, Management Viewer), BRD statuses and workflow
+Built to the BICMA FRD: roles (Administrator, Investigating Officer, Division Head, Supervisor), BRD statuses and workflow
 (triage, assign, refer, not-within-mandate, investigate, request information with SLA pause, resolve, Division Head approve/return, reopen),
 public form fields (CID, provider/party type, urban/rural, incident time, remedy, declaration, confidential identity, uploads),
 officer registration with drafts and duplicate warning, masters (providers, provider types, priorities/timelines, outcomes, closure reasons,
@@ -9,9 +9,9 @@ holiday calendar, email templates, category→division/priority/urban-rural rout
 tracking with message reply, email notifications logged per case with retry, in-app SLA alerts, dashboard filters/metrics, 7 reports with CSV/Excel/PDF export.
 106 backend tests pass; frontend typechecks and builds. **The UI has not been click-tested in a browser.**
 
-## Management approval step (2026-11-19)
-- Officer submits findings -> **Resolved** (awaiting the Division Head), who chooses: **Accept and close**, **Send to Management Viewer** (`send_to_management`) or Reject (back to the officer). Management Accept -> Resolved again, Head closes (no second round); Management Reject -> **Returned by management** -> Head sends it back to the same officer (`send_back`) or assigns another. Complainant is emailed nothing until the Head closes.
-- The Management Viewer can now decide on submitted cases but still cannot triage, assign, refer, edit or close.
+## Supervisor approval step (2026-11-19)
+- Officer submits findings -> **Submitted for approval** (awaiting the Division Head; not Resolved until someone approves), who chooses: **Accept and close**, **Send to Supervisor** (`send_to_management`) or Reject (back to the officer). Management Accept -> Resolved again, Head closes (no second round); Management Reject -> **Returned by supervisor** -> Head sends it back to the same officer (`send_back`) or assigns another. Complainant is emailed nothing until the Head closes.
+- The Supervisor can now decide on submitted cases but still cannot triage, assign, refer, edit or close.
 
 ## Gewog removed (2026-11-19)
 - Gewog is gone everywhere: the model and complaint column (migrations complaints 0010, core 0012), the admin page and API, the form fields, the report column. Location is the Dzongkhag only.

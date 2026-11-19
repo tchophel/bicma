@@ -47,14 +47,16 @@ class LifecycleTests(WorkflowBase):
         self.assertEqual(r.status_code, 400)  # no findings / action / outcome
         r = self.act(self.inv1, "resolve", {"investigation_findings": "Found", "action_taken": "Refunded", "outcome": str(self.outcome.pk)})
         self.assertEqual(r.status_code, 200, r.content)
-        self.assertEqual(self.reload().internal_status, S.RESOLVED)  # waiting for the Division Head
+        self.assertEqual(self.reload().internal_status, S.SUBMITTED)  # not Resolved: nobody has approved it yet
+        self.assertIsNone(self.reload().resolved_at)
         # the officer alone cannot close
         self.assertEqual(self.act(self.inv1, "approve", {"closure_reason": "Done"}).status_code, 403)
         self.assertEqual(self.act(self.focal1, "approve", {}).status_code, 400)  # reason required
         self.assertEqual(self.act(self.focal1, "approve", {"closure_reason": "Done"}).status_code, 200)
         self.assertEqual(self.reload().internal_status, S.CLOSED)
         history = [h.new_status for h in self.c.status_history.all()]
-        self.assertEqual(history, ["received", "assigned", "investigating", "resolved", "closed"])
+        self.assertEqual(history, ["received", "assigned", "investigating", "submitted", "resolved", "closed"])  # Resolved only after the Head approves
+        self.assertIsNotNone(self.reload().resolved_at)
 
     def test_division_head_can_reject_resolution_and_reopen(self):
         self.to_investigating()
@@ -1097,7 +1099,7 @@ class OfficerSeesOnlyAssignedTests(WorkflowBase):
 
 
 class ManagementApprovalTests(WorkflowBase):
-    """The Division Head decides when the officer submits: accept (and close), or send to the Management Viewer."""
+    """The Division Head decides when the officer submits: accept (and close), or send to the Supervisor."""
 
     def send(self, note=""):
         return self.act(self.focal1, "send-to-management", {"note": note})
@@ -1108,7 +1110,7 @@ class ManagementApprovalTests(WorkflowBase):
         self.submit()
         p = self.login(self.focal1).get(f"/api/complaints/{self.c.pk}/").data["permissions"]
         self.assertTrue(p["approve"] and p["send_to_management"])
-        # the officer and the Management Viewer cannot make that choice
+        # the officer and the Supervisor cannot make that choice
         self.assertEqual(self.act(self.inv1, "send-to-management").status_code, 403)
         self.assertEqual(self.act(self.sup, "send-to-management").status_code, 403)
 
@@ -1137,7 +1139,7 @@ class ManagementApprovalTests(WorkflowBase):
         self.submit()
         r = self.send()
         self.assertEqual(r.status_code, 400)
-        self.assertEqual(self.reload().internal_status, S.RESOLVED)  # nothing changed
+        self.assertEqual(self.reload().internal_status, S.SUBMITTED)  # nothing changed
 
     def test_management_accepts_then_head_closes(self):
         self.to_investigating()
@@ -1149,9 +1151,9 @@ class ManagementApprovalTests(WorkflowBase):
         self.assertEqual(self.act(self.sup, "mgmt-approve", {"remarks": "Good"}).status_code, 200)
         self.assertEqual(self.reload().internal_status, S.RESOLVED)
         p = self.login(self.focal1).get(f"/api/complaints/{self.c.pk}/").data["permissions"]
-        self.assertTrue(p["approve"] and not p["send_to_management"])  # already accepted by management: no second round
+        self.assertTrue(p["approve"] and not p["send_to_management"])  # already accepted by supervisor: no second round
         self.assertEqual(self.act(self.focal1, "approve", {"closure_reason": "Done"}).status_code, 200)
-        self.assertEqual([h.new_status for h in self.c.status_history.all()][-4:], ["resolved", "pending_approval", "resolved", "closed"])
+        self.assertEqual([h.new_status for h in self.c.status_history.all()][-4:], ["submitted", "pending_approval", "resolved", "closed"])
 
     def test_management_reject_needs_a_reason_and_goes_back_to_the_division_head(self):
         self.to_investigating()
@@ -1176,7 +1178,7 @@ class ManagementApprovalTests(WorkflowBase):
         c = self.reload()
         self.assertEqual((c.internal_status, c.assigned_to), (S.INVESTIGATING, self.inv1))
         self.submit()
-        self.assertEqual(self.reload().internal_status, S.RESOLVED)
+        self.assertEqual(self.reload().internal_status, S.SUBMITTED)
         self.assertEqual(self.send().status_code, 200)  # the Head may choose again
 
     def test_division_head_can_change_the_officer_instead(self):
@@ -1198,3 +1200,30 @@ class ManagementApprovalTests(WorkflowBase):
         self.send()
         for name in ("triage", "assign", "refer", "approve", "internal-note"):
             self.assertEqual(self.act(self.sup, name, {"body": "x"}).status_code, 403, name)
+
+
+class ResolvedNeedsApprovalTests(WorkflowBase):
+    def test_submitting_findings_does_not_make_the_case_resolved(self):
+        self.to_investigating()
+        self.submit()
+        c = self.reload()
+        self.assertEqual(c.internal_status, S.SUBMITTED)
+        self.assertEqual(c.get_internal_status_display(), "Submitted for approval")
+        self.assertIsNone(c.resolved_at)
+        self.assertNotIn("resolved", [h.new_status for h in c.status_history.all()])
+
+    def test_head_rejecting_a_submission_returns_it_to_the_officer(self):
+        self.to_investigating()
+        self.submit()
+        self.assertEqual(self.act(self.focal1, "reject", {"reason": "More detail"}).status_code, 200)
+        self.assertEqual(self.reload().internal_status, S.INVESTIGATING)
+
+
+class NoOutcomeNeededTests(WorkflowBase):
+    def test_officer_can_submit_without_choosing_an_outcome(self):
+        self.to_investigating()
+        r = self.act(self.inv1, "resolve", {"investigation_findings": "F", "action_taken": "A"})
+        self.assertEqual(r.status_code, 200, r.content)
+        c = self.reload()
+        self.assertEqual((c.internal_status, c.outcome_id), (S.SUBMITTED, None))
+        self.assertEqual(self.act(self.focal1, "approve", {"closure_reason": "Done"}).status_code, 200)  # and it can be approved and closed

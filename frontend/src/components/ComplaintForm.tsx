@@ -114,7 +114,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   async function submit(e: FormEvent, opts: { draft?: boolean; confirmDuplicate?: boolean } = {}) {
     e.preventDefault();
     if (busy) return;
-    if (!opts.draft && !isMedia && isIid && !already) { setErr(new ApiError("Say whether you have already complained to the provider.", 400)); return; }
+    if (!opts.draft && !spec && !isMedia && isIid && !already) { setErr(new ApiError("Say whether you have already complained to the provider.", 400)); return; }
     if (!offline && !verificationOpen) {
       setErr(null);
       loadCaptcha();

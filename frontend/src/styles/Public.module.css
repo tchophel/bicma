@@ -1,24 +1,24 @@
-.shell { min-height: 100vh; display: flex; flex-direction: column; background: #f1f6fc; }
+.shell { min-height: 100vh; display: flex; flex-direction: column; background: #fcf6f1; }
 .strip { height: 10px; background: var(--c-yellow); }
 .header { background: #fff; box-shadow: 0 1px 0 var(--c-border); position: relative; z-index: 3; }
 .bar { max-width: 1180px; margin: 0 auto; padding: 10px 24px; display: flex; align-items: center; gap: 24px; }
-.brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #0e2a55; padding-right: 20px; border-right: 1px solid var(--c-border); }
+.brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: #452e1e; padding-right: 20px; border-right: 1px solid var(--c-border); }
 .brand img { height: 52px; width: 52px; object-fit: contain; }
 .brand strong { display: block; font-size: 1.25rem; line-height: 1.15; }
-.brand small { display: block; font-size: .78rem; color: #3a4658; }
+.brand small { display: block; font-size: .78rem; color: #58463a; }
 .nav { display: flex; gap: 6px; flex: 1; align-items: center; }
-.nav a { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; color: #0e2a55; text-decoration: none; font-weight: 600; white-space: nowrap; }
-.nav a:hover { background: #eaf3fc; }
-.nav a[aria-current=page] { background: #cfe5fa; }
-.nav svg { color: #1750b0; }
-.staff { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border: 1.5px solid #1750b0; border-radius: 8px; color: #1750b0; text-decoration: none; font-weight: 700; white-space: nowrap; }
-.staff:hover { background: #eaf3fc; }
-.menuBtn { display: none; margin-left: auto; background: #fff; border: 1.5px solid #1750b0; color: #1750b0; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.nav a { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border-radius: 999px; color: #452e1e; text-decoration: none; font-weight: 600; white-space: nowrap; }
+.nav a:hover { background: #fcf2ea; }
+.nav a[aria-current=page] { background: #fae1cf; }
+.nav svg { color: #b05717; }
+.staff { display: inline-flex; align-items: center; gap: 8px; padding: 9px 16px; border: 1.5px solid #b05717; border-radius: 8px; color: #b05717; text-decoration: none; font-weight: 700; white-space: nowrap; }
+.staff:hover { background: #fcf2ea; }
+.menuBtn { display: none; margin-left: auto; background: #fff; border: 1.5px solid #b05717; color: #b05717; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
 .main { flex: 1; }
 .footer { background: #fff; border-top: 1px solid var(--c-border); }
-.footInner { max-width: 1180px; margin: 0 auto; padding: 18px 24px; display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center; color: #3a4658; font-size: .92rem; }
+.footInner { max-width: 1180px; margin: 0 auto; padding: 18px 24px; display: flex; flex-wrap: wrap; gap: 8px 16px; justify-content: space-between; align-items: center; color: #58463a; font-size: .92rem; }
 .footBrand { display: flex; align-items: center; gap: 14px; }
-.footBrand strong { font-size: 1.25rem; color: #0e2a55; padding-right: 14px; border-right: 1px solid var(--c-border); }
+.footBrand strong { font-size: 1.25rem; color: #452e1e; padding-right: 14px; border-right: 1px solid var(--c-border); }
 @media (max-width: 960px) {
   .menuBtn { display: inline-flex; }
   .bar { flex-wrap: wrap; gap: 10px; }

@@ -29,8 +29,9 @@ class InternalStatus(models.TextChoices):
     INVESTIGATING = "investigating", "Under review"
     AWAITING_INFORMATION = "awaiting_information", "Awaiting information"
     REFERRED = "referred", "Referred"
-    PENDING_APPROVAL = "pending_approval", "Awaiting management approval"
-    MANAGEMENT_REJECTED = "management_rejected", "Returned by management"
+    SUBMITTED = "submitted", "Submitted for approval"
+    PENDING_APPROVAL = "pending_approval", "Awaiting supervisor approval"
+    MANAGEMENT_REJECTED = "management_rejected", "Returned by supervisor"
     RESOLVED = "resolved", "Resolved"
     NOT_WITHIN_MANDATE = "not_within_mandate", "Not within mandate"
     CLOSED = "closed", "Closed"
@@ -38,7 +39,7 @@ class InternalStatus(models.TextChoices):
 
 OPEN_STATUSES = (
     InternalStatus.RECEIVED, InternalStatus.TRIAGE, InternalStatus.ASSIGNED, InternalStatus.INVESTIGATING,
-    InternalStatus.AWAITING_INFORMATION, InternalStatus.REFERRED, InternalStatus.PENDING_APPROVAL, InternalStatus.MANAGEMENT_REJECTED,
+    InternalStatus.AWAITING_INFORMATION, InternalStatus.REFERRED, InternalStatus.SUBMITTED, InternalStatus.PENDING_APPROVAL, InternalStatus.MANAGEMENT_REJECTED,
     InternalStatus.RESOLVED,
 )
 FINAL_STATUSES = (InternalStatus.CLOSED, InternalStatus.NOT_WITHIN_MANDATE)

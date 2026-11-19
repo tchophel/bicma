@@ -35,7 +35,7 @@ export function Complaints() {
   const { data, err, loading, reload } = useList<Page<ComplaintRow>>(`/complaints/?${qs}`);
   const set = (k: string) => (e: { target: { value: string } }) => update({ [k]: e.target.value, page: "" });
   const filtered = Object.values(f).some(Boolean);
-  const STATUSES = ["received", "triage", "assigned", "investigating", "awaiting_information", "referred", "pending_approval", "management_rejected", "resolved", "not_within_mandate", "closed"];
+  const STATUSES = ["received", "triage", "assigned", "investigating", "awaiting_information", "referred", "submitted", "pending_approval", "management_rejected", "resolved", "not_within_mandate", "closed"];
   const canRegister = !!user?.permissions?.includes("register_complaint");
   return (
     <div className="complaints-page">
@@ -62,7 +62,7 @@ export function Complaints() {
         <label><span>Status</span>
           <select value={f.status} onChange={set("status")}>
             <option value="">Any</option>
-            {STATUSES.map((s) => <option key={s} value={s}>{s === "investigating" ? "under review" : s === "pending_approval" ? "awaiting management approval" : s === "management_rejected" ? "returned by management" : s.replace(/_/g, " ")}</option>)}
+            {STATUSES.map((s) => <option key={s} value={s}>{s === "investigating" ? "under review" : s === "submitted" ? "submitted for approval" : s === "pending_approval" ? "awaiting supervisor approval" : s === "management_rejected" ? "returned by supervisor" : s.replace(/_/g, " ")}</option>)}
           </select>
         </label>
         <label><span>Priority</span>

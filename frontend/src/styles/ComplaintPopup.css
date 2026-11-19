@@ -1,5 +1,5 @@
 .panel-backdrop { position: fixed; inset: 0; background: rgb(36 28 20 / 50%); z-index: 29; animation: fade-in .15s ease; }
-.side-panel { position: fixed; z-index: 30; top: 0; right: 0; bottom: 0; width: min(580px, 100vw); overflow-y: auto; overscroll-behavior: contain; background: var(--c-bg); color: var(--c-text); border-left: 1px solid var(--c-border); box-shadow: -14px 0 44px rgb(40 25 10 / 16%); animation: slide-in-right .2s ease; }
+.side-panel { position: fixed; z-index: 28; top: 76px; right: 0; bottom: 0; width: min(580px, 100vw); overflow-y: auto; overscroll-behavior: contain; background: var(--c-bg); color: var(--c-text); border-left: 1px solid var(--c-border); box-shadow: -14px 0 44px rgb(40 25 10 / 16%); animation: slide-in-right .2s ease; }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
 @keyframes slide-in-right { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 .side-panel-bar { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 20px; background: var(--c-surface); border-top: 4px solid var(--c-brand-orange); border-bottom: 1px solid var(--c-border); }

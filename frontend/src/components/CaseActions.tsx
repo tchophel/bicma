@@ -11,7 +11,7 @@ import { Modal } from "./Modal";
 const DONE: Record<string, string> = {
   triage: "Triage confirmed.", assign: "Officer assigned.", refer: "Complaint referred.", "not-in-mandate": "Closed as not within BICMA jurisdiction.",
   start: "Investigation started.", "save-findings": "Findings saved.", "request-info": "Information requested from the complainant.", resume: "Investigation resumed.", return: "Returned to the Division Head. It is no longer in your list.",
-  resolve: "Findings sent to the Division Head.", "send-to-management": "Sent to the Management Viewer for approval.", "mgmt-approve": "Accepted. The case is Resolved and goes to the Division Head to close.", "mgmt-reject": "Returned to the Division Head to decide the next step.", "send-back": "Sent back to the Investigating Officer.", approve: "Complaint approved and closed.", reject: "Returned to the officer.", reopen: "Complaint reopened.",
+  resolve: "Findings sent to the Division Head.", "send-to-management": "Sent to the Supervisor for approval.", "mgmt-approve": "Accepted. The case is Resolved and goes to the Division Head to close.", "mgmt-reject": "Returned to the Division Head to decide the next step.", "send-back": "Sent back to the Investigating Officer.", approve: "Complaint approved and closed.", reject: "Returned to the officer.", reopen: "Complaint reopened.",
   "public-message": "Message sent to the complainant.", "internal-note": "Note added.", "stakeholder-review": "Notice sent to the provider.",
 };
 
@@ -55,7 +55,7 @@ function Triage({ c, meta, onDone }: { c: ComplaintDetail; meta: Meta; onDone: (
   const [subcategory, setSubcategory] = useState(c.subcategory ?? "");
   const [division, setDivision] = useState(c.division ?? "");
   const [confCase, setConfCase] = useState(c.confidential_case);
-  const [officer, setOfficer] = useState("");
+  const [officer, setOfficer] = useState(c.assigned_to ?? "");  // starts on whoever is assigned now; change it only to reassign
   const [reason, setReason] = useState("");
   const [refTo, setRefTo] = useState("");
   const [authority, setAuthority] = useState("");
@@ -111,10 +111,10 @@ function Triage({ c, meta, onDone }: { c: ComplaintDetail; meta: Meta; onDone: (
   );
 }
 
-function Investigation({ c, meta, onDone }: { c: ComplaintDetail; meta: Meta; onDone: () => void }) {
+function Investigation({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
   const p = c.permissions;
   const { busy, err, run, f } = useDo(c, onDone);
-  const [v, setV] = useState({ investigation_findings: c.investigation_findings, action_taken: c.action_taken, recommendation: c.recommendation, outcome: c.outcome ?? "", authority_referred_to: c.authority_referred_to ?? "", referral_date: c.referral_date ?? "" });
+  const [v, setV] = useState({ investigation_findings: c.investigation_findings, action_taken: c.action_taken, recommendation: c.recommendation });
   const [ask, setAsk] = useState("");
   const [back, setBack] = useState("");
   const [showBack, setShowBack] = useState(false);
@@ -132,13 +132,6 @@ function Investigation({ c, meta, onDone }: { c: ComplaintDetail; meta: Meta; on
           <Field label="Investigation findings" required error={f("investigation_findings")}><textarea rows={4} value={v.investigation_findings} onChange={set("investigation_findings")} /></Field>
           <Field label="Action taken" required error={f("action_taken")}><textarea rows={3} value={v.action_taken} onChange={set("action_taken")} /></Field>
           <Field label="Recommendation"><textarea rows={2} value={v.recommendation} onChange={set("recommendation")} /></Field>
-          <Field label="Outcome" required error={f("outcome")}><select value={v.outcome} onChange={set("outcome")}><option value="">Select outcome</option>{meta.outcomes.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></Field>
-          {/referred/i.test(meta.outcomes.find((o) => o.id === v.outcome)?.name ?? "") && (
-            <div className="row">
-              <Field label="Authority referred to" required error={f("authority_referred_to")} hint="Content matters amounting to criminal offences are only recorded and referred."><input value={v.authority_referred_to} onChange={set("authority_referred_to")} /></Field>
-              <Field label="Date of referral" error={f("referral_date")}><input type="date" max={new Date().toISOString().slice(0, 10)} value={v.referral_date} onChange={set("referral_date")} /></Field>
-            </div>
-          )}
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
             <button className="btn secondary" disabled={busy}><Icon name="edit" />Save draft</button>
             {p.resolve && <button type="button" className="btn" disabled={busy} onClick={() => run("resolve", v)}><Icon name="check" />Submit for Division Head approval</button>}
@@ -197,7 +190,7 @@ function Approval({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
       <Err e={err} />
       {p.approve && (
         <>
-          <p>The officer has submitted the findings. Choose one: <strong>accept</strong> them (closes the case), <strong>send them to the Management Viewer</strong> for approval, or <strong>return</strong> them to the officer.</p>
+          <p>The officer has submitted the findings. Choose one: <strong>accept</strong> them (closes the case), <strong>send them to the Supervisor</strong> for approval, or <strong>return</strong> them to the officer.</p>
           <form onSubmit={(e) => { e.preventDefault(); run("approve", { closure_reason: closure, public_message: pub }); }}>
             <Field label="Closure reason" required error={f("closure_reason")}><textarea required rows={2} value={closure} onChange={(e) => setClosure(e.target.value)} /></Field>
             <Field label="Message to complainant (optional)"><textarea rows={2} value={pub} onChange={(e) => setPub(e.target.value)} /></Field>
@@ -205,8 +198,8 @@ function Approval({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
           </form>
           {p.send_to_management && (
             <form onSubmit={(e) => { e.preventDefault(); run("send-to-management", { note }); }} style={{ marginTop: 16 }}>
-              <Field label="Send to Management Viewer: note (optional)"><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything they should look at" /></Field>
-              <button className="btn secondary" disabled={busy}><Icon name="send" />Send to Management Viewer</button>
+              <Field label="Send to Supervisor: note (optional)"><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything they should look at" /></Field>
+              <button className="btn secondary" disabled={busy}><Icon name="send" />Send to Supervisor</button>
             </form>
           )}
           <form onSubmit={(e) => { e.preventDefault(); run("reject", { reason }); }} style={{ marginTop: 16 }}>
@@ -225,7 +218,7 @@ function Approval({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
   );
 }
 
-/** Where the officer's findings stand with management: submitted, accepted or rejected, with who and when. Read-only. */
+/** Where the officer's findings stand with the Supervisor: submitted, accepted or rejected, with who and when. Read-only. */
 export function ManagementTrail({ c }: { c: ComplaintDetail }) {
   const h = c.status_history;
   let last = -1;
@@ -234,36 +227,36 @@ export function ManagementTrail({ c }: { c: ComplaintDetail }) {
   const sent = h[last];
   const after = h.slice(last + 1).find((x) => x.new_status === "resolved" || x.new_status === "management_rejected");
   const waiting = !after && c.internal_status === "pending_approval";
-  const clean = (r: string) => r.replace(/^(Accepted|Rejected) by management:?\s*/, "");
+  const clean = (r: string) => r.replace(/^(Accepted|Rejected) by (supervisor|management):?\s*/, "");
   return (
-    <Block icon={waiting ? "clock" : after?.new_status === "resolved" ? "check" : "alert"} title="Management approval">
+    <Block icon={waiting ? "clock" : after?.new_status === "resolved" ? "check" : "alert"} title="Supervisor approval">
       <ol className="timeline">
         <li><span className="dot" aria-hidden="true"><Icon name="send" size={14} /></span>
-          <div className="what"><strong>Sent to the Management Viewer for approval</strong></div>
+          <div className="what"><strong>Sent to the Supervisor for approval</strong></div>
           <div className="when">{new Date(sent.created_at).toLocaleString()} · sent by {sent.actor ?? "the Division Head"}</div></li>
         {waiting && <li><span className="dot" aria-hidden="true"><Icon name="clock" size={14} /></span>
-          <div className="what"><strong>Waiting for the Management Viewer</strong></div>
+          <div className="what"><strong>Waiting for the Supervisor</strong></div>
           <div className="when">You will be alerted as soon as they accept or reject the findings.</div></li>}
         {after?.new_status === "resolved" && <li><span className="dot" aria-hidden="true"><Icon name="check" size={14} /></span>
-          <div className="what"><strong>Accepted by management</strong></div>
-          <div className="when">{new Date(after.created_at).toLocaleString()} · {after.actor ?? "Management Viewer"}</div>
+          <div className="what"><strong>Accepted by supervisor</strong></div>
+          <div className="when">{new Date(after.created_at).toLocaleString()} · {after.actor ?? "Supervisor"}</div>
           {clean(after.reason) && <div>{clean(after.reason)}</div>}</li>}
         {after?.new_status === "management_rejected" && <li><span className="dot" aria-hidden="true"><Icon name="close" size={14} /></span>
-          <div className="what"><strong>Rejected by management</strong></div>
-          <div className="when">{new Date(after.created_at).toLocaleString()} · {after.actor ?? "Management Viewer"}</div>
+          <div className="what"><strong>Rejected by supervisor</strong></div>
+          <div className="when">{new Date(after.created_at).toLocaleString()} · {after.actor ?? "Supervisor"}</div>
           {clean(after.reason) && <div>{clean(after.reason)}</div>}</li>}
       </ol>
     </Block>
   );
 }
 
-/** Management Viewer: accept the officer's findings (case becomes Resolved) or reject them (the Division Head decides next). */
+/** Supervisor: accept the officer's findings (case becomes Resolved) or reject them (the Division Head decides next). */
 function ManagementDecision({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
   const { busy, err, run, f } = useDo(c, onDone);
   const [remarks, setRemarks] = useState("");
   const [reason, setReason] = useState("");
   return (
-    <Block icon="check" title="Management approval">
+    <Block icon="check" title="Supervisor approval">
       <Err e={err} />
       <p>The Investigating Officer has submitted the findings below. Accept them to mark the case <strong>Resolved</strong>, or reject them and the Division Head will decide what happens next.</p>
       {(c.investigation_findings || c.action_taken) && <dl className="kv">
@@ -284,15 +277,15 @@ function ManagementDecision({ c, onDone }: { c: ComplaintDetail; onDone: () => v
   );
 }
 
-/** Division Head, after management rejected the findings: send it back to the same officer (or use Assign above to change the officer). */
+/** Division Head, after the Supervisor rejected the findings: send it back to the same officer (or use Assign above to change the officer). */
 function ReturnedByManagement({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
   const { busy, err, run, f } = useDo(c, onDone);
   const [reason, setReason] = useState("");
-  const why = [...c.messages].reverse().find((m) => m.body.startsWith("Returned by management:"))?.body.replace("Returned by management: ", "");
+  const why = [...c.messages].reverse().find((m) => /^Returned by (supervisor|management):/.test(m.body))?.body.replace(/^Returned by (supervisor|management): /, "");
   return (
-    <Block icon="alert" title="Returned by management">
+    <Block icon="alert" title="Returned by supervisor">
       <Err e={err} />
-      <p>Management did not accept the findings{why ? <>: <em>{why}</em></> : "."} Decide what happens next: send the case back to {c.assigned_to_name ?? "the officer"}, or choose a different Investigating Officer in <strong>Assign</strong>.</p>
+      <p>The Supervisor did not accept the findings{why ? <>: <em>{why}</em></> : "."} Decide what happens next: send the case back to {c.assigned_to_name ?? "the officer"}, or choose a different Investigating Officer in <strong>Assign</strong>.</p>
       <form onSubmit={(e) => { e.preventDefault(); run("send-back", { reason }); }}>
         <Field label={`Instructions for ${c.assigned_to_name ?? "the officer"}`} required error={f("reason")}><textarea required rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
         <button className="btn" disabled={busy || !c.assigned_to}><Icon name="refresh" />Send back to the same officer</button>
@@ -364,19 +357,36 @@ function Stakeholder({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) 
 export function CaseActions({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
   const meta = useList<Meta>("/meta/").data;
   const p = c.permissions;
-  if (!meta) return null;
   const showTriage = p.triage || p.assign || p.refer || p.not_in_mandate;
   const showInv = p.start || p.return || p.resume || p.save_findings || p.request_info || p.resolve || !!c.investigation_findings;
+  const hasDecision = p.mgmt_approve || p.send_back || p.approve || p.reopen;
+  const tabs = [
+    ...(hasDecision ? [{ key: "decision", label: "Next action" }] : []),
+    ...(showInv ? [{ key: "investigation", label: "Investigation" }] : []),
+    ...(showTriage ? [{ key: "assignment", label: "Assignment" }] : []),
+    { key: "messages", label: `Messages${c.messages.length ? ` (${c.messages.length})` : ""}` },
+    ...(p.stakeholder_review ? [{ key: "provider", label: "Provider notice" }] : []),
+  ];
+  const [selected, setSelected] = useState(tabs[0].key);
+  const active = tabs.some((tab) => tab.key === selected) ? selected : tabs[0].key;
+  if (!meta) return null;
   return (
-    <div style={{ display: "grid", gap: 16 }}>
-      {showTriage && <Triage c={c} meta={meta} onDone={onDone} />}
-      {showInv && <Investigation c={c} meta={meta} onDone={onDone} />}
-      {!p.mgmt_approve && <ManagementTrail c={c} />}
-      {p.mgmt_approve && <ManagementDecision c={c} onDone={onDone} />}
-      {p.send_back && <ReturnedByManagement c={c} onDone={onDone} />}
-      {(p.approve || p.reopen) && <Approval c={c} onDone={onDone} />}
-      <Messages c={c} onDone={onDone} />
-      {p.stakeholder_review && <Stakeholder c={c} onDone={onDone} />}
+    <div className="case-workspace">
+      <nav className="case-workspace-tabs" aria-label="Case workspace">
+        {tabs.map((tab) => <button type="button" key={tab.key} aria-pressed={active === tab.key} onClick={() => setSelected(tab.key)}>{tab.label}</button>)}
+      </nav>
+      {hasDecision && <div hidden={active !== "decision"} className="case-workspace-panel">
+        {p.mgmt_approve && <ManagementDecision c={c} onDone={onDone} />}
+        {p.send_back && <ReturnedByManagement c={c} onDone={onDone} />}
+        {(p.approve || p.reopen) && <Approval c={c} onDone={onDone} />}
+      </div>}
+      {showInv && <div hidden={active !== "investigation"} className="case-workspace-panel">
+        <Investigation c={c} onDone={onDone} />
+        {!p.mgmt_approve && <ManagementTrail c={c} />}
+      </div>}
+      {showTriage && <div hidden={active !== "assignment"}><Triage c={c} meta={meta} onDone={onDone} /></div>}
+      <div hidden={active !== "messages"}><Messages c={c} onDone={onDone} /></div>
+      {p.stakeholder_review && <div hidden={active !== "provider"}><Stakeholder c={c} onDone={onDone} /></div>}
     </div>
   );
 }

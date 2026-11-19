@@ -41,8 +41,9 @@ class DashboardView(APIView):
         cards = [
             {"label": "Total complaints received", "count": qs.count(), "query": ""},
             {"label": "Pending", "count": open_qs.count(), "query": "scope=pending"},
-            {"label": "Awaiting management approval", "count": qs.filter(internal_status=S.PENDING_APPROVAL).count(), "query": f"status={S.PENDING_APPROVAL}"},
-            {"label": "Resolved (awaiting approval)", "count": qs.filter(internal_status=S.RESOLVED).count(), "query": f"status={S.RESOLVED}"},
+            {"label": "Awaiting supervisor approval", "count": qs.filter(internal_status=S.PENDING_APPROVAL).count(), "query": f"status={S.PENDING_APPROVAL}"},
+            {"label": "Submitted for approval", "count": qs.filter(internal_status=S.SUBMITTED).count(), "query": f"status={S.SUBMITTED}"},
+            {"label": "Resolved", "count": qs.filter(internal_status=S.RESOLVED).count(), "query": f"status={S.RESOLVED}"},
             {"label": "Closed", "count": qs.filter(internal_status__in=CLOSED).count(), "query": "scope=closed"},
             {"label": "Overdue", "count": open_qs.filter(paused_at__isnull=True, resolution_due_at__lt=now).count(), "query": "scope=overdue"},
             {"label": "Due soon", "count": apply_filters(qs, {"scope": "due_soon"}).count(), "query": "scope=due_soon"},

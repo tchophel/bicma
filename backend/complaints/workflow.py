@@ -11,12 +11,6 @@ def _in_division(user, c):
     return user.base_role == Role.SUPER_ADMIN or (user.division_id is not None and c.division_id == user.division_id)
 
 
-def accepted_by_management(c):
-    """True when the latest Resolved step came from the Management Viewer accepting the findings."""
-    last = c.status_history.filter(new_status=S.RESOLVED).order_by("-created_at").first()
-    return bool(last and last.reason.startswith("Accepted by management"))
-
-
 def allowed_actions(user, c, perms=None):
     """Return {action: bool} for the current user and case."""
     st = c.internal_status
@@ -38,9 +32,9 @@ def allowed_actions(user, c, perms=None):
         "mgmt_approve": user.base_role == Role.SUPERVISOR and st == S.PENDING_APPROVAL,
         "mgmt_reject": user.base_role == Role.SUPERVISOR and st == S.PENDING_APPROVAL,
         "send_back": head and st == S.MANAGEMENT_REJECTED,
-        "send_to_management": head and st == S.RESOLVED and not accepted_by_management(c),
-        "approve": head and st == S.RESOLVED,
-        "reject": head and st == S.RESOLVED,
+        "send_to_management": head and st == S.SUBMITTED,
+        "approve": head and st in (S.SUBMITTED, S.RESOLVED),
+        "reject": head and st in (S.SUBMITTED, S.RESOLVED),
         "reopen": head and st == S.CLOSED,
         "message": handler and st not in (S.DRAFT, S.NOT_WITHIN_MANDATE),
         "note": (handler or triage_role) and st != S.DRAFT,

@@ -135,5 +135,5 @@ export function Providers() {
 export function Roles() {
   return <MasterPage title="Roles" subtitle="Roles you can give to users. A new role is built on one of the four built-in behaviours, which decide what data it can see; set what it may do on Roles & permissions." icon="lock" path="roles"
     fields={[{ key: "name", label: "Role name", required: true }, { key: "description", label: "Description" },
-      { key: "base", label: "Based on", type: "select", required: true, hint: "Cannot be changed later.", options: [{ value: "investigator", label: "Investigating Officer (own division, works assigned cases)" }, { value: "focal", label: "Division Head (own division, assigns and approves)" }, { value: "supervisor", label: "Management Viewer (all divisions, read-only)" }, { value: "super_admin", label: "Administrator (system administration)" }] }]} />;
+      { key: "base", label: "Based on", type: "select", required: true, hint: "Cannot be changed later.", options: [{ value: "investigator", label: "Investigating Officer (own division, works assigned cases)" }, { value: "focal", label: "Division Head (own division, assigns and approves)" }, { value: "supervisor", label: "Supervisor (all divisions, read-only)" }, { value: "super_admin", label: "Administrator (system administration)" }] }]} />;
 }

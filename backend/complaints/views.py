@@ -444,60 +444,60 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
     def resolve(self, request, pk=None):
         def run(c):
             self._apply_findings(c, request.data)
-            missing = [f for f, v in (("investigation_findings", c.investigation_findings), ("action_taken", c.action_taken), ("outcome", c.outcome_id)) if not v]
+            missing = [f for f, v in (("investigation_findings", c.investigation_findings), ("action_taken", c.action_taken)) if not v]
             if missing:
-                raise WorkflowError("Record the findings, action taken and outcome before resolving.", missing[0])
-            if "referred" in c.outcome.name.lower() and not c.authority_referred_to:
+                raise WorkflowError("Record the findings and the action taken before submitting.", missing[0])
+            if c.outcome_id and "referred" in c.outcome.name.lower() and not c.authority_referred_to:
                 raise WorkflowError("Enter the authority the complaint was referred to.", "authority_referred_to")
-            services.move(c, S.RESOLVED, actor=request.user, reason="Findings submitted to the Division Head", request=request)
-            services.alert_officers(c, f"{c.reference}: findings submitted. Accept them, or send them to the Management Viewer.", include_head=True)
+            services.move(c, S.SUBMITTED, actor=request.user, reason="Findings submitted to the Division Head", request=request)
+            services.alert_officers(c, f"{c.reference}: findings submitted. Accept them, or send them to the Supervisor.", include_head=True)
             services.email_users(c, "resolution_submitted", services.division_heads(c.division_id))
         return self._run(request, "resolve", run)
 
     @action(detail=True, methods=["post"], url_path="send-to-management")
     def send_to_management(self, request, pk=None):
-        """Division Head sends the officer's findings to the Management Viewer(s) for approval instead of accepting them."""
+        """Division Head sends the officer's findings to the Supervisor(s) for approval instead of accepting them."""
         def run(c):
             note = str(request.data.get("note", "")).strip()
             managers = User.objects.filter(role__in=roles_with_base(Role.SUPERVISOR), is_active=True)
             if not managers.exists():  # check first so the case is never left waiting for nobody
-                raise WorkflowError("There is no active Management Viewer to send this to. Ask an Administrator to create one.")
-            services.move(c, S.PENDING_APPROVAL, actor=request.user, reason=f"Sent to the Management Viewer{': ' + note if note else ''}", request=request, notify_complainant=False)
+                raise WorkflowError("There is no active Supervisor to send this to. Ask an Administrator to create one.")
+            services.move(c, S.PENDING_APPROVAL, actor=request.user, reason=f"Sent to the Supervisor{': ' + note if note else ''}", request=request, notify_complainant=False)
             notify(managers, f"{c.reference}: findings awaiting your approval.", f"/staff/complaints/{c.pk}")
             services.email_users(c, "approval_requested", managers, message=note)
             if c.assigned_to_id:
-                notify([c.assigned_to], f"{c.reference}: findings sent to management for approval.", f"/staff/complaints/{c.pk}")
+                notify([c.assigned_to], f"{c.reference}: findings sent to the Supervisor for approval.", f"/staff/complaints/{c.pk}")
         return self._run(request, "send_to_management", run)
 
     @action(detail=True, methods=["post"], url_path="mgmt-approve")
     def mgmt_approve(self, request, pk=None):
-        """Management Viewer accepts the findings: the case becomes Resolved and goes to the Division Head to close."""
+        """Supervisor accepts the findings: the case becomes Resolved and goes to the Division Head to close."""
         def run(c):
             remarks = str(request.data.get("remarks", "")).strip()
-            services.move(c, S.RESOLVED, actor=request.user, reason=f"Accepted by management{': ' + remarks if remarks else ''}", request=request)
-            services.alert_officers(c, f"{c.reference}: accepted by management. Awaiting the Division Head's approval.", include_head=True)
+            services.move(c, S.RESOLVED, actor=request.user, reason=f"Accepted by supervisor{': ' + remarks if remarks else ''}", request=request)
+            services.alert_officers(c, f"{c.reference}: accepted by supervisor. Awaiting the Division Head's approval.", include_head=True)
             services.email_users(c, "resolution_submitted", services.division_heads(c.division_id))
         return self._run(request, "mgmt_approve", run)
 
     @action(detail=True, methods=["post"], url_path="mgmt-reject")
     def mgmt_reject(self, request, pk=None):
-        """Management Viewer does not accept the findings: the Division Head decides what happens next."""
+        """Supervisor does not accept the findings: the Division Head decides what happens next."""
         def run(c):
             reason = str(request.data.get("reason", "")).strip()
             if not reason:
                 raise WorkflowError("Say why the findings are not accepted.", "reason")
-            services.add_message(c, author=request.user, body=f"Returned by management: {reason}", visibility="internal")
-            services.move(c, S.MANAGEMENT_REJECTED, actor=request.user, reason=f"Rejected by management: {reason}", request=request, notify_complainant=False)
+            services.add_message(c, author=request.user, body=f"Returned by supervisor: {reason}", visibility="internal")
+            services.move(c, S.MANAGEMENT_REJECTED, actor=request.user, reason=f"Rejected by supervisor: {reason}", request=request, notify_complainant=False)
             heads = services.division_heads(c.division_id)
-            notify(heads, f"{c.reference}: returned by management. Decide the next step.", f"/staff/complaints/{c.pk}")
+            notify(heads, f"{c.reference}: returned by supervisor. Decide the next step.", f"/staff/complaints/{c.pk}")
             services.email_users(c, "management_rejected", heads, message=reason)
             if c.assigned_to_id:
-                notify([c.assigned_to], f"{c.reference}: management did not accept the findings.", f"/staff/complaints/{c.pk}")
+                notify([c.assigned_to], f"{c.reference}: the Supervisor did not accept the findings.", f"/staff/complaints/{c.pk}")
         return self._run(request, "mgmt_reject", run)
 
     @action(detail=True, methods=["post"], url_path="send-back")
     def send_back(self, request, pk=None):
-        """Division Head sends a case rejected by management back to the same Investigating Officer."""
+        """Division Head sends a case rejected by supervisor back to the same Investigating Officer."""
         def run(c):
             reason = str(request.data.get("reason", "")).strip()
             if not reason:
@@ -517,6 +517,8 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
                 raise WorkflowError("Enter the closure reason.", "closure_reason")
             c.closure_reason = reason
             public = str(request.data.get("public_message", "")).strip() or (f"Outcome: {c.outcome.name}" if c.outcome_id else reason)
+            if c.internal_status == S.SUBMITTED:  # the Division Head's approval is what makes it Resolved
+                services.move(c, S.RESOLVED, actor=request.user, reason="Approved by the Division Head", request=request)
             services.move(c, S.CLOSED, actor=request.user, reason=f"Approved and closed: {reason}", request=request, public_message=public)
             if c.assigned_to_id:
                 notify([c.assigned_to], f"{c.reference} approved and closed.", f"/staff/complaints/{c.pk}")

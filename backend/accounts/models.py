@@ -7,7 +7,7 @@ from core.base import UUIDModel
 
 
 class Role(models.TextChoices):
-    SUPERVISOR = "supervisor", "Management Viewer"
+    SUPERVISOR = "supervisor", "Supervisor"
     SUPER_ADMIN = "super_admin", "Administrator"
     FOCAL = "focal", "Division Head"  # stored value kept stable; BRD name is Division Head
     INVESTIGATOR = "investigator", "Investigating Officer"
