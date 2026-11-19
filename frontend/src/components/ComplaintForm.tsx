@@ -112,6 +112,19 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
     setV((p) => ({ ...p, remedy_sought: next.join("; ") }));
   }
 
+  // BRD Form B: "Already complained to the provider?" is asked for every IID complaint (both form layouts).
+  const alreadyQuestion = isIid ? (
+    <>
+      <Field label="Already complained to the provider?" required error={f("already_complained")}>
+        <div style={{ display: "flex", gap: 20, minHeight: 46, alignItems: "center" }}>
+          <label style={{ display: "flex", gap: 6 }}><input type="radio" name="already" required checked={already === "yes"} onChange={() => { setAlready("yes"); setV((p) => ({ ...p, already_complained: true })); }} />Yes</label>
+          <label style={{ display: "flex", gap: 6 }}><input type="radio" name="already" required checked={already === "no"} onChange={() => { setAlready("no"); setV((p) => ({ ...p, already_complained: false })); }} />No</label>
+        </div>
+      </Field>
+      {already === "yes" && <Field label="Provider reference number" required error={f("provider_reference")}><input required value={v.provider_reference as string} onChange={set("provider_reference")} /></Field>}
+    </>
+  ) : null;
+
   async function submit(e: FormEvent, opts: { draft?: boolean; confirmDuplicate?: boolean } = {}) {
     e.preventDefault();
     if (busy) return;
@@ -307,6 +320,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
               <section className="form-section" aria-labelledby="details-heading">
                 <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="complaint" size={23} /></span><div><h2 id="details-heading">Details of the complaint</h2><p className="section-description">Date and time are recorded automatically when the complaint is submitted.</p></div></div>
                 {spec.fields.map(renderField)}
+                {alreadyQuestion}
                 {spec.description && <Field label={spec.description.label} required={spec.description.required} error={f("description")}><textarea required={spec.description.required} rows={5} value={v.description as string} onChange={set("description")} /></Field>}
                 {spec.geo && <>
                 <div className="row">
@@ -408,15 +422,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
                     <select required={isIid} value={otherProvider ? OTHER : (v.provider as string)} onChange={(e) => pickProvider(e.target.value)}><option value="">Select</option>{meta.providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}<option value={OTHER}>Other / Not listed</option></select>
                   </Field>
                   {otherProvider && <Field label="Name of the provider" required error={f("platform")} hint="The Division Head confirms it in triage."><input required value={v.platform as string} onChange={set("platform")} /></Field>}
-                  {isIid && (
-                    <Field label="Already complained to the provider?" required error={f("already_complained")}>
-                      <div style={{ display: "flex", gap: 20, minHeight: 46, alignItems: "center" }}>
-                        <label style={{ display: "flex", gap: 6 }}><input type="radio" name="already" required checked={already === "yes"} onChange={() => { setAlready("yes"); setV((p) => ({ ...p, already_complained: true })); }} />Yes</label>
-                        <label style={{ display: "flex", gap: 6 }}><input type="radio" name="already" required checked={already === "no"} onChange={() => { setAlready("no"); setV((p) => ({ ...p, already_complained: false })); }} />No</label>
-                      </div>
-                    </Field>
-                  )}
-                  {isIid && already === "yes" && <Field label="Provider reference number" required error={f("provider_reference")}><input required value={v.provider_reference as string} onChange={set("provider_reference")} /></Field>}
+                  {alreadyQuestion}
                 </div>
                 <Field label="Complaint description" required error={f("description")} hint="Detailed description of the complaint."><textarea required rows={6} placeholder={t("Describe what happened and any steps you have already taken.", "Record what the complainant reported.")} value={v.description as string} onChange={set("description")} /></Field>
               </>
