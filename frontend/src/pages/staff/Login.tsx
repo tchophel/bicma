@@ -1,12 +1,14 @@
+import { useToast } from "../../components/Toast";
 import { Icon } from "../../components/Icon";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate } from "react-router-dom";
-import { ApiError } from "../../api";
+import { api, ApiError } from "../../api";
 import { useAuth } from "../../auth";
-import "./Login.css";
+import "../../styles/Login.css";
 
 export function Login() {
   const { user, login } = useAuth();
+  const toast = useToast();
   const [email, setEmail] = useState("");
   const [p, setP] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -17,7 +19,7 @@ export function Login() {
   async function go(e: FormEvent) {
     e.preventDefault();
     setBusy(true); setErr("");
-    try { await login(email, p, rememberMe); } catch (x) { setErr((x as ApiError).message); } finally { setBusy(false); }
+    try { await login(email, p, rememberMe); } catch (x) { setErr((x as ApiError).message); toast.error((x as ApiError).message); } finally { setBusy(false); }
   }
   return (
     <div className="container staff-login">
@@ -28,10 +30,10 @@ export function Login() {
       </div>
       <form className="card staff-login-card" onSubmit={go}>
         <div className="field">
-          <label className="login-label" htmlFor="login-email">Email address <span className="req" aria-hidden="true">*</span></label>
+          <label className="login-label" htmlFor="login-email">Employee ID or email <span className="req" aria-hidden="true">*</span></label>
           <div className="input-icon-wrap">
             <Icon name="mail" />
-            <input id="login-email" placeholder="Enter your email address" required type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input id="login-email" placeholder="Employee ID or email address" required type="text" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
         </div>
         <div className="field">
@@ -47,6 +49,11 @@ export function Login() {
         <div className="login-options"><label><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />Remember me</label><Link to="/staff/forgot-password">Forgot password?</Link></div>
         {err && <p className="error" role="alert">{err}</p>}
         <button className="btn" disabled={busy} style={{ width: "100%" }}><Icon name="login" />{busy ? "Signing in…" : "Sign in"}</button>
+        <div className="login-or" aria-hidden="true"><span>or</span></div>
+        <button type="button" className="ndi-btn" onClick={async () => { setErr(""); try { const r = await api<{ url?: string }>("/auth/ndi/start/"); if (r.url) window.location.href = r.url; } catch (x) { setErr((x as ApiError).message); } }}>
+          <img src="/ndi-logo.png" alt="" width={34} height={34} />
+          <span>Login with Bhutan NDI</span>
+        </button>
       </form>
     </div>
   );

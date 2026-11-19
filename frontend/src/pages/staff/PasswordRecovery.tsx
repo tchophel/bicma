@@ -3,8 +3,8 @@ import { Link, useParams } from "react-router-dom";
 import { api, ensureCsrf, ApiError } from "../../api";
 import { Icon } from "../../components/Icon";
 import { Field } from "../../components/ui";
-import "./Login.css";
-import "./PasswordRecovery.css";
+import "../../styles/Login.css";
+import "../../styles/PasswordRecovery.css";
 
 export function PasswordRecovery({ reset = false }: { reset?: boolean }) {
   const { uid, token } = useParams();

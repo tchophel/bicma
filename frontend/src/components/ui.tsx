@@ -1,6 +1,6 @@
 import { Icon, type IconName } from "./Icon";
 import type { ReactNode } from "react";
-import "./ui.css";
+import "../styles/ui.css";
 
 export function Field({ label, required, hint, error, children }: {
   label: string; required?: boolean; hint?: string; error?: string; children: ReactNode;
@@ -16,7 +16,7 @@ export function Field({ label, required, hint, error, children }: {
 }
 
 const TONE: Record<string, string> = {
-  resolved: "ok", closed: "ok", rejected: "bad", on_hold: "warn", pending_response: "warn", pending_external_action: "warn",
+  resolved: "ok", closed: "ok", not_within_mandate: "bad", awaiting_information: "warn", referred: "warn", draft: "warn",
 };
 export function StatusBadge({ value, label }: { value: string; label: string }) {
   return <span className={`badge ${TONE[value] ?? ""}`}><Icon name={TONE[value] === "ok" ? "check" : TONE[value] === "bad" ? "close" : TONE[value] === "warn" ? "clock" : "complaint"} size={14} />{label}</span>;
@@ -44,3 +44,6 @@ export function EmptyState({ icon = "complaint", children }: { icon?: IconName; 
 }
 
 export const initials = (first: string, last: string, email: string) => ((first?.[0] ?? email[0]) + (last?.[0] ?? "")).toUpperCase();
+
+/** 5120 -> "5 MB", 300 -> "300 KB" */
+export const humanKb = (kb: number) => (kb >= 1024 ? `${Number((kb / 1024).toFixed(1))} MB` : `${kb} KB`);

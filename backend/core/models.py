@@ -4,9 +4,32 @@ from django.db import models
 from .base import UUIDModel
 
 
+class Priority(UUIDModel):
+    """Priority with its response / resolution timeline (working days)."""
+
+    name = models.CharField(max_length=40, unique=True)
+    rank = models.PositiveSmallIntegerField(default=2, help_text="Higher = more urgent")
+    response_days = models.PositiveSmallIntegerField(default=2)
+    resolution_days = models.PositiveSmallIntegerField(default=15)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-rank", "name"]
+        verbose_name_plural = "priorities"
+
+    def __str__(self):
+        return self.name
+
+
 class Category(UUIDModel):
     name = models.CharField(max_length=120, unique=True)
     is_active = models.BooleanField(default=True)
+    default_division = models.ForeignKey("accounts.Division", null=True, blank=True, on_delete=models.PROTECT, related_name="default_categories")
+    urban_division = models.ForeignKey("accounts.Division", null=True, blank=True, on_delete=models.PROTECT, related_name="+",
+                                       help_text="Optional: division for urban complaints in this category")
+    rural_division = models.ForeignKey("accounts.Division", null=True, blank=True, on_delete=models.PROTECT, related_name="+",
+                                       help_text="Optional: division for rural complaints in this category")
+    default_priority = models.ForeignKey(Priority, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
 
     class Meta:
         ordering = ["name"]
@@ -55,7 +78,7 @@ class Gewog(UUIDModel):
 
 class SystemConfiguration(UUIDModel):
     key = models.CharField(max_length=80, unique=True)
-    value = models.CharField(max_length=500)
+    value = models.TextField(max_length=5000)
     description = models.CharField(max_length=255, blank=True)
 
     def __str__(self):
@@ -127,3 +150,165 @@ class FAQ(UUIDModel):
 
     def __str__(self):
         return self.question
+
+
+class ProviderType(UUIDModel):
+    name = models.CharField(max_length=80, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Provider(UUIDModel):
+    """Service provider / licensee a complaint can name."""
+
+    name = models.CharField(max_length=150, unique=True)
+    provider_type = models.ForeignKey(ProviderType, null=True, blank=True, on_delete=models.PROTECT, related_name="providers")
+    licence_number = models.CharField(max_length=60, blank=True)
+    contact_email = models.EmailField(blank=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Outcome(UUIDModel):
+    name = models.CharField(max_length=80, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class ClosureReason(UUIDModel):
+    name = models.CharField(max_length=120, unique=True)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class Holiday(UUIDModel):
+    date = models.DateField(unique=True)
+    name = models.CharField(max_length=120)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["date"]
+
+    def __str__(self):
+        return f"{self.date} {self.name}"
+
+
+class EmailTemplate(UUIDModel):
+    """Configurable email for a notification event. Placeholders: {reference} {subject} {status} {category}
+    {provider} {message} {division} {officer} {tracking_url}."""
+
+    event = models.CharField(max_length=40, unique=True)
+    name = models.CharField(max_length=120)
+    recipient = models.CharField(max_length=40, blank=True, help_text="complainant | provider | officer | division_head")
+    subject = models.CharField(max_length=200)
+    body = models.TextField(max_length=5000)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["name"]
+
+    def __str__(self):
+        return self.name
+
+
+class NotificationLog(UUIDModel):
+    """Every email sent for a case: date, recipient, subject, content, delivery status."""
+
+    complaint = models.ForeignKey("complaints.Complaint", on_delete=models.CASCADE, related_name="notification_log")
+    event = models.CharField(max_length=40)
+    recipient = models.CharField(max_length=254)
+    subject = models.CharField(max_length=300)
+    body = models.TextField()
+    status = models.CharField(max_length=10, default="pending")  # pending | sent | failed
+    attempts = models.PositiveSmallIntegerField(default=0)
+    error = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    sent_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+
+class ApiLog(UUIDModel):
+    """Every call this system makes to an external API (DCRC citizen details, ZESt). Inbound requests are not logged.
+    No request or response bodies, no query values and no tokens are stored."""
+
+    direction = models.CharField(max_length=3, default="out")
+    service = models.CharField(max_length=10, blank=True, db_index=True, help_text="dcrc | zest")
+    method = models.CharField(max_length=8)
+    path = models.CharField(max_length=300)
+    status = models.PositiveSmallIntegerField(default=0)  # 0 = no response (network error)
+    duration_ms = models.PositiveIntegerField(default=0)
+    user_email = models.CharField(max_length=254, blank=True)
+    ip_address = models.GenericIPAddressField(null=True, blank=True)
+    error = models.CharField(max_length=300, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["direction", "created_at"]), models.Index(fields=["status"])]
+
+
+class EmailLog(UUIDModel):
+    """Every email the system tried to send through SMTP. The message body is not kept (reset links are secrets)."""
+
+    kind = models.CharField(max_length=40)
+    recipient = models.CharField(max_length=254)
+    subject = models.CharField(max_length=300)
+    status = models.CharField(max_length=10)  # sent | failed
+    error = models.CharField(max_length=300, blank=True)
+    reference = models.CharField(max_length=40, blank=True, help_text="Complaint reference, when the email is about a case")
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+
+class SmsLog(UUIDModel):
+    """Every SMS the system tried to send. SMS is a later phase, so this stays empty until a gateway is connected."""
+
+    kind = models.CharField(max_length=40)
+    recipient = models.CharField(max_length=30)
+    message = models.CharField(max_length=500, blank=True)
+    status = models.CharField(max_length=10)  # sent | failed
+    error = models.CharField(max_length=300, blank=True)
+    reference = models.CharField(max_length=40, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+
+
+class ApiHealthCheck(UUIDModel):
+    """One reachability check of an external API, used for the up/down graph."""
+
+    service = models.CharField(max_length=10, db_index=True)
+    ok = models.BooleanField()
+    status = models.PositiveSmallIntegerField(default=0)
+    latency_ms = models.PositiveIntegerField(default=0)
+    error = models.CharField(max_length=300, blank=True)
+    checked_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ["-checked_at"]
+        indexes = [models.Index(fields=["service", "checked_at"])]

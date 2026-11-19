@@ -10,7 +10,11 @@ from accounts.views import AuditedModelViewSet
 from rest_framework import status
 from rest_framework.decorators import action
 
-from .models import FAQ, AuditLog, Category, Dzongkhag, Gewog, Notification, Subcategory, SystemConfiguration
+from .models import (
+    ApiLog, EmailLog, SmsLog,
+    FAQ, AuditLog, Category, ClosureReason, Dzongkhag, EmailTemplate, Gewog, Holiday, Notification, Outcome, Priority,
+    Provider, ProviderType, Subcategory, SystemConfiguration,
+)
 from .serializers import (
     FAQSerializer, AuditLogSerializer, CategorySerializer, DzongkhagSerializer, GewogSerializer, SubcategorySerializer,
 )
@@ -22,6 +26,15 @@ import re
 from django.core.exceptions import ValidationError as DjangoValidationError
 
 
+DEFAULT_DECLARATION = (
+    "To the best of my knowledge and belief, I have placed all the relevant facts before the Authority and no proceedings "
+    "are pending in any court of law in respect of any matter alleged in the complaint. I shall inform the Authority forthwith "
+    "if, during the pendency of the inquiry, any matter alleged in the complaint becomes the subject matter of any proceedings "
+    "in a court of law. I understand that withholding of information or giving false information is an offence and may result "
+    "in legal action against me."
+)
+
+
 class MetaView(APIView):
     """Public reference data for forms."""
 
@@ -29,7 +42,7 @@ class MetaView(APIView):
     permission_classes = [AllowAny]
 
     def get(self, request):
-        cats = Category.objects.filter(is_active=True).prefetch_related("subcategories")
+        cats = Category.objects.filter(is_active=True).select_related("default_division").prefetch_related("subcategories")
         dzongkhags = Dzongkhag.objects.filter(is_active=True).prefetch_related("gewogs")
         return Response({
             "dzongkhags": [
@@ -37,6 +50,13 @@ class MetaView(APIView):
                 for d in dzongkhags
             ],
             "divisions": list(Division.objects.filter(is_active=True).values("id", "name")),
+            "declaration_text": SystemConfiguration.get("declaration_text", DEFAULT_DECLARATION),
+            "limits": __import__("core.limits", fromlist=["get_limits"]).get_limits(),
+            "provider_types": list(ProviderType.objects.filter(is_active=True).values("id", "name")),
+            "providers": list(Provider.objects.filter(is_active=True).values("id", "name", "provider_type")),
+            "priorities": list(Priority.objects.filter(is_active=True).values("id", "name", "response_days", "resolution_days")),
+            "outcomes": list(Outcome.objects.filter(is_active=True).values("id", "name")),
+            "closure_reasons": list(ClosureReason.objects.filter(is_active=True).values("id", "name")),
             "categories": CategorySerializer(cats, many=True).data,
             "channels": [
                 {"value": v, "label": l} for v, l in __import__("complaints.models", fromlist=["Channel"]).Channel.choices
@@ -45,7 +65,23 @@ class MetaView(APIView):
         })
 
 
-class CategoryAdminViewSet(AuditedModelViewSet):
+class AuditedCategoryDeletionMixin:
+    def destroy(self, request, *args, **kwargs):
+        from django.db import transaction
+        from django.db.models.deletion import ProtectedError
+        obj = self.get_object()
+        entity_id, name = obj.pk, obj.name
+        try:
+            with transaction.atomic():
+                obj.delete()
+                audit.log(request, f"{self.entity_type}.delete", entity_type=self.entity_type,
+                          entity_id=entity_id, detail={"name": name})
+        except ProtectedError:
+            return Response({"detail": "This item is still linked to complaints or subcategories. Remove unused subcategories first, or deactivate the category to preserve complaint history."}, status=status.HTTP_409_CONFLICT)
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class CategoryAdminViewSet(AuditedCategoryDeletionMixin, AuditedModelViewSet):
     queryset = Category.objects.prefetch_related("subcategories")
     serializer_class = CategorySerializer
     entity_type = "category"
@@ -56,12 +92,12 @@ class CategoryAdminViewSet(AuditedModelViewSet):
         class Writable(serializers.ModelSerializer):
             class Meta:
                 model = Category
-                fields = ["id", "name", "is_active"]
+                fields = ["id", "name", "is_active", "default_division", "urban_division", "rural_division", "default_priority"]
 
         return CategorySerializer if self.action in ("list", "retrieve") else Writable
 
 
-class SubcategoryAdminViewSet(AuditedModelViewSet):
+class SubcategoryAdminViewSet(AuditedCategoryDeletionMixin, AuditedModelViewSet):
     queryset = Subcategory.objects.select_related("category")
     serializer_class = SubcategorySerializer
     entity_type = "subcategory"
@@ -148,24 +184,137 @@ class NotificationReadView(APIView):
 
 
 class SettingsView(APIView):
-    """System settings (Super Administrator). Whitelisted keys only."""
+    """System settings (Administrator). Whitelisted keys only; every change is audited."""
 
     permission_classes = [IsSuperAdmin]
 
+    def _current(self):
+        from .limits import get_limits
+        return {"reference_prefix": SystemConfiguration.get("reference_prefix", "BICMA-CMS"),
+                "declaration_text": SystemConfiguration.get("declaration_text", DEFAULT_DECLARATION), **get_limits()}
+
     def get(self, request):
-        return Response({"reference_prefix": SystemConfiguration.get("reference_prefix", "BICMA-CMS")})
+        return Response(self._current())
 
     def patch(self, request):
-        prefix = str(request.data.get("reference_prefix", "")).strip().upper()
-        if not re.fullmatch(r"[A-Z0-9][A-Z0-9-]{1,19}", prefix):
-            return Response({"reference_prefix": ["Use 2-20 letters, numbers or hyphens (e.g. BICMA-CMS)."]}, status=status.HTTP_400_BAD_REQUEST)
-        SystemConfiguration.objects.update_or_create(
-            key="reference_prefix", defaults={"value": prefix, "description": "Prefix of complaint reference numbers"})
-        audit.log(request, "settings.update", entity_type="settings", entity_id="reference_prefix", detail={"reference_prefix": prefix})
-        return Response({"reference_prefix": prefix})
+        from . import limits
+        d, errors, changed = request.data, {}, {}
+        if "reference_prefix" in d:
+            prefix = str(d["reference_prefix"]).strip().upper()
+            if re.fullmatch(r"[A-Z0-9][A-Z0-9-]{1,19}", prefix):
+                changed["reference_prefix"] = prefix
+            else:
+                errors["reference_prefix"] = ["Use 2-20 letters, numbers or hyphens (e.g. BICMA-CMS)."]
+        if "declaration_text" in d:
+            text = str(d["declaration_text"]).strip()
+            if 20 <= len(text) <= 3000:
+                changed["declaration_text"] = text
+            else:
+                errors["declaration_text"] = ["Enter the declaration (20 to 3000 characters)."]
+        lim = {k: d[k] for k in (*limits.BOUNDS, "upload_types") if k in d}
+        for k, msg in limits.validate_limits(lim).items():
+            errors[k] = [msg]
+        if errors:
+            return Response(errors, status=status.HTTP_400_BAD_REQUEST)
+        for key, desc in (("reference_prefix", "Prefix of complaint reference numbers"), ("declaration_text", "Public form declaration")):
+            if key in changed:
+                SystemConfiguration.objects.update_or_create(key=key, defaults={"value": changed[key], "description": desc})
+        if lim:
+            before = limits.get_limits()
+            limits.save_limits(lim)
+            changed.update({k: {"before": before[k], "after": v} for k, v in lim.items() if before[k] != v})
+        if changed:
+            audit.log(request, "settings.update", entity_type="settings", entity_id="settings",
+                      detail={k: (v if k != "declaration_text" else {"length": len(v)}) for k, v in changed.items()})
+        return Response(self._current())
 
 
 class FAQAdminViewSet(AuditedModelViewSet):
     queryset = FAQ.objects.all()
     serializer_class = FAQSerializer
     entity_type = "faq"
+
+
+def _master(model, fields, entity, search=("name",)):
+    from rest_framework import serializers as drf
+    from rest_framework.filters import SearchFilter
+
+    ser = type(f"{model.__name__}Serializer", (drf.ModelSerializer,), {
+        "Meta": type("Meta", (), {"model": model, "fields": ["id", *fields, "is_active"]})})
+    return type(f"{model.__name__}AdminViewSet", (AuditedModelViewSet,), {
+        "queryset": model.objects.all(), "serializer_class": ser, "entity_type": entity,
+        "filter_backends": [SearchFilter], "search_fields": list(search)})
+
+
+ProviderTypeAdminViewSet = _master(ProviderType, ["name"], "provider_type")
+ProviderAdminViewSet = _master(Provider, ["name", "provider_type", "licence_number", "contact_email"], "provider", ("name", "licence_number"))
+PriorityAdminViewSet = _master(Priority, ["name", "rank", "response_days", "resolution_days"], "priority")
+OutcomeAdminViewSet = _master(Outcome, ["name"], "outcome")
+ClosureReasonAdminViewSet = _master(ClosureReason, ["name"], "closure_reason")
+HolidayAdminViewSet = _master(Holiday, ["date", "name"], "holiday", ("name",))
+EmailTemplateAdminViewSet = _master(EmailTemplate, ["event", "name", "recipient", "subject", "body"], "email_template")
+
+
+class LogListView(APIView):
+    """Administrator: read the API, email (SMTP) and SMS logs, newest first, with filters and paging."""
+
+    permission_classes = [IsSuperAdmin]
+    MODELS = {"api": ApiLog, "email": EmailLog, "sms": SmsLog}
+
+    def get(self, request, kind):
+        from django.db.models import Q
+        from .utils import parse_date
+        model = self.MODELS.get(kind)
+        if model is None:
+            return Response({"detail": "Unknown log."}, status=status.HTTP_404_NOT_FOUND)
+        qs = model.objects.all()
+        p = request.query_params
+        if kind == "api":
+            if p.get("service") in ("dcrc", "zest"):
+                qs = qs.filter(service=p["service"])
+            if p.get("result") == "errors":
+                qs = qs.filter(Q(status__gte=400) | Q(status=0))
+            elif p.get("result") == "ok":
+                qs = qs.filter(status__gte=200, status__lt=400)
+            if p.get("q"):
+                qs = qs.filter(Q(path__icontains=p["q"]) | Q(error__icontains=p["q"]))
+        else:
+            if p.get("result") in ("sent", "failed"):
+                qs = qs.filter(status=p["result"])
+            if p.get("q"):
+                f = Q(recipient__icontains=p["q"]) | Q(reference__icontains=p["q"])
+                qs = qs.filter(f | Q(subject__icontains=p["q"])) if kind == "email" else qs.filter(f)
+        start, end = parse_date(p.get("date_from")), parse_date(p.get("date_to"))
+        if start:
+            qs = qs.filter(created_at__date__gte=start)
+        if end:
+            qs = qs.filter(created_at__date__lte=end)
+        try:
+            page, size = max(1, int(p.get("page", 1))), min(100, max(1, int(p.get("page_size", 25))))
+        except ValueError:
+            page, size = 1, 25
+        total = qs.count()
+        rows = list(qs[(page - 1) * size: page * size].values())
+        for r in rows:
+            r["id"] = str(r["id"])
+        return Response({"count": total, "page": page, "pages": max(1, -(-total // size)), "results": rows})
+
+
+class ApiStatusView(APIView):
+    """Administrator: state, uptime and history of the external APIs; POST runs a check now."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        from . import apihealth
+        try:
+            hours = min(24 * 30, max(1, int(request.query_params.get("hours", 24))))
+        except ValueError:
+            hours = 24
+        return Response({"hours": hours, "services": apihealth.summary(hours)})
+
+    def post(self, request):
+        from . import apihealth
+        results = apihealth.check_all()
+        audit.log(request, "api_status.check", entity_type="api", detail={"services": [c.service for c in results]})
+        return self.get(request)

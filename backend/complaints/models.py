@@ -3,7 +3,9 @@ from django.db import models, transaction
 from django.db.models import Q
 
 from core.base import UUIDModel
-from core.models import Category, Dzongkhag, Gewog, ImmutableQuerySet, Subcategory, SystemConfiguration
+from core.models import (
+    Category, Dzongkhag, Gewog, ImmutableQuerySet, Outcome, Priority, Provider, ProviderType, Subcategory, SystemConfiguration,
+)
 from accounts.models import Division, Role
 
 
@@ -18,45 +20,42 @@ class Channel(models.TextChoices):
 
 
 class InternalStatus(models.TextChoices):
-    SUBMITTED = "submitted", "Submitted"
-    UNDER_SCREENING = "under_screening", "Under screening"
-    UNASSIGNED = "unassigned", "Unassigned"
-    ASSIGNED_TO_DIVISION = "assigned_to_division", "Assigned to division"
-    ASSIGNED_TO_OFFICER = "assigned_to_officer", "Assigned to officer"
-    INVESTIGATION_IN_PROGRESS = "investigation_in_progress", "Investigation in progress"
-    PENDING_RESPONSE = "pending_response", "Pending response"
-    PENDING_EXTERNAL_ACTION = "pending_external_action", "Pending external action"
-    ON_HOLD = "on_hold", "On hold"
+    """BRD 5.5.2 statuses (plus Draft for unregistered officer entries)."""
+
+    DRAFT = "draft", "Draft"
+    RECEIVED = "received", "Received"
+    TRIAGE = "triage", "Triage"
+    ASSIGNED = "assigned", "Assigned"
+    INVESTIGATING = "investigating", "Investigating"
+    AWAITING_INFORMATION = "awaiting_information", "Awaiting information"
     REFERRED = "referred", "Referred"
-    FINDINGS_SUBMITTED = "findings_submitted", "Findings submitted"
-    RETURNED_FOR_INVESTIGATION = "returned_for_investigation", "Returned for investigation"
-    AWAITING_FOCAL_APPROVAL = "awaiting_focal_approval", "Awaiting focal approval"
-    AWAITING_SUPERVISOR_APPROVAL = "awaiting_supervisor_approval", "Awaiting supervisor approval"
-    APPROVED_FOR_CLOSURE = "approved_for_closure", "Approved for closure"
+    RESOLVED = "resolved", "Resolved"
+    NOT_WITHIN_MANDATE = "not_within_mandate", "Not within mandate"
     CLOSED = "closed", "Closed"
-    REJECTED = "rejected", "Rejected"
+
+
+OPEN_STATUSES = (
+    InternalStatus.RECEIVED, InternalStatus.TRIAGE, InternalStatus.ASSIGNED, InternalStatus.INVESTIGATING,
+    InternalStatus.AWAITING_INFORMATION, InternalStatus.REFERRED, InternalStatus.RESOLVED,
+)
+FINAL_STATUSES = (InternalStatus.CLOSED, InternalStatus.NOT_WITHIN_MANDATE)
 
 
 class PublicStatus(models.TextChoices):
-    SUBMITTED = "submitted", "Submitted"
-    UNDER_REVIEW = "under_review", "Under Review"
-    PENDING_RESPONSE = "pending_response", "Pending Response"
-    PENDING_EXTERNAL_ACTION = "pending_external_action", "Pending External Action"
-    ON_HOLD = "on_hold", "On Hold"
-    REFERRED = "referred", "Referred"
+    RECEIVED = "received", "Received"
+    UNDER_REVIEW = "under_review", "Under review"
+    AWAITING_INFORMATION = "awaiting_information", "Awaiting your reply"
     RESOLVED = "resolved", "Resolved"
-    REJECTED = "rejected", "Rejected"
+    CLOSED = "closed", "Closed"
+    NOT_WITHIN_MANDATE = "not_within_mandate", "Not within BICMA jurisdiction"
 
 
-# Internal workflow state -> what the public sees. Anything not listed is "Under Review".
 _PUBLIC_MAP = {
-    InternalStatus.SUBMITTED: PublicStatus.SUBMITTED,
-    InternalStatus.PENDING_RESPONSE: PublicStatus.PENDING_RESPONSE,
-    InternalStatus.PENDING_EXTERNAL_ACTION: PublicStatus.PENDING_EXTERNAL_ACTION,
-    InternalStatus.ON_HOLD: PublicStatus.ON_HOLD,
-    InternalStatus.REFERRED: PublicStatus.REFERRED,
-    InternalStatus.CLOSED: PublicStatus.RESOLVED,
-    InternalStatus.REJECTED: PublicStatus.REJECTED,
+    InternalStatus.RECEIVED: PublicStatus.RECEIVED,
+    InternalStatus.AWAITING_INFORMATION: PublicStatus.AWAITING_INFORMATION,
+    InternalStatus.RESOLVED: PublicStatus.UNDER_REVIEW,  # awaiting Division Head approval
+    InternalStatus.CLOSED: PublicStatus.CLOSED,
+    InternalStatus.NOT_WITHIN_MANDATE: PublicStatus.NOT_WITHIN_MANDATE,
 }
 
 
@@ -74,13 +73,18 @@ class ComplaintQuerySet(models.QuerySet):
         """Server-side data isolation. Every internal read goes through here."""
         if not user.is_authenticated or not user.is_active:
             return self.none()
-        if user.role in (Role.SUPERVISOR, Role.SUPER_ADMIN):
-            return self
-        if user.role == Role.FOCAL:
-            # own division + unassigned pool (so a focal can claim)
-            return self.filter(Q(division=user.division) | Q(division__isnull=True))
-        if user.role == Role.INVESTIGATOR:
-            return self.filter(Q(division=user.division) | Q(assigned_to=user) | Q(registered_by=user))
+        base = self.exclude(internal_status=InternalStatus.DRAFT)
+        own_drafts = Q(internal_status=InternalStatus.DRAFT, registered_by=user)
+        if user.base_role in (Role.SUPERVISOR, Role.SUPER_ADMIN):
+            return base
+        if user.base_role == Role.FOCAL:
+            return self.filter((Q(division=user.division) & ~Q(internal_status=InternalStatus.DRAFT)) | own_drafts)
+        if user.base_role == Role.INVESTIGATOR:
+            # whole division, except confidential cases which are restricted to the named officer
+            return self.filter(
+                (Q(division=user.division) & ~Q(internal_status=InternalStatus.DRAFT) & (Q(confidential_case=False) | Q(assigned_to=user)))
+                | Q(assigned_to=user) | own_drafts
+            )
         return self.none()
 
 
@@ -90,6 +94,11 @@ class Complaint(UUIDModel):
 
     # complainant
     complainant_name = models.CharField(max_length=150)
+    complainant_type = models.CharField(
+        max_length=12, default="individual",
+        choices=[("individual", "Individual"), ("firm", "Firm"), ("institute", "Institute"), ("agency", "Agency")])
+    cid = models.CharField(max_length=20, blank=True, help_text="CID for an individual; registration or licence number otherwise")
+    confidential = models.BooleanField(default=False, help_text="Complainant asked to keep their identity confidential")
     phone = models.CharField(max_length=30, blank=True)
     email = models.EmailField(blank=True)
     dzongkhag = models.ForeignKey(Dzongkhag, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
@@ -108,14 +117,40 @@ class Complaint(UUIDModel):
     subject = models.CharField(max_length=200)
     description = models.TextField()
     incident_date = models.DateField(null=True, blank=True)
-    platform = models.CharField(max_length=150, blank=True, help_text="Service provider / platform concerned")
+    platform = models.CharField(max_length=150, blank=True, help_text="Provider / company name as entered")
+    provider = models.ForeignKey(Provider, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
+    provider_type = models.ForeignKey(ProviderType, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
+    already_complained = models.BooleanField(default=False)
+    provider_reference = models.CharField(max_length=80, blank=True)
+    area_type = models.CharField(max_length=10, choices=[("urban", "Urban"), ("rural", "Rural")], blank=True)
+    locality = models.CharField(max_length=150, blank=True, help_text="Gewog / town / village")
+    incident_time = models.TimeField(null=True, blank=True)
+    medium_of_publication = models.CharField(max_length=150, blank=True)
+    remedy_sought = models.TextField(blank=True)
+    declaration_accepted = models.BooleanField(default=False)
+    date_received = models.DateField(null=True, blank=True)
+    suggested_division = models.ForeignKey(Division, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
     website_or_social = models.CharField(max_length=300, blank=True)
     additional_info = models.TextField(blank=True)
 
     # workflow
-    internal_status = models.CharField(max_length=40, choices=InternalStatus.choices, default=InternalStatus.SUBMITTED, db_index=True)
+    internal_status = models.CharField(max_length=40, choices=InternalStatus.choices, default=InternalStatus.RECEIVED, db_index=True)
     division = models.ForeignKey(Division, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
     assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="assigned_complaints")
+    priority = models.ForeignKey(Priority, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
+    confidential_case = models.BooleanField(default=False, help_text="Restricts visibility to named officers")
+    referred_from = models.ForeignKey(Division, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    response_due_at = models.DateTimeField(null=True, blank=True)
+    resolution_due_at = models.DateTimeField(null=True, blank=True)
+    paused_at = models.DateTimeField(null=True, blank=True)
+    first_response_at = models.DateTimeField(null=True, blank=True)
+    resolved_at = models.DateTimeField(null=True, blank=True)
+    closed_at = models.DateTimeField(null=True, blank=True)
+    investigation_findings = models.TextField(blank=True)
+    action_taken = models.TextField(blank=True)
+    recommendation = models.TextField(blank=True)
+    outcome = models.ForeignKey(Outcome, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
+    closure_reason = models.TextField(blank=True)
     registered_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="registered_complaints")
     version = models.PositiveIntegerField(default=1)  # optimistic concurrency for workflow actions
 
@@ -138,6 +173,26 @@ class Complaint(UUIDModel):
     @property
     def public_status(self):
         return public_status_for(self.internal_status)
+
+    @property
+    def is_open(self):
+        return self.internal_status in OPEN_STATUSES
+
+    @property
+    def sla_state(self):
+        """overdue | due_soon | ok | paused | done"""
+        from django.utils import timezone
+        if not self.is_open:
+            return "done"
+        if self.paused_at:
+            return "paused"
+        due = self.resolution_due_at
+        if not due:
+            return "ok"
+        now = timezone.now()
+        if due < now:
+            return "overdue"
+        return "due_soon" if (due - now).days < 2 else "ok"
 
 
 class StatusHistory(UUIDModel):
@@ -171,3 +226,58 @@ def next_reference(now):
     counter.last_number += 1
     counter.save(update_fields=["last_number"])
     return f"{prefix}-{now.year}-{counter.last_number:06d}"
+
+
+class CaseMessage(UUIDModel):
+    """Public messages, internal notes, information requests and replies. Append-only."""
+
+    class Visibility(models.TextChoices):
+        PUBLIC = "public", "Public"
+        INTERNAL = "internal", "Internal"
+
+    class Kind(models.TextChoices):
+        NOTE = "note", "Note"
+        INFO_REQUEST = "info_request", "Information request"
+        REPLY = "reply", "Complainant reply"
+        FINDINGS = "findings", "Findings"
+
+    complaint = models.ForeignKey(Complaint, on_delete=models.PROTECT, related_name="messages")
+    author = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    visibility = models.CharField(max_length=10, choices=Visibility.choices, default=Visibility.INTERNAL)
+    kind = models.CharField(max_length=15, choices=Kind.choices, default=Kind.NOTE)
+    body = models.TextField(max_length=10000)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    objects = ImmutableQuerySet.as_manager()
+
+    class Meta:
+        ordering = ["created_at", "id"]
+
+    def save(self, *args, **kwargs):
+        if not self._state.adding:
+            raise PermissionError("Case messages are immutable.")
+        super().save(*args, **kwargs)
+
+    def delete(self, *args, **kwargs):
+        raise PermissionError("Case messages are immutable.")
+
+
+def attachment_path(instance, filename):
+    import uuid as _uuid
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    return f"attachments/{instance.complaint_id}/{_uuid.uuid4().hex}.{ext}"
+
+
+class Attachment(UUIDModel):
+    complaint = models.ForeignKey(Complaint, on_delete=models.PROTECT, related_name="attachments")
+    message = models.ForeignKey(CaseMessage, null=True, blank=True, on_delete=models.PROTECT, related_name="attachments")
+    file = models.FileField(upload_to=attachment_path)
+    original_name = models.CharField(max_length=255)
+    size = models.PositiveIntegerField(default=0)
+    content_type = models.CharField(max_length=100, blank=True)
+    visibility = models.CharField(max_length=10, choices=CaseMessage.Visibility.choices, default=CaseMessage.Visibility.INTERNAL)
+    uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["created_at", "id"]

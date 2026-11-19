@@ -7,3 +7,11 @@ def parse_uuid(value):
         return uuid.UUID(str(value))
     except (ValueError, TypeError, AttributeError):
         return None
+
+
+def parse_date(value):
+    import datetime as dt
+    try:
+        return dt.date.fromisoformat(value)
+    except (ValueError, TypeError):
+        return None

@@ -74,3 +74,70 @@ class AccountRecoveryTests(APITestCase):
         for _ in range(5):
             self.assertEqual(self.client.post("/api/auth/password-reset/", {"email": "missing@example.org"}).status_code, 200)
         self.assertEqual(self.client.post("/api/auth/password-reset/", {"email": "missing@example.org"}).status_code, 429)
+
+
+@override_settings(EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend", FRONTEND_URL="https://cms.example.org")
+class UserCreationEmailTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user("admin@example.org", "Admin-strong-pass-182!", role=Role.SUPER_ADMIN)
+        self.client.force_authenticate(self.admin)
+
+    def test_generated_password_is_emailed_and_can_sign_in(self):
+        response = self.client.post("/api/admin/users/", {"email": "new@example.org", "role": Role.SUPERVISOR}, format="json")
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertNotIn("password", response.data)
+        self.assertEqual(len(mail.outbox), 1)
+        message = mail.outbox[0]
+        self.assertEqual(message.to, ["new@example.org"])
+        password = message.body.split("Initial password: ")[1].splitlines()[0]
+        self.assertGreaterEqual(len(password), 10)
+        self.assertFalse(password.isdigit())
+        user = User.objects.get(email="new@example.org")
+        self.assertTrue(user.check_password(password))
+        self.assertNotEqual(user.password, password)
+        self.assertIn("https://cms.example.org/staff", message.body)
+        login = APIClient().post("/api/auth/login/", {"email": user.email, "password": password}, format="json")
+        self.assertEqual(login.status_code, 200, login.data)
+
+    def test_email_failure_rolls_back_account_and_allows_retry(self):
+        for outcome in (OSError("smtp down"), 0):
+            with patch("accounts.views.send_mail", **({"side_effect": outcome} if isinstance(outcome, Exception) else {"return_value": outcome})):
+                response = self.client.post("/api/admin/users/", {"email": "new@example.org", "role": Role.SUPERVISOR}, format="json")
+            self.assertEqual(response.status_code, 400)
+            self.assertFalse(User.objects.filter(email="new@example.org").exists())
+
+    def test_passwords_are_distinct_and_updates_do_not_send_email(self):
+        for email in ("one@example.org", "two@example.org"):
+            self.assertEqual(self.client.post("/api/admin/users/", {"email": email, "role": Role.SUPERVISOR}, format="json").status_code, 201)
+        self.assertNotEqual(mail.outbox[0].body.split("Initial password: ")[1], mail.outbox[1].body.split("Initial password: ")[1])
+        user = User.objects.get(email="one@example.org")
+        response = self.client.patch(f"/api/admin/users/{user.pk}/", {"first_name": "Updated"})
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(mail.outbox), 2)
+
+
+class ProfilePhotoTests(APITestCase):
+    def test_upload_read_remove_and_reject_invalid_image(self):
+        import tempfile
+        from io import BytesIO
+        from PIL import Image
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        user = User.objects.create_user("photo@example.org", "Strong-photo-pass-321!", role=Role.SUPERVISOR)
+        self.assertIn(self.client.get("/api/auth/me/photo/").status_code, (401, 403))
+        self.client.force_authenticate(user)
+        with tempfile.TemporaryDirectory() as directory, override_settings(MEDIA_ROOT=directory):
+            invalid = self.client.post("/api/auth/me/photo/", {"photo": SimpleUploadedFile("bad.png", b"not an image", content_type="image/png")}, format="multipart")
+            self.assertEqual(invalid.status_code, 400)
+            image = BytesIO()
+            Image.new("RGB", (20, 20)).save(image, "PNG")
+            response = self.client.post("/api/auth/me/photo/", {"photo": SimpleUploadedFile("photo.png", image.getvalue(), content_type="image/png")}, format="multipart")
+            self.assertEqual(response.status_code, 200, response.data)
+            self.assertIn("/api/auth/me/photo/", response.data["profile_photo"])
+            user.refresh_from_db()
+            name = user.profile_photo.name
+            photo = self.client.get("/api/auth/me/photo/")
+            self.assertEqual(photo.status_code, 200)
+            self.assertEqual(b"".join(photo.streaming_content), image.getvalue())
+            self.assertEqual(self.client.delete("/api/auth/me/photo/").status_code, 200)
+            self.assertFalse(user.profile_photo.storage.exists(name))
+            self.assertEqual(self.client.get("/api/auth/me/photo/").status_code, 404)

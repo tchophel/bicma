@@ -21,18 +21,23 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
 
-from core import audit
+from core import audit, logs
 
 from .authentication import CsrfOnlyAuthentication
 from .models import Division, User
 from .permissions import IsSuperAdmin
-from .models import Role
+from .models import Role, RoleDef, RolePermission, roles_with_base
+from . import perms as perm_mod
 from .serializers import (
     DivisionAdminSerializer, DivisionSerializer, FocalRegistrationSerializer, ProfileSerializer, UserSerializer, UserWriteSerializer,
 )
 
 MAX_FAILURES = 5
 LOCKOUT_SECONDS = 15 * 60
+
+
+def _with_perms(data, user):
+    return {**data, "permissions": sorted(perm_mod.role_perms(user.role))}
 
 
 @method_decorator(ensure_csrf_cookie, name="dispatch")
@@ -53,19 +58,24 @@ class LoginView(APIView):
         email = str(request.data.get("email", "")).strip().lower()
         password = str(request.data.get("password", ""))
         key = f"login_fail:{email}"
+        if email and "@" not in email:  # BRD: the username is the Employee ID
+            match = User.objects.filter(employee_id__iexact=email).values_list("email", flat=True).first()
+            email_for_auth = match or email
+        else:
+            email_for_auth = email
         if cache.get(key, 0) >= MAX_FAILURES:
             audit.log(request, "auth.login_locked", detail={"email": email[:254]})
             return Response({"detail": "Too many failed attempts. Try again later."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
-        user = authenticate(request, username=email, password=password)
+        user = authenticate(request, username=email_for_auth, password=password)
         if user is None or not user.is_active:
             cache.set(key, cache.get(key, 0) + 1, LOCKOUT_SECONDS)
             audit.log(request, "auth.login_failed", detail={"email": email[:254]})
-            return Response({"detail": "Invalid email or password."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Invalid username or password."}, status=status.HTTP_400_BAD_REQUEST)
         cache.delete(key)
         login(request, user)
         request.session.set_expiry(settings.REMEMBER_ME_AGE if request.data.get("remember_me") is True else 0)
         audit.log(request, "auth.login", actor=user)
-        return Response(UserSerializer(user).data)
+        return Response(_with_perms(UserSerializer(user).data, user))
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):
@@ -94,13 +104,16 @@ class PasswordResetRequestView(APIView):
             token = default_token_generator.make_token(user)
             url = f"{settings.FRONTEND_URL.rstrip('/')}/staff/reset-password/{uid}/{token}"
             try:
+                email_logged = False
                 send_mail(
                     "Reset your BICMA password",
                     f"A password reset was requested for your BICMA account.\n\nOpen this link to choose a new password:\n{url}\n\nThis link expires in one hour and can be used once. If you did not request this, you can ignore this email.",
                     settings.DEFAULT_FROM_EMAIL, [user.email],
                 )
-            except Exception:
+                logs.email("password_reset", user.email, "Reset your BICMA password", True)
+            except Exception as exc:
                 logging.getLogger(__name__).exception("Password reset email delivery failed")
+                logs.email("password_reset", user.email, "Reset your BICMA password", False, str(exc))
         return Response({"detail": "If an active account exists for this email, a password reset link will be sent. Check your inbox and spam folder."})
 
 
@@ -142,7 +155,7 @@ class LogoutView(APIView):
 
 class MeView(APIView):
     def get(self, request):
-        return Response(UserSerializer(request.user).data)
+        return Response(_with_perms(UserSerializer(request.user).data, request.user))
 
     def patch(self, request):
         ser = ProfileSerializer(request.user, data=request.data, partial=True)
@@ -182,15 +195,25 @@ class AuditedModelViewSet(mixins.CreateModelMixin, mixins.RetrieveModelMixin, mi
     permission_classes = [IsSuperAdmin]
     entity_type = ""
 
+    SENSITIVE = {"password"}
+
     def perform_create(self, serializer):
         obj = serializer.save()
-        audit.log(self.request, f"{self.entity_type}.create", entity_type=self.entity_type, entity_id=obj.pk)
+        audit.log(self.request, f"{self.entity_type}.create", entity_type=self.entity_type, entity_id=obj.pk,
+                  detail={"reason": str(self.request.data.get("reason", ""))[:300]})
 
     def perform_update(self, serializer):
+        before = {}
+        if serializer.instance is not None:
+            for k in serializer.validated_data:
+                if k not in self.SENSITIVE and hasattr(serializer.instance, k):
+                    before[k] = str(getattr(serializer.instance, k))[:200]
         obj = serializer.save()
+        changes = {k: {"before": before[k], "after": str(getattr(obj, k))[:200]} for k in before if before[k] != str(getattr(obj, k))[:200]}
         audit.log(
             self.request, f"{self.entity_type}.update", entity_type=self.entity_type, entity_id=obj.pk,
-            detail={"fields": sorted(k for k in serializer.validated_data if k != "password"),
+            detail={"fields": sorted(k for k in serializer.validated_data if k not in self.SENSITIVE), "changes": changes,
+                    "reason": str(self.request.data.get("reason", ""))[:300],
                     "password_changed": "password" in serializer.validated_data},
         )
 
@@ -202,6 +225,29 @@ class UserViewSet(AuditedModelViewSet):
     def get_serializer_class(self):
         return UserWriteSerializer if self.action in ("create", "update", "partial_update") else UserSerializer
 
+    def perform_create(self, serializer):
+        password = serializer.validated_data.get("password") or secrets.token_urlsafe(18)
+        with transaction.atomic():
+            user = serializer.save(password=password)
+            try:
+                sent = send_mail(
+                    "Your BICMA Complaint Management System account",
+                    f"A BICMA account has been created for you.\n\n"
+                    f"Sign in: {settings.FRONTEND_URL.rstrip('/')}/staff\n"
+                    f"Email: {user.email}\n"
+                    f"Initial password: {password}\n\n"
+                    "Please change your password after signing in. Keep your password private.",
+                    settings.DEFAULT_FROM_EMAIL, [user.email],
+                )
+                if sent != 1:
+                    raise OSError("Email was not accepted for delivery")
+                logs.email("account_created", user.email, "Your BICMA Complaint Management System account", True)
+            except Exception as exc:
+                logs.email("account_created", user.email, "Your BICMA Complaint Management System account", False, str(exc))
+                raise serializers.ValidationError({"email": ["Could not send the initial password. The account was not created. Please try again."]}) from None
+            audit.log(self.request, "user.create", entity_type="user", entity_id=user.pk,
+                      detail={"reason": str(self.request.data.get("reason", ""))[:300]})
+
 
 class DivisionViewSet(AuditedModelViewSet):
     filter_backends = [SearchFilter]
@@ -210,12 +256,12 @@ class DivisionViewSet(AuditedModelViewSet):
     entity_type = "division"
 
     def get_queryset(self):
-        focals = User.objects.filter(role=Role.FOCAL, is_active=True).order_by("date_joined")
+        focals = User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True).order_by("date_joined")
         return Division.objects.prefetch_related(Prefetch("users", queryset=focals, to_attr="active_focals"))
 
 
 class RegisterFocalsView(APIView):
-    """Register the Divisional Focal of several divisions at once (all-or-nothing).
+    """Register the Division Head of several divisions at once (all-or-nothing).
 
     Each new account gets a random, unknown password and an emailed link to choose its own
     (the same one-time link used by "Forgot password"), so no password is ever shared.
@@ -241,10 +287,10 @@ class RegisterFocalsView(APIView):
         if valid:
             seen_div, seen_email = set(), set()
             existing_emails = {e.lower() for e in User.objects.filter(email__in=[r["email"] for r in ser.validated_data]).values_list("email", flat=True)}
-            busy_divs = set(User.objects.filter(role=Role.FOCAL, is_active=True, division__in=[r["division"] for r in ser.validated_data]).values_list("division_id", flat=True))
+            busy_divs = set(User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True, division__in=[r["division"] for r in ser.validated_data]).values_list("division_id", flat=True))
             for i, row in enumerate(ser.validated_data):
                 if row["division"].pk in busy_divs:
-                    rows[i]["division"] = ["This division already has an active Divisional Focal."]
+                    rows[i]["division"] = ["This division already has an active Division Head."]
                 elif row["division"].pk in seen_div:
                     rows[i]["division"] = ["This division appears more than once."]
                 if row["email"] in existing_emails:
@@ -276,14 +322,16 @@ class RegisterFocalsView(APIView):
         try:
             send_mail(
                 "Your BICMA Complaint Management System account",
-                f"A BICMA account has been created for you as Divisional Focal ({user.division.name}).\n\n"
+                f"A BICMA account has been created for you as Division Head ({user.division.name}).\n\n"
                 f"Open this link to choose your password:\n{url}\n\n"
                 "The link expires in one hour and can be used once. If it has expired, use \"Forgot password\" on the sign-in page.",
                 settings.DEFAULT_FROM_EMAIL, [user.email],
             )
+            logs.email("division_head_invite", user.email, "Your BICMA Complaint Management System account", True)
             return True
-        except Exception:
+        except Exception as exc:
             logging.getLogger(__name__).exception("Focal invitation email delivery failed")
+            logs.email("division_head_invite", user.email, "Your BICMA Complaint Management System account", False, str(exc))
             return False
 
 
@@ -292,3 +340,154 @@ class DivisionListView(APIView):
 
     def get(self, request):
         return Response(DivisionSerializer(Division.objects.filter(is_active=True), many=True).data)
+
+
+class NdiStartView(APIView):
+    """Bhutan NDI sign-in. The verifier connection (credentials, proof request, callback) is not configured yet,
+    so this answers 501 until GovTech provides the integration details."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        return Response({"detail": "Bhutan NDI sign-in is not set up yet. Use your Employee ID or email."}, status=status.HTTP_501_NOT_IMPLEMENTED)
+
+
+class StaffCidLookupView(APIView):
+    """Administrator: fetch a person's details from BCRS by CID to fill the Create user form."""
+
+    permission_classes = [IsSuperAdmin]
+    throttle_scope = "cid_lookup"
+
+    def post(self, request):
+        import re
+        from core import bcrs
+        cid = str(request.data.get("cid", "")).strip()
+        if not re.fullmatch(r"\d{11}", cid):
+            return Response({"cid": ["The CID must be 11 digits."]}, status=400)
+        try:
+            found = bcrs.lookup(cid)
+        except bcrs.NotConfigured:
+            return Response({"detail": "CID lookup is not configured."}, status=503)
+        except Exception:
+            return Response({"detail": "The citizen registry could not be reached."}, status=502)
+        if found is None:
+            return Response({"detail": "No record found for this CID."}, status=404)
+        found["existing_user"] = User.objects.filter(cid=cid).values_list("email", flat=True).first()
+        audit.log(request, "user.cid_lookup", entity_type="user", detail={"cid_suffix": cid[-4:]})
+        return Response(found)
+
+
+class RolePermissionsView(APIView):
+    """Administrator: read and change what each role may do."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def _matrix(self):
+        return {r.code: sorted(perm_mod.role_perms(r.code)) for r in RoleDef.objects.filter(is_active=True)}
+
+    def get(self, request):
+        return Response({
+            "roles": [{"value": r.code, "label": r.name} for r in RoleDef.objects.filter(is_active=True)],
+            "permissions": [{"code": c, "label": l, "group": g} for c, l, g in perm_mod.CATALOG],
+            "matrix": self._matrix(),
+        })
+
+    def put(self, request):
+        role, code, allowed = request.data.get("role"), request.data.get("code"), request.data.get("allowed")
+        if not RoleDef.objects.filter(code=role).exists() or code not in perm_mod.CODES or not isinstance(allowed, bool):
+            return Response({"detail": "Choose a valid role, permission and on/off value."}, status=400)
+        before = code in perm_mod.role_perms(role)
+        RolePermission.objects.update_or_create(role=role, code=code, defaults={"allowed": allowed})
+        audit.log(request, "role_permission.update", entity_type="role", entity_id=role,
+                  detail={"permission": code, "before": before, "after": allowed})
+        return Response({"matrix": self._matrix()})
+
+    def delete(self, request):
+        """Reset one role to the defaults."""
+        role = request.query_params.get("role")
+        if not RoleDef.objects.filter(code=role).exists():
+            return Response({"detail": "Choose a valid role."}, status=400)
+        RolePermission.objects.filter(role=role).delete()
+        audit.log(request, "role_permission.reset", entity_type="role", entity_id=role)
+        return Response({"matrix": self._matrix()})
+
+
+class RoleDefSerializer(serializers.ModelSerializer):
+    user_count = serializers.SerializerMethodField()
+    base_display = serializers.CharField(source="get_base_display", read_only=True)
+
+    class Meta:
+        model = RoleDef
+        fields = ["id", "code", "name", "description", "base", "base_display", "is_system", "is_active", "user_count"]
+        read_only_fields = ["code", "is_system"]
+
+    def get_user_count(self, obj):
+        return User.objects.filter(role=obj.code, is_active=True).count()
+
+    def validate_name(self, value):
+        value = value.strip()
+        qs = RoleDef.objects.filter(name__iexact=value)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError("A role with this name already exists.")
+        return value
+
+    def validate(self, attrs):
+        inst = self.instance
+        if inst:
+            if "base" in attrs and attrs["base"] != inst.base:
+                raise serializers.ValidationError({"base": "The base behaviour of an existing role cannot be changed."})
+            if attrs.get("is_active") is False:
+                if inst.is_system:
+                    raise serializers.ValidationError({"is_active": "Built-in roles cannot be deactivated."})
+                if User.objects.filter(role=inst.code, is_active=True).exists():
+                    raise serializers.ValidationError({"is_active": "Move the users with this role to another role first."})
+        return attrs
+
+    def create(self, validated):
+        from django.utils.text import slugify
+        base_code = slugify(validated["name"])[:36] or "role"
+        code, n = base_code, 2
+        while code in Role.values or RoleDef.objects.filter(code=code).exists():
+            code, n = f"{base_code}-{n}", n + 1
+        return RoleDef.objects.create(code=code, **validated)
+
+
+class RoleDefViewSet(AuditedModelViewSet):
+    queryset = RoleDef.objects.all()
+    serializer_class = RoleDefSerializer
+    entity_type = "role"
+    filter_backends = [SearchFilter]
+    search_fields = ["name", "code"]
+
+
+class ProfilePhotoView(APIView):
+    def get(self, request):
+        from django.http import FileResponse, Http404
+        if not request.user.profile_photo:
+            raise Http404
+        response = FileResponse(request.user.profile_photo.open("rb"))
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        return response
+
+    def post(self, request):
+        import uuid
+        from .serializers import ProfilePhotoSerializer
+        serializer = ProfilePhotoSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        photo = serializer.validated_data["photo"]
+        extension = {"JPEG": "jpg", "PNG": "png", "WEBP": "webp"}[photo.image.format]
+        user = request.user
+        previous = user.profile_photo.name
+        user.profile_photo.save(f"{uuid.uuid4().hex}.{extension}", photo, save=False)
+        user.save(update_fields=["profile_photo"])
+        if previous:
+            user.profile_photo.storage.delete(previous)
+        return Response(UserSerializer(user).data)
+
+    def delete(self, request):
+        request.user.profile_photo.delete(save=True)
+        return Response(UserSerializer(request.user).data)

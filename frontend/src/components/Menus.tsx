@@ -4,7 +4,8 @@ import { api } from "../api";
 import { useAuth } from "../auth";
 import type { AppNotification } from "../types";
 import { Icon } from "./Icon";
-import css from "./Layout.module.css";
+import { Modal } from "./Modal";
+import css from "../styles/Layout.module.css";
 
 /** Closes on outside click and Escape. */
 function usePopover() {
@@ -73,9 +74,17 @@ export function NotificationBell() {
 
 export function UserMenu() {
   const { user, logout } = useAuth();
+  const [failedPhoto, setFailedPhoto] = useState<string | null>(null);
   const { open, setOpen, ref } = usePopover();
   const nav = useNavigate();
+  const [confirming, setConfirming] = useState(false);
+  const [leaving, setLeaving] = useState(false);
   if (!user) return null;
+  async function signOut() {
+    setLeaving(true);
+    try { await logout(); setConfirming(false); nav("/staff"); }
+    finally { setLeaving(false); }
+  }
   const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email;
   const initials = (user.first_name?.[0] ?? user.email[0]).toUpperCase() + (user.last_name?.[0] ?? "").toUpperCase();
   const item = (to: string, icon: "user" | "gear", label: ReactNode) => (
@@ -84,7 +93,7 @@ export function UserMenu() {
   return (
     <div className={css.pop} ref={ref}>
       <button className={css.userBtn} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
-        <span className={css.avatar} aria-hidden="true">{initials}</span>
+        <span className={css.avatar} aria-hidden="true">{user.profile_photo && failedPhoto !== user.profile_photo ? <img src={user.profile_photo} alt="" onError={() => setFailedPhoto(user.profile_photo)} /> : initials}</span>
         <span className={css.who}><strong>{name}</strong><small>{user.role_display}{user.division_name ? ` · ${user.division_name}` : ""}</small></span>
         <Icon name="chev" size={14} />
       </button>
@@ -92,10 +101,17 @@ export function UserMenu() {
         <div className={css.panel} role="menu" style={{ minWidth: 220 }}>
           <div className={css.panelHead} style={{ display: "block" }}><strong>{name}</strong><br /><small>{user.email}</small></div>
           {item("/staff/profile", "user", "My profile")}
-          {user.role === "super_admin" && item("/staff/settings", "gear", "Settings")}
-          <button className={css.menuItem} role="menuitem" onClick={async () => { setOpen(false); await logout(); nav("/staff"); }}><Icon name="logout" />Sign out</button>
+          {user.base_role === "super_admin" && item("/staff/settings", "gear", "Settings")}
+          <button className={css.menuItem} role="menuitem" onClick={() => { setOpen(false); setConfirming(true); }}><Icon name="logout" />Sign out</button>
         </div>
       )}
+      <Modal open={confirming} onClose={() => setConfirming(false)} title="Log out" icon="logout" busy={leaving}>
+        <p style={{ marginTop: 0 }}>Are you sure you want to log out?</p>
+        <div className="modal-actions">
+          <button type="button" className="btn secondary" disabled={leaving} onClick={() => setConfirming(false)}>Cancel</button>
+          <button type="button" className="btn" disabled={leaving} onClick={signOut} autoFocus><Icon name="logout" />{leaving ? "Logging out…" : "Yes, log out"}</button>
+        </div>
+      </Modal>
     </div>
   );
 }

@@ -1,39 +1,47 @@
+import { useConfirm } from "../../components/Confirm";
 import { Icon } from "../../components/Icon";
+import { IconBtn } from "../../components/IconBtn";
+import { Loader } from "../../components/Loader";
+import { useToast } from "../../components/Toast";
 import { useState, type FormEvent } from "react";
 import { Link } from "react-router-dom";
 import { api, ApiError } from "../../api";
 import { Field, PageHeader } from "../../components/ui";
+import { Modal } from "../../components/Modal";
 import { type DzongkhagRow, type Page } from "../../types";
 import { useList } from "../../useList";
-import "./Directory.css";
-import "./Locations.css";
+import "../../styles/Directory.css";
+import "../../styles/Locations.css";
 
 export function Dzongkhags() {
+  const toast = useToast();
+  const ask = useConfirm();
   const { data, err, loading, reload } = useList<Page<DzongkhagRow>>("/admin/dzongkhags/?page_size=100");
   const [name, setName] = useState("");
   const [msg, setMsg] = useState("");
-  const [success, setSuccess] = useState("");
   const [query, setQuery] = useState("");
   const [page, setPage] = useState(1);
   const [busy, setBusy] = useState(false);
+  const [adding, setAdding] = useState(false);
   const [changing, setChanging] = useState<string | null>(null);
   async function add(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
-    setMsg(""); setSuccess(""); setBusy(true);
+    setMsg(""); setBusy(true);
     try {
       await api("/admin/dzongkhags/", { json: { name: name.trim() } });
-      setSuccess(`${name.trim()} has been added.`); setName(""); reload();
+      toast.success(`${name.trim()} has been added.`); setName(""); reload();
     } catch (x) { setMsg((x as ApiError).message); }
     finally { setBusy(false); }
   }
   async function toggle(d: DzongkhagRow) {
     if (changing !== null) return;
-    setChanging(d.id); setMsg(""); setSuccess("");
+    if (!await ask(d.is_active ? "Deactivate" : "Activate")) return;
+    setChanging(d.id); setMsg("");
     try {
       await api(`/admin/dzongkhags/${d.id}/`, { method: "PATCH", json: { is_active: !d.is_active } });
-      setSuccess(`${d.name} is now ${d.is_active ? "inactive" : "active"}.`); reload();
-    } catch (x) { setMsg((x as ApiError).message); }
+      toast.success(`${d.name} is now ${d.is_active ? "inactive" : "active"}.`); reload();
+    } catch (x) { toast.error((x as ApiError).message); }
     finally { setChanging(null); }
   }
   const rows = data?.results ?? [];
@@ -45,11 +53,10 @@ export function Dzongkhags() {
   return (
     <div className="locations-page">
       <PageHeader icon="map" title="Dzongkhags" subtitle="Manage the locations available on complaint forms.">
-        <a className="btn" href="#add-dzongkhag"><Icon name="plus" />Add Dzongkhag</a>
+        <button type="button" className="btn" onClick={() => { setMsg(""); setAdding(true); }}><Icon name="plus" />Add Dzongkhag</button>
       </PageHeader>
       {err && <p className="error" role="alert">{err}</p>}
       {msg && <p className="error" role="alert">{msg}</p>}
-      {success && <p className="users-success" role="status"><Icon name="check" />{success}</p>}
       <div className="locations-layout">
         <section className="card users-directory" aria-labelledby="dzongkhag-directory">
           <div className="users-toolbar">
@@ -62,9 +69,9 @@ export function Dzongkhags() {
               <td><div className="location-name"><span className="icon-tile"><Icon name="pin" size={17} /></span><strong>{d.name}</strong></div></td>
               <td><Link className="gewog-count" to={`/staff/gewogs?dzongkhag=${d.id}`} aria-label={`Manage ${d.gewog_count} Gewogs in ${d.name}`}><Icon name="map" size={15} />{d.gewog_count}<Icon name="right" size={14} /></Link></td>
               <td><span className={`badge ${d.is_active ? "ok" : "bad"}`}><span className="status-dot" />{d.is_active ? "Active" : "Inactive"}</span></td>
-              <td className="users-actions-cell"><button className="btn secondary" disabled={changing !== null} onClick={() => toggle(d)} aria-label={`${d.is_active ? "Deactivate" : "Activate"} ${d.name}`}><Icon name="power" />{changing === d.id ? "Updating…" : d.is_active ? "Deactivate" : "Activate"}</button></td>
+              <td className="users-actions-cell"><IconBtn icon="power" tone={d.is_active ? "danger" : "ok"} disabled={changing !== null} onClick={() => toggle(d)} label={`${d.is_active ? "Deactivate" : "Activate"} ${d.name}`} /></td>
             </tr>)}
-            {loading && <tr><td colSpan={4} className="users-empty">Loading Dzongkhags…</td></tr>}
+            {loading && <tr><td colSpan={4}><Loader size={40} label="Loading Dzongkhags" /></td></tr>}
             {!loading && visible.length === 0 && <tr><td colSpan={4} className="users-empty"><Icon name="map" size={28} /><p>{query ? "No Dzongkhags match your search." : "No Dzongkhags yet. Add one to get started."}</p></td></tr>}
             </tbody>
           </table></div>
@@ -78,16 +85,16 @@ export function Dzongkhags() {
           </div>
         </section>
         <aside className="locations-aside">
-          <section className="card location-create" id="add-dzongkhag" aria-labelledby="add-dzongkhag-title">
-            <div className="location-create-heading"><span className="icon-tile lg"><Icon name="map" size={26} /></span><h2 id="add-dzongkhag-title">Add Dzongkhag</h2><p>Add a location to the master list used on complaint forms.</p></div>
-            <form onSubmit={add} aria-busy={busy}>
-              <Field label="Dzongkhag name" required><input required maxLength={80} placeholder="Enter Dzongkhag name" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} /></Field>
-              <button className="btn" disabled={busy || !name.trim()}><Icon name="plus" />{busy ? "Adding…" : "Add Dzongkhag"}</button>
-            </form>
-          </section>
           <div className="location-guidance"><Icon name="help" size={21} /><div><strong>Keep location records intact</strong><p>Deactivate a Dzongkhag instead of deleting it. Existing complaints keep their location, while inactive entries are hidden from new complaint forms.</p></div></div>
         </aside>
       </div>
+      <Modal open={adding} onClose={() => setAdding(false)} title="Add Dzongkhag" icon="map" busy={busy}>
+        {msg && <p className="error" role="alert">{msg}</p>}
+        <form onSubmit={add} aria-busy={busy}>
+              <Field label="Dzongkhag name" required><input required maxLength={80} placeholder="Enter Dzongkhag name" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} /></Field>
+              <button className="btn" disabled={busy || !name.trim()}><Icon name="plus" />{busy ? "Adding…" : "Add Dzongkhag"}</button>
+            </form>
+      </Modal>
     </div>
   );
 }

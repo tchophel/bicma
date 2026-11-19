@@ -1,0 +1,21 @@
+# BICMA CMS, namespace bcs. Secrets are not in these files: see README.md.
+apiVersion: v1
+kind: ConfigMap
+metadata: { name: cms-config, namespace: bcs }
+data:
+  DJANGO_DEBUG: "0"
+  DJANGO_ALLOWED_HOSTS: "bicma-cms.systems.gov.bt,cms-backend"
+  CORS_ALLOWED_ORIGINS: "https://bicma-cms.systems.gov.bt"
+  FRONTEND_URL: "https://bicma-cms.systems.gov.bt"
+  POSTGRES_HOST: cms-db
+  POSTGRES_DB: cms
+  POSTGRES_USER: cms
+  EMAIL_BACKEND: django.core.mail.backends.smtp.EmailBackend
+  EMAIL_HOST: smtp.gmail.com
+  EMAIL_PORT: "587"
+  EMAIL_USE_TLS: "1"
+  BCRS_API_METHOD: GET
+  BCRS_AUTH_HEADER: Authorization
+  BCRS_API_URL: "https://staging-datahub-apim.tech.gov.bt/dcrc_citizen_details_api/1.0.0/citizendetails/{cid}"
+  BCRS_TOKEN_URL: "https://stg-sso.tech.gov.bt/oauth2/token"
+  # BCRS_CLIENT_ID and BCRS_CLIENT_SECRET are in the cms-secrets secret

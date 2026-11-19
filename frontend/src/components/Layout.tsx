@@ -1,10 +1,11 @@
 import { useState } from "react";
-import { NavLink, Link, Outlet, Navigate } from "react-router-dom";
+import { Loader } from "./Loader";
+import { NavLink, Link, Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
 import type { Role } from "../types";
 import { Icon, type IconName } from "./Icon";
-import css from "./Layout.module.css";
-import pub from "./Public.module.css";
+import css from "../styles/Layout.module.css";
+import pub from "../styles/Public.module.css";
 import { NotificationBell, UserMenu } from "./Menus";
 
 export function PublicLayout() {
@@ -39,30 +40,42 @@ export function PublicLayout() {
   );
 }
 
-interface NavItem { to: string; label: string; icon: IconName; roles?: Role[] }
+interface NavItem { to: string; label: string; icon: IconName; roles?: Role[]; perm?: string }
 const NAV: { heading?: string; items: NavItem[] }[] = [
   { items: [{ to: "/staff/dashboard", label: "Dashboard", icon: "dashboard" }] },
   {
     heading: "Complaints",
     items: [
+      { to: "/staff/complaints?scope=triage", label: "Triage queue", icon: "clock", roles: ["focal", "investigator", "super_admin"] },
       { to: "/staff/complaints", label: "All complaints", icon: "complaint" },
-      { to: "/staff/register", label: "Register complaint", icon: "plus", roles: ["focal", "investigator", "super_admin"] },
+      { to: "/staff/register", label: "Register complaint", icon: "plus", perm: "register_complaint" },
+      { to: "/staff/reports", label: "Reports", icon: "chart", perm: "view_reports" },
     ],
   },
   {
     heading: "Master data",
     items: [
+      { to: "/staff/categories", label: "Categories", icon: "category", roles: ["super_admin"] },
+      { to: "/staff/roles", label: "Roles", icon: "lock", roles: ["super_admin"] },
+      { to: "/staff/divisions", label: "Divisions", icon: "division", roles: ["super_admin"] },
+      { to: "/staff/providers", label: "Service providers", icon: "users", roles: ["super_admin"] },
+      { to: "/staff/provider-types", label: "Provider types", icon: "category", roles: ["super_admin"] },
+      { to: "/staff/priorities", label: "Priorities & timelines", icon: "alert", roles: ["super_admin"] },
+      { to: "/staff/outcomes", label: "Outcomes", icon: "check", roles: ["super_admin"] },
+      { to: "/staff/closure-reasons", label: "Closure reasons", icon: "close", roles: ["super_admin"] },
+      { to: "/staff/holidays", label: "Holiday calendar", icon: "clock", roles: ["super_admin"] },
+      { to: "/staff/email-templates", label: "Email templates", icon: "mail", roles: ["super_admin"] },
       { to: "/staff/dzongkhags", label: "Dzongkhags", icon: "map", roles: ["super_admin"] },
       { to: "/staff/gewogs", label: "Gewogs", icon: "pin", roles: ["super_admin"] },
-      { to: "/staff/divisions", label: "Divisions", icon: "division", roles: ["super_admin"] },
-      { to: "/staff/categories", label: "Categories", icon: "category", roles: ["super_admin"] },
     ],
   },
   {
     heading: "Administration",
     items: [
       { to: "/staff/users", label: "Users", icon: "users", roles: ["super_admin"] },
-      { to: "/staff/audit", label: "Audit logs", icon: "history", roles: ["super_admin"] },
+      { to: "/staff/permissions", label: "Roles & permissions", icon: "lock", roles: ["super_admin"] },
+      { to: "/staff/uploads", label: "Uploads", icon: "complaint", roles: ["super_admin"] },
+      { to: "/staff/logs", label: "Logs", icon: "history", roles: ["super_admin"] },
       { to: "/staff/help", label: "Help & FAQ", icon: "help", roles: ["super_admin"] },
       { to: "/staff/settings", label: "Settings", icon: "gear", roles: ["super_admin"] },
     ],
@@ -72,9 +85,19 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
 export function StaffLayout() {
   const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
-  if (loading) return <p className="container">Loading…</p>;
+  const { pathname, search } = useLocation();
+  // Sidebar groups fold away; the one holding the current page is open, and so is "Complaints".
+  const [folded, setFolded] = useState<Record<string, boolean>>(() => {
+    try { return JSON.parse(localStorage.getItem("nav-folded") ?? "{}"); } catch { return {}; }
+  });
+  const toggle = (name: string, isOpen: boolean) => setFolded((f) => {
+    const next = { ...f, [name]: isOpen };
+    try { localStorage.setItem("nav-folded", JSON.stringify(next)); } catch { /* storage unavailable */ }
+    return next;
+  });
+  if (loading) return <div className="page-loader"><Loader /></div>;
   if (!user) return <Navigate to="/staff" replace />;
-  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => !i.roles || i.roles.includes(user.role)) })).filter((g) => g.items.length);
+  const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.roles || i.roles.includes(user.base_role)) && (!i.perm || user.permissions?.includes(i.perm))) })).filter((g) => g.items.length);
   return (
     <div className={css.shell}>
       <a className="skip" href="#main">Skip to content</a>
@@ -84,13 +107,31 @@ export function StaffLayout() {
         <div className={css.actions}><NotificationBell /><UserMenu /></div>
       </header>
       <div className={css.body}>
-        <nav id="sidebar" aria-label="Staff" className={`${css.side} ${open ? css.sideOpen : ""}`} onClick={() => setOpen(false)}>
-          {groups.map((g, i) => (
-            <div key={i} className={css.group}>
-              {g.heading && <div className={css.heading}>{g.heading}</div>}
-              {g.items.map((n) => <NavLink key={n.to} to={n.to} end={n.to === "/staff/complaints"}><Icon name={n.icon} />{n.label}</NavLink>)}
+        {open && <button type="button" className={css.sideBackdrop} aria-label="Close navigation" onClick={() => setOpen(false)} />}
+        <nav id="sidebar" aria-label="Staff" className={`${css.side} ${open ? css.sideOpen : ""}`} onClick={(e) => { if ((e.target as HTMLElement).closest("a")) setOpen(false); }}>
+          {groups.map((g, i) => {
+            const hasCurrent = g.items.some((n) => pathname === n.to.split("?")[0] || pathname.startsWith(n.to.split("?")[0] + "/"));
+            const isOpen = !g.heading || hasCurrent || (folded[g.heading] ?? g.heading === "Complaints");
+            return (
+            <div key={i} className={`${css.group} ${g.heading ? css.navSection : ""}`}>
+              {g.heading && (
+                <button type="button" className={css.headingBtn} aria-expanded={isOpen} disabled={hasCurrent}
+                  onClick={(e) => { e.stopPropagation(); toggle(g.heading!, !isOpen); }}>
+                  <span>{g.heading}</span><span className={css.headingMeta}><small>{g.items.length}</small><Icon name="chev" size={12} /></span>
+                </button>
+              )}
+              {isOpen && g.items.map((n) => {
+                // Triage queue and All complaints share a path, so tell them apart by the query string.
+                if (n.to.startsWith("/staff/complaints")) {
+                  const triage = n.to.includes("scope=triage");
+                  const active = pathname === "/staff/complaints" && search.includes("scope=triage") === triage;
+                  return <Link key={n.to} to={n.to} aria-current={active ? "page" : undefined}><Icon name={n.icon} />{n.label}</Link>;
+                }
+                return <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>;
+              })}
             </div>
-          ))}
+            );
+          })}
         </nav>
         <main id="main" className={css.main}><Outlet /></main>
       </div>

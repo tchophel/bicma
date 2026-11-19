@@ -1,12 +1,14 @@
+import { ConfirmProvider } from "./components/Confirm";
 import { PasswordRecovery } from "./pages/staff/PasswordRecovery";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./auth";
+import { ToastProvider } from "./components/Toast";
+import { GlobalLoader } from "./components/Loader";
 import { PublicLayout, StaffLayout } from "./components/Layout";
 import { Help } from "./pages/staff/Help";
 import { Home } from "./pages/public/Home";
 import { Submit, Submitted } from "./pages/public/Submit";
 import { Track } from "./pages/public/Track";
-import { AuditLogs } from "./pages/staff/AuditLogs";
 import { Categories } from "./pages/staff/Categories";
 import { ComplaintView } from "./pages/staff/ComplaintView";
 import { Complaints } from "./pages/staff/Complaints";
@@ -19,15 +21,24 @@ import { Profile } from "./pages/staff/Profile";
 import { Register } from "./pages/staff/Register";
 import { SettingsPage } from "./pages/staff/Settings";
 import { Users } from "./pages/staff/Users";
+import { Reports } from "./pages/staff/Reports";
+import { Permissions } from "./pages/staff/Permissions";
+import { Uploads } from "./pages/staff/Uploads";
+import { Logs } from "./pages/staff/Logs";
+import { Roles } from "./pages/staff/MasterPage";
+import { ClosureReasons, EmailTemplates, Holidays, Outcomes, Priorities, ProviderTypes, Providers } from "./pages/staff/MasterPage";
 
 function AdminOnly({ children }: { children: JSX.Element }) {
   const { user } = useAuth();
-  return user?.role === "super_admin" ? children : <Navigate to="/staff/dashboard" replace />;
+  return user?.base_role === "super_admin" ? children : <Navigate to="/staff/dashboard" replace />;
 }
 
 export default function App() {
   return (
+    <ToastProvider>
+    <ConfirmProvider>
     <AuthProvider>
+      <GlobalLoader />
       <BrowserRouter>
         <Routes>
           <Route element={<PublicLayout />}>
@@ -53,11 +64,25 @@ export default function App() {
             <Route path="gewogs" element={<AdminOnly><Gewogs /></AdminOnly>} />
             <Route path="divisions" element={<AdminOnly><Divisions /></AdminOnly>} />
             <Route path="categories" element={<AdminOnly><Categories /></AdminOnly>} />
-            <Route path="audit" element={<AdminOnly><AuditLogs /></AdminOnly>} />
+            <Route path="roles" element={<AdminOnly><Roles /></AdminOnly>} />
+            <Route path="uploads" element={<AdminOnly><Uploads /></AdminOnly>} />
+            <Route path="permissions" element={<AdminOnly><Permissions /></AdminOnly>} />
+            <Route path="reports" element={<Reports />} />
+            <Route path="providers" element={<AdminOnly><Providers /></AdminOnly>} />
+            <Route path="provider-types" element={<AdminOnly><ProviderTypes /></AdminOnly>} />
+            <Route path="priorities" element={<AdminOnly><Priorities /></AdminOnly>} />
+            <Route path="outcomes" element={<AdminOnly><Outcomes /></AdminOnly>} />
+            <Route path="closure-reasons" element={<AdminOnly><ClosureReasons /></AdminOnly>} />
+            <Route path="holidays" element={<AdminOnly><Holidays /></AdminOnly>} />
+            <Route path="email-templates" element={<AdminOnly><EmailTemplates /></AdminOnly>} />
+            <Route path="logs" element={<AdminOnly><Logs /></AdminOnly>} />
+            <Route path="audit" element={<Navigate to="/staff/logs?tab=audit" replace />} />
           </Route>
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>
+    </ConfirmProvider>
+    </ToastProvider>
   );
 }
