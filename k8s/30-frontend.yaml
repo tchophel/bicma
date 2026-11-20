@@ -11,7 +11,7 @@ spec:
       imagePullSecrets: [{ name: harbor-secret }]
       containers:
         - name: web
-          image: dev-harbor.systems.gov.bt/bcs/cms-frontend:v7
+          image: dev-harbor.systems.gov.bt/bcs/cms-frontend:v8
           ports: [{ containerPort: 8080 }]
 ---
 apiVersion: v1
