@@ -3,6 +3,7 @@ import { useLocation } from "react-router-dom";
 import { api, ApiError } from "../../api";
 import { Field, StatusBadge, fmt } from "../../components/ui";
 import { Icon, type IconName } from "../../components/Icon";
+import { WalkingMascot } from "../../components/WalkingMascot";
 import "../../styles/Track.css";
 
 interface PublicMessage { kind: string; body: string; from: string; created_at: string }
@@ -15,9 +16,9 @@ const STAGES: { icon: IconName; label: string }[] = [
   { icon: "complaint", label: "Received" }, { icon: "search", label: "Under review" }, { icon: "check", label: "Outcome" },
 ];
 
-function stageOf(status: string): { index: number; end: "" | "ok" | "bad" } {
+function stageOf(status: string): { index: number; end: "" | "ok" | "bad" } {  // index 3 = finished successfully
   if (status === "received") return { index: 0, end: "" };
-  if (status === "closed") return { index: 2, end: "ok" };
+  if (status === "closed" || status === "resolved") return { index: 3, end: "ok" };  // past the last step: every step is done
   if (status === "not_within_mandate") return { index: 2, end: "bad" };
   return { index: 1, end: "" };
 }
@@ -47,20 +48,19 @@ export function Track() {
         <p>Enter the reference number you received when you submitted.</p>
       </header>
       <form className="card track-search-card" onSubmit={go}>
-        <div className="track-search-heading"><span className="icon-tile"><Icon name="search" size={24} /></span><div><h2>Check your complaint status</h2><p>Use your reference to see the latest progress.</p></div></div>
-        <Field label="Reference number" required hint="You can find this on your submission confirmation or in your email."><input required value={ref} onChange={(e) => setRef(e.target.value)} placeholder="BICMA-CMS-2026-000001" autoComplete="off" spellCheck={false} aria-invalid={!!err} aria-describedby={err ? "track-error" : undefined} /></Field>
+        <Field label="Reference number" required hint="Find this in your confirmation email."><input required value={ref} onChange={(e) => setRef(e.target.value)} placeholder="BICMA-CMS-2026-000001" autoComplete="off" spellCheck={false} aria-invalid={!!err} aria-describedby={err ? "track-error" : undefined} /></Field>
         {err && <p id="track-error" className="error" role="alert">{err}</p>}
         <button className="btn" disabled={busy}><Icon name={busy ? "refresh" : "search"} />{busy ? "Checking…" : "Check status"}</button>
-        <div className="track-search-note"><Icon name="help" size={18} /><p>Keep your reference number handy. You can return here whenever you need an update.</p></div>
       </form>
       {res && stage && (
         <section className="card tracking-result" aria-live="polite" aria-label="Complaint tracking result">
           <header className="tracking-result-header"><span className="icon-tile lg"><Icon name="complaint" size={26} /></span><div><span className="tracking-eyebrow">COMPLAINT REFERENCE</span><h2>{res.reference}</h2></div><StatusBadge value={res.public_status} label={res.public_status_display} /></header>
           <div className="tracking-progress"><h3>Complaint progress</h3>
+          <WalkingMascot key={res.reference + res.public_status} stage={stage.index} done={stage.index >= 3} />
           <div className="tracker" role="list" aria-label="Progress">
             {STAGES.map((s, i) => {
               const state = i < stage.index ? "done" : i === stage.index ? `current ${stage.end}` : "";
-              const label = i === 2 && stage.end === "bad" ? "Outside jurisdiction" : i === 2 && stage.end === "ok" ? "Closed" : s.label;
+              const label = i === 2 && stage.end === "bad" ? "Outside jurisdiction" : i === 2 && res.public_status === "closed" ? "Closed" : i === 2 && res.public_status === "resolved" ? "Resolved" : s.label;
               return (
                 <div key={s.label} role="listitem" className={`step ${state}`} aria-current={i === stage.index ? "step" : undefined}>
                   <div className="node"><Icon name={i < stage.index ? "check" : i === 2 && stage.end === "bad" ? "close" : s.icon} size={20} /></div><strong>{label}</strong><span className="tracking-step-caption">{i < stage.index ? "Completed" : i === stage.index ? "Current stage" : "Next stage"}</span>
@@ -70,7 +70,6 @@ export function Track() {
           </div>
           </div>
           <dl className="tracking-facts">
-            <div><dt><Icon name="clock" size={17} />Current status</dt><dd><StatusBadge value={res.public_status} label={res.public_status_display} /></dd></div>
             <div><dt><Icon name="complaint" size={17} />Submitted</dt><dd><time dateTime={res.created_at}>{fmt(res.created_at)}</time></dd></div>
             <div><dt><Icon name="history" size={17} />Last updated</dt><dd><time dateTime={res.updated_at}>{fmt(res.updated_at)}</time></dd></div>
           </dl>

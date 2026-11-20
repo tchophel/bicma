@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -102,6 +103,10 @@ REST_FRAMEWORK = {
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
     "DEFAULT_THROTTLE_RATES": {"public_submit": "10/hour", "track": "30/hour", "login": "10/minute", "captcha": "60/hour", "password_reset": "10/hour", "password_reset_verify": "40/hour", "cid_lookup": "20/hour"},
 }
+# Local development only: do not hit "Too many requests" while testing. Never on a deployed server (DJANGO_DEBUG=0) and never while
+# the test suite runs, because the tests check the real limits.
+if DEBUG and "test" not in sys.argv and os.environ.get("RELAX_THROTTLES", "1") == "1":
+    REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"] = {k: "100000/hour" for k in REST_FRAMEWORK["DEFAULT_THROTTLE_RATES"]}
 
 # --- Security ---
 CORS_ALLOW_CREDENTIALS = True

@@ -143,7 +143,10 @@ class TrackingTests(Base):
     def test_internal_states_map_to_public(self):
         from complaints.models import public_status_for
         self.assertEqual(public_status_for("investigating"), "under_review")
-        self.assertEqual(public_status_for("resolved"), "under_review")  # not final until approved
+        # the internal steps before approval are not shown as resolved to the public
+        for internal in ("submitted", "pending_approval", "management_rejected"):
+            self.assertEqual(public_status_for(internal), "under_review")
+        self.assertEqual(public_status_for("resolved"), "resolved")  # only once someone with authority has approved it
         self.assertEqual(public_status_for("awaiting_information"), "awaiting_information")
         self.assertEqual(public_status_for("closed"), "closed")
         self.assertEqual(public_status_for("not_within_mandate"), "not_within_mandate")

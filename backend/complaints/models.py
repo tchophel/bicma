@@ -57,7 +57,7 @@ class PublicStatus(models.TextChoices):
 _PUBLIC_MAP = {
     InternalStatus.RECEIVED: PublicStatus.RECEIVED,
     InternalStatus.AWAITING_INFORMATION: PublicStatus.AWAITING_INFORMATION,
-    InternalStatus.RESOLVED: PublicStatus.UNDER_REVIEW,  # awaiting Division Head approval
+    InternalStatus.RESOLVED: PublicStatus.RESOLVED,  # approved (by the Division Head or the Supervisor); closing follows
     InternalStatus.CLOSED: PublicStatus.CLOSED,
     InternalStatus.NOT_WITHIN_MANDATE: PublicStatus.NOT_WITHIN_MANDATE,
 }

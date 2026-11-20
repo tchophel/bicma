@@ -28,11 +28,16 @@ export function Submitted() {
   const r = useLocation().state as FormResult | null;
   if (!r) return <div className="container"><p>Nothing to show. <Link to="/submit"><Icon name="plus" />Submit a complaint</Link>.</p></div>;
   return (
-    <div className="container">
-      <div className="card success-hero" style={{ padding: 32 }}>
-        <span className="icon-tile lg" aria-hidden="true"><Icon name="check" size={32} /></span>
+    <div className="container submitted-page">
+      <div className="card success-hero" role="status">
+        <div className="submission-celebration" aria-hidden="true">
+          <img className="submission-watermark" src="/bicma-logo.png" alt="" />
+          <span className="submission-spark spark-one" /><span className="submission-spark spark-two" /><span className="submission-spark spark-three" /><span className="submission-spark spark-four" />
+          <svg viewBox="0 0 100 100" fill="none"><circle className="submission-ring" cx="50" cy="50" r="38" /><path className="submission-check" d="m30 50 14 14 27-30" /></svg>
+        </div>
+        <p className="submission-thanks">Thank you!</p>
         <h1 style={{ marginBottom: 6 }}>Complaint received</h1>
-        <p className="muted" style={{ marginTop: 0 }}>Thank you. Your complaint has been registered. Your reference number is:</p>
+        <p className="muted" style={{ marginTop: 0 }}>Your complaint has been registered. Your reference number is:</p>
         <div className="ref-big">{r.reference}</div>
         <p className="notice" style={{ textAlign: "left" }}><strong>Keep your reference number.</strong> Use it on the Track page to check progress at any time.</p>
         <Link className="btn" to="/track" state={{ reference: r.reference }}><Icon name="search" />Track this complaint</Link>

@@ -25,3 +25,19 @@
   .auth-feedback-ring, .auth-feedback-check { stroke-dashoffset: 0; }
   .auth-feedback-shackle, .auth-feedback-lock, .auth-feedback-key { transform: none; opacity: 1; }
 }
+
+/* Subtle brand watermark behind the sign-in and sign-out feedback. */
+.auth-feedback-card { overflow: hidden; isolation: isolate; }
+.auth-feedback-card::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  width: 230px;
+  height: 230px;
+  left: 50%;
+  top: 50%;
+  background: url('/bicma-logo.png') center / contain no-repeat;
+  opacity: .1;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+}

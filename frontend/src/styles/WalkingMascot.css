@@ -1,0 +1,8 @@
+.walker-lane { position: relative; height: 104px; margin: 0 0 -6px; pointer-events: none; }
+.walker { position: absolute; bottom: 0; height: 96px; width: auto; transform: translateX(-50%); transform-origin: 50% 100%;
+  transition: left 7s cubic-bezier(.35, .05, .45, 1); filter: drop-shadow(0 4px 3px rgb(40 25 10 / 18%)); }
+/* while walking the animated sprite plays its own steps, so no extra bobbing is needed */
+/* arrived: he stands still; when the complaint is finished he does one small hop */
+.walker.arrived.done { animation: walker-hop .7s ease-out 1; }
+@keyframes walker-hop { 0% { transform: translateX(-50%) translateY(0); } 40% { transform: translateX(-50%) translateY(-16px); } 100% { transform: translateX(-50%) translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .walker { transition: none; animation: none !important; } }
