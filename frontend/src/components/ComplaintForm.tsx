@@ -310,8 +310,8 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
                 {spec.description && <Field label={spec.description.label} required={spec.description.required} error={f("description")}><textarea required={spec.description.required} rows={5} value={v.description as string} onChange={set("description")} /></Field>}
                 {spec.geo && <>
                 <div className="row">
-                  <Field label="Geo-coordinate of issue area: latitude" error={f("geo_latitude")} hint="Optional. Between -90 and 90, e.g. 27.472800."><input inputMode="decimal" pattern="-?\\d{1,2}(\\.\\d{1,6})?" placeholder="27.472800" value={v.geo_latitude as string} onChange={set("geo_latitude")} /></Field>
-                  <Field label="Geo-coordinate of issue area: longitude" error={f("geo_longitude")} hint="Optional. Between -180 and 180, e.g. 89.639000."><input inputMode="decimal" pattern="-?\\d{1,3}(\\.\\d{1,6})?" placeholder="89.639000" value={v.geo_longitude as string} onChange={set("geo_longitude")} /></Field>
+                  <Field label="Geo-coordinate of issue area: latitude" error={f("geo_latitude")} hint="Optional. Between -90 and 90, e.g. 27.472800."><input inputMode="decimal" pattern="-?(90(\.0{1,6})?|[0-8]?\d(\.\d{1,6})?)" title="A number between -90 and 90 with up to 6 decimals, e.g. 27.472800" placeholder="27.472800" value={v.geo_latitude as string} onChange={set("geo_latitude")} /></Field>
+                  <Field label="Geo-coordinate of issue area: longitude" error={f("geo_longitude")} hint="Optional. Between -180 and 180, e.g. 89.639000."><input inputMode="decimal" pattern="-?(180(\.0{1,6})?|(1[0-7]\d|\d{1,2})(\.\d{1,6})?)" title="A number between -180 and 180 with up to 6 decimals, e.g. 89.639000" placeholder="89.639000" value={v.geo_longitude as string} onChange={set("geo_longitude")} /></Field>
                 </div>
                 {typeof navigator !== "undefined" && "geolocation" in navigator && (
                   <p><button type="button" className="btn secondary" onClick={() => navigator.geolocation.getCurrentPosition(
