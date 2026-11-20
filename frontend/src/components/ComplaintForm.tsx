@@ -1,3 +1,4 @@
+import { MapPicker } from "./MapPicker";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
 import { Loader } from "./Loader";
@@ -307,6 +308,18 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
                 <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="complaint" size={23} /></span><div><h2 id="details-heading">Details of the complaint</h2><p className="section-description">Date and time are recorded automatically when the complaint is submitted.</p></div></div>
                 {spec.fields.map(renderField)}
                 {spec.description && <Field label={spec.description.label} required={spec.description.required} error={f("description")}><textarea required={spec.description.required} rows={5} value={v.description as string} onChange={set("description")} /></Field>}
+                {spec.geo && <>
+                <div className="row">
+                  <Field label="Geo-coordinate of issue area: latitude" error={f("geo_latitude")} hint="Optional. Between -90 and 90, e.g. 27.472800."><input inputMode="decimal" pattern="-?\\d{1,2}(\\.\\d{1,6})?" placeholder="27.472800" value={v.geo_latitude as string} onChange={set("geo_latitude")} /></Field>
+                  <Field label="Geo-coordinate of issue area: longitude" error={f("geo_longitude")} hint="Optional. Between -180 and 180, e.g. 89.639000."><input inputMode="decimal" pattern="-?\\d{1,3}(\\.\\d{1,6})?" placeholder="89.639000" value={v.geo_longitude as string} onChange={set("geo_longitude")} /></Field>
+                </div>
+                {typeof navigator !== "undefined" && "geolocation" in navigator && (
+                  <p><button type="button" className="btn secondary" onClick={() => navigator.geolocation.getCurrentPosition(
+                    (pos) => setV((p) => ({ ...p, geo_latitude: pos.coords.latitude.toFixed(6), geo_longitude: pos.coords.longitude.toFixed(6) })),
+                    () => undefined, { enableHighAccuracy: true, timeout: 10000 })}>Use my current location</button> <span className="muted">Only if you are at the place of the issue.</span></p>
+                )}
+                <MapPicker lat={v.geo_latitude as string} lng={v.geo_longitude as string} onPick={(a, b) => setV((p) => ({ ...p, geo_latitude: a, geo_longitude: b }))} />
+                </>}
                 {spec.docs.map(renderDoc)}
               </section>
             </>

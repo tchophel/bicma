@@ -36,6 +36,7 @@ export interface CategoryForm {
   identity: { location: boolean; present_address: boolean; complaining_for: [string, string][] | null; other_party_label: string };
   fields: FormField[];
   docs: FormDoc[];
+  geo: boolean;
   description: { label: string; required: boolean } | null;
 }
 export interface Named { id: string; name: string }

@@ -82,12 +82,13 @@ SPECS = [
     ("std", ["emf"], [_prov("operator", "Concerned telecom operator (optional)")], [_doc("photo", "Supporting document (photo, optional)", False, image=True)], True),
     ("std", ["tower"], [_prov("operator", "Concerned telecom operator", True)], [_doc("photo", "Supporting document (photo)", True, image=True)], True),
     # ---- IID
-    ("iid", ["internet"], [_prov("isp", "Concerned ISP", True), _t("isp_contact", "Contact number of ISP")], [], True),
+    ("iid", ["internet"], [_prov("isp", "Name of ISP", True), _t("customer_id", "Customer service identification number provided by the ISP", True)], [], True),
     ("iid", ["cable"], [_prov("cable_provider", "Name of cable service provider", True)], [], True),
     ("iid", ["rural", "communication"], [_prov("operator", "Concerned telecom operator (can be both)", True)], [], True),
-    ("iid", ["data", "cent"], [_prov("operator", "Concerned data center operator", True), _t("operator_contact", "Contact number of operator")], [], True),
+    ("iid", ["data", "cent"], [_prov("operator", "Concerned data center operators", True), _t("operator_contact", "Contact number of operators")], [], True),
     ("iid", ["tariff"], [_prov("provider", "Name of the concerned service provider", True)], [], True),
-    ("iid", ["coverage", "rural"], [_prov("operator", "Concerned telecom operator", True)], [], True),
+    ("iid", ["coverage", "rural"], [_prov("operator", "Specify the telecom operator", True)], [], True),
+    ("iid", ["network", "rural"], [_prov("operator", "Specify the telecom operator", True)], [], True),
     ("iid", ["mso"], [_prov("mso", "Concerned MSO", True)], [], True),
     # ---- MCD
     ("mcd", ["journalist"], [
@@ -131,7 +132,7 @@ CATEGORIES = {
     "std": ["Radio-frequency interference", "Unauthorised spectrum use", "Network/Coverage issues", "Requests for addition or removal of BTS sites",
             "EMF radiation level measurement", "Telecom tower structure"],
     "iid": ["Internet Services", "Cable Television", "Rural communication program", "Data Center Services",
-            "Tariff, service terms and potential market-abuse issues", "Coverage issues in Rural areas", "MSO's"],
+            "Tariff, service terms and potential market-abuse issues", "Mobile network issues in Rural areas", "MSO's"],
     "mcd": ["Journalist/Media Conduct", "Content", "Online Reality Show", "Film Production-related"],
 }
 
@@ -154,8 +155,9 @@ def spec_for(category):
     if best is None:
         return None
     d, _, fields, docs, has_description = best
+    geo = d == "std" or (d == "iid" and "rural" in words and ("coverage" in words or "network" in words))
     docs = ([GENERAL_DOC] if d in ("std", "iid") else []) + [dict(x) for x in docs]
-    return {"division": d, "identity": IDENTITY[d], "fields": fields, "docs": docs,
+    return {"division": d, "identity": IDENTITY[d], "fields": fields, "docs": docs, "geo": geo,
             "description": {"label": DESCRIPTION[d], "required": True} if has_description else None}
 
 

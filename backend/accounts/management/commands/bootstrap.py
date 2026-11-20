@@ -29,7 +29,7 @@ DEFAULT_CATEGORIES = {
     "Rural communication program": ("ICI", [], None, None),
     "Data Center Services": ("ICI", [], None, None),
     "Tariff, service terms and potential market-abuse issues": ("ICI", [], None, None),
-    "Coverage issues in Rural areas": ("ICI", [], None, None),
+    "Mobile network issues in Rural areas": ("ICI", [], None, None),
     "MSO's": ("ICI", [], None, None),
     "Journalist/Media Conduct": ("MCD", [], None, None),
     "Content": ("MCD", [], None, None),

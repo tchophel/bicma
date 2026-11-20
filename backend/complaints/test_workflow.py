@@ -942,7 +942,7 @@ class CategoryFormTests(Base):
         cls.net = mk("Network/Coverage issues", cls.std)
         cls.isp = mk("Internet Services", cls.iid)
         cls.rural_comm = mk("Rural communication program", cls.iid)
-        cls.rural_cov = mk("Coverage issues in Rural areas", cls.iid)
+        cls.rural_cov = mk("Mobile network issues in Rural areas", cls.iid)
         cls.journalist = mk("Journalist/Media Conduct", cls.mcd)
         cls.content = mk("Content", cls.mcd)
         cls.reality = mk("Online Reality Show", cls.mcd)
@@ -1006,7 +1006,7 @@ class CategoryFormTests(Base):
 
     def test_iid_provider_required(self):
         self.assertIn("details.isp", self.post(self.isp).data)
-        self.assertEqual(self.post(self.isp, {"isp": "Druknet", "isp_contact": "17000000"}).status_code, 201)
+        self.assertEqual(self.post(self.isp, {"isp": "Druknet", "customer_id": "CUST-1001"}).status_code, 201)
 
     def test_journalist_checkboxes_and_date(self):
         from core.formspecs import MISCONDUCT
