@@ -58,6 +58,32 @@ class LifecycleTests(WorkflowBase):
         self.assertEqual(history, ["received", "assigned", "investigating", "submitted", "resolved", "closed"])  # Resolved only after the Head approves
         self.assertIsNotNone(self.reload().resolved_at)
 
+    def test_triage_off_sends_new_complaints_to_the_officer_with_fewest_open_cases(self):
+        from core import workflowconfig as wf
+        steps = [{"key": "triage", "enabled": False}, {"key": "investigation", "enabled": True}, {"key": "supervisor", "enabled": True}, {"key": "closure", "enabled": True}]
+        wf.save_steps(wf.validate(steps)[0])
+        self.addCleanup(lambda: wf.save_steps(wf.DEFAULT))
+        c, _ = self.make(division=self.d1)
+        c.refresh_from_db()
+        self.assertEqual(c.internal_status, S.ASSIGNED)
+        self.assertIn(c.assigned_to_id, {self.inv1.pk, *[u.pk for u in type(self.inv1).objects.filter(division=self.d1, role=self.inv1.role)]})
+        self.assertIsNotNone(c.priority_id)
+        self.assertEqual(self.act(self.inv1, "start", c=c).status_code if c.assigned_to_id == self.inv1.pk else 200, 200)
+
+    def test_workflow_screen_validates_and_saves_the_steps(self):
+        steps = lambda *flags: [{"key": k, "enabled": e} for k, e in zip(("triage", "investigation", "supervisor", "closure"), flags)]
+        cl = self.login(self.admin)
+        self.assertEqual(cl.put("/api/admin/workflow/", {"steps": steps(False, True, False, True)}, format="json").status_code, 200)
+        self.assertEqual(cl.put("/api/admin/workflow/", {"steps": steps(True, False, True, True)}, format="json").status_code, 400)  # officer step cannot go off
+        bad = list(reversed(steps(True, True, True, True)))
+        self.assertEqual(cl.put("/api/admin/workflow/", {"steps": bad}, format="json").status_code, 400)  # impossible order
+        self.assertEqual(self.login(self.focal1).put("/api/admin/workflow/", {"steps": steps(True, True, True, True)}, format="json").status_code, 403)
+        from core import workflowconfig as wf
+        wf.save_steps(wf.validate(steps(True, True, False, True))[0])
+        self.addCleanup(lambda: wf.save_steps(wf.DEFAULT))
+        self.to_investigating(); self.submit()
+        self.assertFalse(self.act(self.focal1, "send-to-management", {}).status_code == 200)  # supervisor step is off
+
     def test_division_head_can_reject_resolution_and_reopen(self):
         self.to_investigating()
         self.act(self.inv1, "resolve", {"investigation_findings": "F", "action_taken": "A", "outcome": str(self.outcome.pk)})
@@ -973,6 +999,8 @@ class CategoryFormTests(Base):
         cls.std = Division.objects.create(name="Spectrum and Technology Division", code="SPT", reference_code="3")
         cls.iid = Division.objects.create(name="InfoComm and Infrastructure Division", code="ICI", reference_code="1")
         cls.mcd = Division.objects.create(name="Media and Content Division", code="MCD", reference_code="2")
+        from core.models import Provider
+        Provider.objects.create(name="B-Mobile")
         mk = lambda name, d: Category.objects.create(name=name, default_division=d)
         cls.rf = mk("Radio-frequency interference", cls.std)
         cls.bts = mk("Requests for addition or removal of BTS sites", cls.std)
@@ -1026,8 +1054,8 @@ class CategoryFormTests(Base):
         self.assertIn("complaining_for", self.post(self.rf, d, complaining_for="nobody").data)
 
     def test_bts_removal_requires_a_tower_photo(self):
-        add = {"request_type": "Addition of a BTS site", "operator": "B-Mobile"}
-        rem = {"request_type": "Removal of a BTS site", "operator": "B-Mobile"}
+        add = {"request_type": "Addition of a BTS site", "operator": ["B-Mobile"]}
+        rem = {"request_type": "Removal of a BTS site", "operator": ["B-Mobile"]}
         self.assertEqual(self.post(self.bts, add).status_code, 201)  # no photo needed for an addition
         r = self.post(self.bts, rem)
         self.assertIn("doc__tower_photo", r.data)
@@ -1035,8 +1063,14 @@ class CategoryFormTests(Base):
         pdf = SimpleUploadedFile("x.pdf", b"%PDF-1.4 x", content_type="application/pdf")
         self.assertIn("doc__tower_photo", self.post(self.bts, rem, {"doc__tower_photo": pdf}).data)  # must be an image
 
+    def test_operator_choices_come_from_master_data(self):
+        pdf = {"doc__photo": self.photo()}
+        self.assertEqual(self.post(self.tower, {"operator": ["B-Mobile"]}, pdf).status_code, 201)
+        self.assertIn("details.operator", self.post(self.tower, {"operator": ["Not a provider"]}, {"doc__photo": self.photo()}).data)
+        self.assertIn("details.operator", self.post(self.tower, {"operator": []}, {"doc__photo": self.photo()}).data)  # mandatory
+
     def test_tower_structure_photo_is_mandatory_and_saved_with_its_slot(self):
-        d = {"operator": "B-Mobile"}
+        d = {"operator": ["B-Mobile"]}
         self.assertIn("doc__photo", self.post(self.tower, d).data)
         r = self.post(self.tower, d, {"doc__photo": self.photo()})
         self.assertEqual(r.status_code, 201, r.content)

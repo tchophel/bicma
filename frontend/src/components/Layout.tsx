@@ -77,6 +77,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
       { to: "/staff/uploads", label: "Uploads", icon: "complaint", roles: ["super_admin"] },
       { to: "/staff/logs", label: "Logs", icon: "history", roles: ["super_admin"] },
       { to: "/staff/help", label: "Help & FAQ", icon: "help", roles: ["super_admin"] },
+      { to: "/staff/workflow", label: "Workflow", icon: "refresh", roles: ["super_admin"] },
       { to: "/staff/settings", label: "Settings", icon: "gear", roles: ["super_admin"] },
     ],
   },

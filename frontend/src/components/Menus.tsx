@@ -99,7 +99,7 @@ export function UserMenu() {
   }
   const name = [user.first_name, user.last_name].filter(Boolean).join(" ") || user.email;
   const initials = (user.first_name?.[0] ?? user.email[0]).toUpperCase() + (user.last_name?.[0] ?? "").toUpperCase();
-  const item = (to: string, icon: "user" | "gear", label: ReactNode) => (
+  const item = (to: string, icon: "user" | "gear" | "refresh", label: ReactNode) => (
     <Link to={to} className={css.menuItem} role="menuitem" onClick={() => setOpen(false)}><Icon name={icon} />{label}</Link>
   );
   return (
@@ -113,6 +113,7 @@ export function UserMenu() {
         <div className={css.panel} role="menu" style={{ minWidth: 220 }}>
           <div className={css.panelHead} style={{ display: "block" }}><strong>{name}</strong><br /><small>{user.email}</small></div>
           {item("/staff/profile", "user", "My profile")}
+          {user.base_role === "super_admin" && item("/staff/workflow", "refresh", "Workflow")}
           {user.base_role === "super_admin" && item("/staff/settings", "gear", "Settings")}
           <button className={css.menuItem} role="menuitem" onClick={() => { setOpen(false); setConfirming(true); }}><Icon name="logout" />Sign out</button>
         </div>

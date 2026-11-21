@@ -11,7 +11,7 @@ import { useList } from "../../useList";
 export function Profile() {
   const toast = useToast();
   const { user, setUser } = useAuth();
-  const [f, setF] = useState({ first_name: user?.first_name ?? "", last_name: user?.last_name ?? "", phone: user?.phone ?? "" });
+  const [f, setF] = useState({ first_name: user?.first_name ?? "", last_name: user?.last_name ?? "", phone: user?.phone ?? "", bio: user?.bio ?? "" });
   const [pw, setPw] = useState({ current_password: "", new_password: "", confirm: "" });
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
   const [pmsg, setPmsg] = useState<{ ok?: string; err?: string }>({});
@@ -59,6 +59,7 @@ export function Profile() {
           <div className="profile-avatar">{user.profile_photo ? <img src={user.profile_photo} alt="Your profile" /> : <span aria-hidden="true">{((user.first_name?.[0] ?? user.email[0]) + (user.last_name?.[0] ?? "")).toUpperCase()}</span>}</div>
           <div className="profile-name"><span className="profile-eyebrow">YOUR ACCOUNT</span><h2>{[user.first_name, user.last_name].filter(Boolean).join(" ") || "Add your name below"}</h2><div className="profile-badges"><span className="badge">{user.role_display}</span><span className={`badge ${user.is_active ? "ok" : "bad"}`}>{user.is_active ? "Active" : "Inactive"}</span></div></div>
         </div>
+        {user.bio && <p className="profile-bio" style={{ gridColumn: "1 / -1", margin: "4px 0 0", whiteSpace: "pre-wrap" }}>{user.bio}</p>}
         <div className="profile-photo-controls"><button type="button" className="profile-photo-upload" disabled={uploading} onClick={() => photoInput.current?.click()}><Icon name="plus" />{uploading ? "Uploading…" : user.profile_photo ? "Change photo" : "Upload profile photo"}</button><input ref={photoInput} hidden style={{ display: "none" }} aria-label="Upload profile photo" type="file" accept="image/jpeg,image/png,image/webp" disabled={uploading} onChange={(e) => { void updatePhoto(e.target.files?.[0]); e.target.value = ""; }} />{user.profile_photo && <button type="button" className="profile-remove" disabled={uploading} onClick={() => updatePhoto(undefined, true)}>Remove</button>}<small>JPG, PNG or WebP · Up to {humanKb(photoKb)}</small>{photoMsg && <p className="error" role="alert">{photoMsg}</p>}</div>
         <dl className="profile-account-details"><div><dt><Icon name="mail" size={15} />Email</dt><dd>{user.email}</dd></div><div><dt><Icon name="division" size={15} />Division</dt><dd>{user.division_name ?? "Not tied to a division"}</dd></div><div><dt>Phone</dt><dd>{user.phone || "—"}</dd></div><div><dt><Icon name="clock" size={15} />Last sign-in</dt><dd>{user.last_login ? fmt(user.last_login) : "—"}</dd></div></dl>
       </section>
@@ -68,6 +69,7 @@ export function Profile() {
         <Field label="First name"><input autoComplete="given-name" placeholder="Enter first name" value={f.first_name} onChange={(e) => setF({ ...f, first_name: e.target.value })} /></Field>
         <Field label="Last name"><input autoComplete="family-name" placeholder="Enter last name" value={f.last_name} onChange={(e) => setF({ ...f, last_name: e.target.value })} /></Field>
         <Field label="Phone"><input type="tel" autoComplete="tel" placeholder="Enter phone number" value={f.phone} onChange={(e) => setF({ ...f, phone: e.target.value })} /></Field>
+        <Field label="Bio" hint={`${f.bio.length}/500. A short note about you and your work.`}><textarea rows={4} maxLength={500} placeholder="Write a short bio" value={f.bio} onChange={(e) => setF({ ...f, bio: e.target.value })} /></Field>
         {msg.err && <p className="error" role="alert">{msg.err}</p>}{msg.ok && <p className="notice" role="status">{msg.ok}</p>}
         <button className="btn" disabled={saving}><Icon name="check" />{saving ? "Saving…" : "Save changes"}</button>
         <p className="profile-admin-note">Role, division and email can only be changed by a Super Administrator.</p>

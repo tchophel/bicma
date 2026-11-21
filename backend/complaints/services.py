@@ -8,10 +8,11 @@ from django.utils import timezone
 
 from accounts.models import Role, User, roles_with_base
 from core import audit
+from core import workflowconfig as wf
 from core.models import EmailTemplate, Holiday, NotificationLog, Priority
 from core.notifications import notify
 
-from .models import CaseMessage, Complaint, InternalStatus as S, StatusHistory, next_reference
+from .models import CaseMessage, Complaint, InternalStatus as S, OPEN_STATUSES, StatusHistory, next_reference
 
 log = logging.getLogger(__name__)
 
@@ -228,6 +229,9 @@ def _on_registered(complaint, registered_by, request):
         request, "complaint.create", actor=registered_by, entity_type="complaint", entity_id=complaint.pk,
         detail={"reference": complaint.reference, "channel": complaint.channel},
     )
+    if not wf.enabled("triage") and _auto_assign(complaint, request):
+        send_event(complaint, "acknowledgement", complaint.email)
+        return
     # triage queue alert for the division head(s)
     heads = User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True)
     if complaint.division_id:
@@ -236,6 +240,27 @@ def _on_registered(complaint, registered_by, request):
         heads = heads.exclude(pk=registered_by.pk)
     notify(heads, f"New complaint {complaint.reference} awaiting triage", f"/staff/complaints/{complaint.pk}")
     send_event(complaint, "acknowledgement", complaint.email)
+
+
+def _auto_assign(complaint, request):
+    """Workflow without triage: give the case to the division's Investigating Officer with the fewest open cases."""
+    from django.db.models import Count, Q
+    if not complaint.division_id:
+        return False
+    officer = (User.objects.filter(is_active=True, division_id=complaint.division_id, role__in=roles_with_base(Role.INVESTIGATOR))
+               .annotate(open_cases=Count("assigned_complaints", filter=Q(assigned_complaints__internal_status__in=OPEN_STATUSES)))
+               .order_by("open_cases", "email").first())
+    if not officer:
+        return False  # nobody to give it to: it waits in Received for the Division Head, as before
+    if not complaint.priority_id:
+        prio = Priority.objects.filter(is_active=True, name__iexact="Normal").first() or Priority.objects.filter(is_active=True).order_by("rank").first()
+        if prio:
+            apply_priority(complaint, prio)
+    complaint.assigned_to = officer
+    move(complaint, S.ASSIGNED, actor=None, reason="Sent directly to the Investigating Officer (triage is switched off)", request=request, notify_complainant=False)
+    notify([officer], f"Complaint {complaint.reference} assigned to you.", f"/staff/complaints/{complaint.pk}")
+    email_users(complaint, "assignment", [officer])
+    return True
 
 
 @transaction.atomic

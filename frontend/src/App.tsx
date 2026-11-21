@@ -19,6 +19,7 @@ import { Login } from "./pages/staff/Login";
 import { Profile } from "./pages/staff/Profile";
 import { Register } from "./pages/staff/Register";
 import { SettingsPage } from "./pages/staff/Settings";
+import { WorkflowPage } from "./pages/staff/Workflow";
 import { Users } from "./pages/staff/Users";
 import { Reports } from "./pages/staff/Reports";
 import { Permissions } from "./pages/staff/Permissions";
@@ -54,6 +55,7 @@ export default function App() {
             <Route path="profile" element={<Profile />} />
             <Route path="help" element={<AdminOnly><Help /></AdminOnly>} />
             <Route path="settings" element={<AdminOnly><SettingsPage /></AdminOnly>} />
+            <Route path="workflow" element={<AdminOnly><WorkflowPage /></AdminOnly>} />
             <Route path="dashboard" element={<DashboardPage />} />
             <Route path="complaints" element={<Complaints />} />
             <Route path="complaints/:id" element={<ComplaintView />} />

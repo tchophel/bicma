@@ -287,3 +287,24 @@ class ApiStatusView(APIView):
         results = apihealth.check_all()
         audit.log(request, "api_status.check", entity_type="api", detail={"services": [c.service for c in results]})
         return self.get(request)
+
+
+class WorkflowView(APIView):
+    """The complaint workflow steps (Administrator): switch steps on or off and set their order."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        from . import workflowconfig as wf
+        return Response({"steps": wf.describe()})
+
+    def put(self, request):
+        from . import workflowconfig as wf
+        before = wf.get_steps()
+        steps, error = wf.validate(request.data.get("steps"))
+        if error:
+            return Response({"steps": [error]}, status=status.HTTP_400_BAD_REQUEST)
+        wf.save_steps(steps)
+        audit.log(request, "workflow.update", entity_type="settings", entity_id="workflow",
+                  detail={"before": [f"{x['key']}:{'on' if x['enabled'] else 'off'}" for x in before], "after": [f"{x['key']}:{'on' if x['enabled'] else 'off'}" for x in steps]})
+        return Response({"steps": wf.describe()})

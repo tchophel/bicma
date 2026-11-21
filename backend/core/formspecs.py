@@ -31,6 +31,11 @@ def _prov(key, label, req=False, **kw):
     return {"key": key, "label": label, "type": "provider", "required": req, **kw}
 
 
+def _ops(key, label, req=False, **kw):
+    """Tick-boxes drawn from the Providers in master data (Telecom operator type)."""
+    return {"key": key, "label": label, "type": "provider_checks", "required": req, "provider_type": "Telecom operator", **kw}
+
+
 def _doc(key, label, req=False, **kw):
     return {"key": key, "label": label, "required": req, **kw}
 
@@ -74,13 +79,13 @@ SPECS = [
     # ---- STD
     ("std", ["interference"], [_t("frequency", "Specific frequency / frequency range", True), _prov("company", "Concerned company (optional)")], [], True),
     ("std", ["unauthori"], [_t("frequency", "Specific frequency / frequency range", True), _prov("company", "Concerned company (optional)")], [], True),
-    ("std", ["network"], [_prov("operator", "Concerned telecom operator", True)], [], True),
+    ("std", ["network"], [_ops("operator", "Concerned telecom operator", True)], [], True),
     ("std", ["bts"], [
         {"key": "request_type", "label": "Type of request", "type": "select", "required": True, "options": ["Addition of a BTS site", "Removal of a BTS site"]},
-        _prov("operator", "Telecom operator", True)],
+        _ops("operator", "Telecom operator", True)],
      [_doc("tower_photo", "Photo of the concerned tower (mandatory for removal)", "when", when={"key": "request_type", "equals": "Removal of a BTS site"}, image=True)], True),
-    ("std", ["emf"], [_prov("operator", "Concerned telecom operator (optional)")], [_doc("photo", "Supporting document (photo, optional)", False, image=True)], True),
-    ("std", ["tower"], [_prov("operator", "Concerned telecom operator", True)], [_doc("photo", "Supporting document (photo)", True, image=True)], True),
+    ("std", ["emf"], [_ops("operator", "Concerned telecom operator (optional)")], [_doc("photo", "Supporting document (photo, optional)", False, image=True)], True),
+    ("std", ["tower"], [_ops("operator", "Concerned telecom operator", True)], [_doc("photo", "Supporting document (photo)", True, image=True)], True),
     # ---- IID
     ("iid", ["internet"], [_prov("isp", "Name of ISP", True), _t("customer_id", "Customer service identification number provided by the ISP", True)], [], True),
     ("iid", ["cable"], [_prov("cable_provider", "Name of cable service provider", True)], [], True),
@@ -182,12 +187,17 @@ def validate(spec, details, present_slots, today=None):
         val = details.get(f["key"])
         empty = val in (None, "", []) or (isinstance(val, str) and not val.strip())
         if f["required"] and empty:
-            errors[f"details.{f['key']}"] = "Select at least one option." if f["type"] == "checks" else "This field is required."
+            errors[f"details.{f['key']}"] = "Select at least one option." if f["type"] in ("checks", "provider_checks") else "This field is required."
             continue
         if empty:
             continue
         if f["type"] == "checks" and (not isinstance(val, list) or any(v not in f["options"] for v in val)):
             errors[f"details.{f['key']}"] = "Choose from the listed options."
+        elif f["type"] == "provider_checks":
+            from core.models import Provider
+            allowed = set(Provider.objects.filter(is_active=True).values_list("name", flat=True))
+            if not isinstance(val, list) or any(v not in allowed for v in val):
+                errors[f"details.{f['key']}"] = "Choose from the listed operators."
         elif f["type"] in ("select", "yesno") and val not in f["options"]:
             errors[f"details.{f['key']}"] = "Choose one of the listed options."
         elif f["type"] == "date":

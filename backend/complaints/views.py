@@ -347,7 +347,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
         return Response([{"id": str(u.pk), "name": u.get_full_name() or u.email, "role": u.role_name} for u in users])
 
     @action(detail=True, methods=["post"])
-    def assign(self, request, pk=None):
+    def _assign_to_officer(self, request, name, reason_default):
         d = request.data
 
         def run(c):
@@ -366,10 +366,14 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
             c.assigned_to = officer
             if str(d.get("confidential_case", "")).lower() in ("1", "true"):
                 c.confidential_case = True
-            services.move(c, S.ASSIGNED, actor=request.user, reason=reason or "Assigned to officer", request=request, notify_complainant=False)
+            services.move(c, S.ASSIGNED, actor=request.user, reason=reason or reason_default, request=request, notify_complainant=False)
             notify([officer], f"Complaint {c.reference} assigned to you.", f"/staff/complaints/{c.pk}")
             services.email_users(c, "assignment", [officer])
-        return self._run(request, "assign", run)
+        return self._run(request, name, run)
+
+    @action(detail=True, methods=["post"])
+    def assign(self, request, pk=None):
+        return self._assign_to_officer(request, "assign", "Assigned to officer")
 
     @action(detail=True, methods=["post"])
     def refer(self, request, pk=None):

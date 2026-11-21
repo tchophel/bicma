@@ -350,3 +350,15 @@ class PasswordResetOtpTests(APITestCase):
         from accounts.models import PasswordResetCode
         self.assertNotIn(code, PasswordResetCode.objects.get().code_hash)
         self.assertEqual(self.verify("12ab56").status_code, 400)
+
+
+class ProfileBioTests(APITestCase):
+    def test_user_edits_their_own_bio_and_it_is_limited(self):
+        user = User.objects.create_user("bio@example.org", "Strong-bio-pass-321!", role=Role.SUPERVISOR)
+        self.client.force_authenticate(user)
+        r = self.client.patch("/api/auth/me/", {"bio": "Reviews complaints for the Supervisor."}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(r.data["bio"], "Reviews complaints for the Supervisor.")
+        self.assertEqual(self.client.get("/api/auth/me/").data["bio"], "Reviews complaints for the Supervisor.")
+        self.assertEqual(self.client.patch("/api/auth/me/", {"bio": "x" * 501}, format="json").status_code, 400)
+        self.assertEqual(self.client.patch("/api/auth/me/", {"bio": ""}, format="json").status_code, 200)  # can be cleared

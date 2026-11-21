@@ -11,6 +11,7 @@ export interface User {
   cid: string | null;
   designation: string;
   phone: string;
+  bio?: string;
   role: string;
   base_role: Role;
   role_display: string;
@@ -28,7 +29,7 @@ export interface Category {
   default_division: string | null; urban_division: string | null; rural_division: string | null; default_priority: string | null; form?: CategoryForm | null;
 }
 export interface FormWhen { key: string; equals?: string; includes?: string }
-export interface FormField { key: string; label: string; type: "text" | "textarea" | "date" | "select" | "yesno" | "checks" | "provider"; required: boolean; options?: string[]; when?: FormWhen; past?: boolean }
+export interface FormField { key: string; label: string; type: "text" | "textarea" | "date" | "select" | "yesno" | "checks" | "provider" | "provider_checks"; required: boolean; options?: string[]; when?: FormWhen; past?: boolean; provider_type?: string }
 export interface FormDoc { key: string; label: string; required: boolean | "when"; when?: FormWhen; image?: boolean }
 /** A category's own form, defined on the server (backend/core/formspecs.py). */
 export interface CategoryForm {

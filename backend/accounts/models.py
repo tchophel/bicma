@@ -63,6 +63,7 @@ class User(UUIDModel, AbstractUser):
     phone = models.CharField(max_length=30, blank=True)
     employee_id = models.CharField(max_length=30, unique=True, null=True, blank=True)
     designation = models.CharField(max_length=120, blank=True)
+    bio = models.TextField(max_length=500, blank=True, help_text="Short note about the user, edited by the user on their own profile")
     cid = models.CharField(max_length=11, unique=True, null=True, blank=True)
 
     USERNAME_FIELD = "email"

@@ -184,13 +184,21 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
     if (!shown(fd.when)) return null;
     const err = f(`details.${fd.key}`);
     const val = det[fd.key];
-    if (fd.type === "checks") {
+    if (fd.type === "checks" || fd.type === "provider_checks") {
+      let options = fd.options ?? [];
+      if (fd.type === "provider_checks") {  // from master data: providers of the named type, or every active provider when none carry that type
+        const typeId = meta?.provider_types.find((t) => t.name === fd.provider_type)?.id;
+        const all = meta?.providers ?? [];
+        const typed = all.filter((p) => p.provider_type === typeId);
+        options = (typed.length ? typed : all).map((p) => p.name);
+      }
       const list = Array.isArray(val) ? val : [];
       return (
         <fieldset className="field" key={fd.key} style={{ border: 0, padding: 0 }}>
           <legend style={{ fontWeight: 600, fontSize: ".9rem", marginBottom: 7 }}>{fd.label}{fd.required && <span className="req" aria-hidden="true"> *</span>}</legend>
           <div style={{ display: "grid", gap: 8 }}>
-            {fd.options?.map((o) => <label key={o} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}><input type="checkbox" style={{ marginTop: 4 }} checked={list.includes(o)} onChange={() => setD(fd.key, list.includes(o) ? list.filter((x) => x !== o) : [...list, o])} />{o}</label>)}
+            {options.length === 0 && <span className="muted">No options yet. An administrator adds them under Master data.</span>}
+            {options.map((o) => <label key={o} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}><input type="checkbox" style={{ marginTop: 4 }} checked={list.includes(o)} onChange={() => setD(fd.key, list.includes(o) ? list.filter((x) => x !== o) : [...list, o])} />{o}</label>)}
           </div>
           {err && <p className="error" role="alert">{err}</p>}
         </fieldset>

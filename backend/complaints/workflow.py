@@ -1,6 +1,7 @@
 """Who may do what to a case (BRD 5.4 / 5.5). The API enforces this; the UI only reads `permissions`."""
 from accounts.models import Role
 from accounts.perms import role_perms
+from core import workflowconfig as wf
 
 from .models import InternalStatus as S
 
@@ -32,7 +33,7 @@ def allowed_actions(user, c, perms=None):
         "mgmt_approve": user.base_role == Role.SUPERVISOR and st == S.PENDING_APPROVAL,
         "mgmt_reject": user.base_role == Role.SUPERVISOR and st == S.PENDING_APPROVAL,
         "send_back": head and st == S.MANAGEMENT_REJECTED,
-        "send_to_management": head and st == S.SUBMITTED,
+        "send_to_management": head and st == S.SUBMITTED and wf.enabled("supervisor"),
         "approve": head and st in (S.SUBMITTED, S.RESOLVED),
         "reject": head and st in (S.SUBMITTED, S.RESOLVED),
         "reopen": head and st == S.CLOSED,
