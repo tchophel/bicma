@@ -138,6 +138,24 @@ def _verified(complaint, contact):
     return bool(complaint.phone) and len(_digits(contact)) == 8 and _digits(contact) == _digits(complaint.phone)
 
 
+def _submitted_details(c):
+    """What the complainant submitted, shown read-only on the Track page once they are verified."""
+    pairs = [
+        ("Category", c.category.name if c.category_id else ""),
+        ("Division", c.division.name if c.division_id else ""),
+        ("Name", c.complainant_name),
+        ("Title", c.subject),
+        ("Service provider / media house", c.provider.name if c.provider_id else c.platform),
+        ("Medium of publication", c.medium_of_publication),
+        ("Nature of complaint", c.nature_of_complaint),
+        ("Location", ", ".join(x for x in (c.locality, c.dzongkhag.name if c.dzongkhag_id else "") if x)),
+        ("Description", c.description),
+        ("Remedy sought", c.remedy_sought),
+    ]
+    docs = [a.original_name for a in c.attachments.filter(visibility=CaseMessage.Visibility.PUBLIC, message__isnull=True)]
+    return {"fields": [{"label": k, "value": v} for k, v in pairs if v], "documents": docs}
+
+
 class PublicTrackView(APIView):
     """Reference alone returns the public status. Adding the contact email/phone used on the complaint also
     returns public messages and lets the complainant reply."""
@@ -153,10 +171,15 @@ class PublicTrackView(APIView):
             return Response({"detail": GENERIC_TRACK_ERROR}, status=status.HTTP_404_NOT_FOUND)
         data = dict(PublicTrackSerializer(complaint).data)
         contact = request.data.get("contact")
-        data["verified"] = _verified(complaint, contact)
+        token = request.data.get("token")
+        data["verified"] = _verified(complaint, contact) or services.check_reply_token(complaint, token)
         if contact and not data["verified"]:
             return Response({"detail": "These contact details do not match the complaint."}, status=status.HTTP_400_BAD_REQUEST)
+        if token and not data["verified"]:
+            return Response({"detail": "This link has expired or is not valid. Enter your reference number to see the status."},
+                            status=status.HTTP_400_BAD_REQUEST)
         if data["verified"]:
+            data["details"] = _submitted_details(complaint)
             msgs = complaint.messages.filter(visibility=CaseMessage.Visibility.PUBLIC).select_related("author").prefetch_related("attachments")
             data["messages"] = [
                 {"kind": m.kind, "body": m.body, "from": "Complainant" if m.author_id is None else "BICMA", "created_at": m.created_at}
@@ -177,7 +200,7 @@ class PublicReplyView(APIView):
         ref = str(data.get("reference", "")).strip().upper()
         body = str(data.get("message", "")).strip()
         complaint = Complaint.objects.exclude(internal_status=S.DRAFT).filter(reference=ref).first()
-        if complaint is None or not _verified(complaint, data.get("contact")):
+        if complaint is None or not (_verified(complaint, data.get("contact")) or services.check_reply_token(complaint, data.get("token"))):
             return Response({"detail": "These contact details do not match the complaint."}, status=status.HTTP_400_BAD_REQUEST)
         if not body or len(body) > 10000:
             return Response({"message": ["Enter your reply (up to 10,000 characters)."]}, status=status.HTTP_400_BAD_REQUEST)

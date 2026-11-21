@@ -203,6 +203,44 @@ class TrackingReplyTests(WorkflowBase):
         self.assertEqual(post().status_code, 400)
         self.assertEqual(post(contact=self.contact).status_code, 400)  # nothing was requested
 
+    def test_email_link_opens_complaint_read_only_and_accepts_reply_with_documents(self):
+        import re
+        from urllib.parse import parse_qs, urlparse
+        self.to_investigating()
+        mail.outbox.clear()
+        self.act(self.inv1, "request-info", {"message": "Send the bill"})
+        link = re.search(r"https?://\S+/track\?\S+", mail.outbox[-1].body).group(0)
+        q = parse_qs(urlparse(link).query)
+        ref, token = q["ref"][0], q["t"][0]
+        self.assertEqual(ref, self.c.reference)
+        r = self.client.post("/api/public/track/", {"reference": ref, "token": token}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(r.data["verified"] and r.data["can_reply"])
+        labels = [f["label"] for f in r.data["details"]["fields"]]
+        self.assertIn("Description", labels)
+        self.assertEqual([m["body"] for m in r.data["messages"]], ["Send the bill"])
+        # a token for this complaint does not open another one, and a tampered token is refused
+        other, _ = self.make(division=self.d1)
+        self.assertEqual(self.client.post("/api/public/track/", {"reference": other.reference, "token": token}, format="json").status_code, 400)
+        self.assertEqual(self.client.post("/api/public/track/", {"reference": ref, "token": token + "x"}, format="json").status_code, 400)
+        f = SimpleUploadedFile("bill.pdf", b"%PDF-1.4 test", content_type="application/pdf")
+        r = self.client.post("/api/public/track/reply/", {"reference": ref, "token": token, "message": "Here it is", "files": [f]}, format="multipart")
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertEqual((self.reload().internal_status, self.c.attachments.count()), (S.INVESTIGATING, 1))
+        # without the token the page still shows only the status
+        r = self.client.post("/api/public/track/", {"reference": ref}, format="json")
+        self.assertNotIn("details", r.data)
+
+    def test_expired_reply_link_is_refused(self):
+        from unittest.mock import patch
+        from django.core import signing
+        self.to_investigating()
+        self.act(self.inv1, "request-info", {"message": "Send the bill"})
+        from complaints import services
+        token = services.make_reply_token(self.c)
+        with patch.object(signing, "loads", side_effect=signing.SignatureExpired("old")):
+            self.assertEqual(self.client.post("/api/public/track/", {"reference": self.c.reference, "token": token}, format="json").status_code, 400)
+
     def test_reply_with_attachment(self):
         self.to_investigating()
         self.act(self.inv1, "request-info", {"message": "Send the bill"})

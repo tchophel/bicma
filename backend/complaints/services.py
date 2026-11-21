@@ -102,9 +102,40 @@ def render_template(event, complaint, message=""):
         category=complaint.category.name if complaint.category else "", provider=complaint.provider.name if complaint.provider else complaint.platform,
         message=message, division=complaint.division.name if complaint.division else "",
         officer=(complaint.assigned_to.get_full_name() or complaint.assigned_to.email) if complaint.assigned_to else "",
-        tracking_url=f"{settings.FRONTEND_URL.rstrip('/')}/track?ref={complaint.reference}",
+        tracking_url=tracking_url(complaint, with_token=(event == "info_request")),
     )
     return subject.format_map(values)[:300], body.format_map(values)
+
+
+# --- Secure link in the "information needed" email -------------------------------------------------
+# The link opens the Track page with the complaint shown read-only and a reply box (text + documents), so the
+# complainant does not have to retype anything. Only the person who got the email has the token.
+REPLY_TOKEN_SALT = "complaints.track-reply"
+REPLY_TOKEN_DAYS = 30
+
+
+def make_reply_token(complaint):
+    from django.core import signing
+    return signing.dumps({"c": str(complaint.pk)}, salt=REPLY_TOKEN_SALT, compress=True)
+
+
+def check_reply_token(complaint, token):
+    from django.core import signing
+    if not token:
+        return False
+    try:
+        data = signing.loads(str(token), salt=REPLY_TOKEN_SALT, max_age=REPLY_TOKEN_DAYS * 86400)
+    except signing.BadSignature:
+        return False
+    return data.get("c") == str(complaint.pk)
+
+
+def tracking_url(complaint, with_token=False):
+    from urllib.parse import urlencode
+    params = {"ref": complaint.reference}
+    if with_token:
+        params["t"] = make_reply_token(complaint)
+    return f"{settings.FRONTEND_URL.rstrip('/')}/track?{urlencode(params)}"
 
 
 def email_users(complaint, event, users, message=""):
