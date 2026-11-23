@@ -7,9 +7,12 @@ import { Field, PanelTitle } from "./ui";
 import { Icon } from "./Icon";
 import { useToast } from "./Toast";
 import { Modal } from "./Modal";
+import { FileLink } from "./FileLink";
+import { UploadDocuments } from "./Documents";
+import { EmailChips } from "./EmailChips";
 
 const DONE: Record<string, string> = {
-  triage: "Triage confirmed.", assign: "Officer assigned.", refer: "Complaint referred.", "not-in-mandate": "Closed as not within BICMA jurisdiction.",
+  join: "Joined officers updated.", triage: "Triage confirmed.", assign: "Officer assigned.", refer: "Complaint referred.", "not-in-mandate": "Closed as not within BICMA jurisdiction.",
   start: "Investigation started.", "save-findings": "Findings saved.", "request-info": "Information requested from the complainant.", resume: "Investigation resumed.", return: "Returned to the Division Head. It is no longer in your list.",
   resolve: "Findings sent to the Division Head.", "send-to-management": "Sent to the Supervisor for approval.", "mgmt-approve": "Accepted. The case is Resolved and goes to the Division Head to close.", "mgmt-reject": "Returned to the Division Head to decide the next step.", "send-back": "Sent back to the Investigating Officer.", approve: "Complaint approved and closed.", reject: "Returned to the officer.", reopen: "Complaint reopened.",
   "public-message": "Message sent to the complainant.", "internal-note": "Note added.", "stakeholder-review": "Notice sent to the provider.",
@@ -53,59 +56,95 @@ function Triage({ c, meta, onDone }: { c: ComplaintDetail; meta: Meta; onDone: (
   const [priority, setPriority] = useState(c.priority ?? "");
   const [category, setCategory] = useState(c.category ?? "");
   const [subcategory, setSubcategory] = useState(c.subcategory ?? "");
-  const [division, setDivision] = useState(c.division ?? "");
+  const division = c.division ?? "";  // kept as is: triage no longer edits the division
   const [confCase, setConfCase] = useState(c.confidential_case);
   const [officer, setOfficer] = useState(c.assigned_to ?? "");  // starts on whoever is assigned now; change it only to reassign
-  const [reason, setReason] = useState("");
+  const [routing, setRouting] = useState<"assign" | "refer" | "join">(p.assign ? "assign" : p.refer ? "refer" : "join");
+  const [joined, setJoined] = useState<string[]>(c.joined_officers.map((o) => o.id));
+  const [assignNote, setAssignNote] = useState("");  // each form keeps its own text
+  const [referReason, setReferReason] = useState("");
+  const [mandateReason, setMandateReason] = useState("");
   const [refTo, setRefTo] = useState("");
   const [authority, setAuthority] = useState("");
   const officers = useList<{ id: string; name: string; role: string }[]>(`/complaints/${c.id}/officers/`);
-  const cat = meta.categories.find((x) => x.id === category);
+  const team = useList<{ heads: { id: string; name: string; role: string }[]; assigned: { id: string; name: string; role: string } | null; officers: { id: string; name: string; role: string }[] }>(`/complaints/${c.id}/team/`);
+  // Only the categories that belong to the division this complaint is in (plus its current category, so it is never lost).
+  const inDivision = (x: Meta["categories"][number]) => !!c.division && [x.default_division, x.urban_division, x.rural_division].includes(c.division);
+  const divCats = meta.categories.some(inDivision) ? meta.categories.filter((x) => inDivision(x) || x.id === c.category) : meta.categories;
+  async function saveReview(changes: { category?: string; subcategory?: string; priority?: string; confidential_case?: boolean }) {
+    const next = { category, subcategory, division, priority, confidential_case: confCase, ...changes };
+    if (changes.category !== undefined) { setCategory(changes.category); setSubcategory(""); }
+    if (changes.priority !== undefined) setPriority(changes.priority);
+    if (changes.confidential_case !== undefined) setConfCase(changes.confidential_case);
+    const ok = await run("triage", next);
+    if (!ok) { setCategory(category); setSubcategory(subcategory); setPriority(priority); setConfCase(confCase); }
+  }
   const act = (name: string, body: Record<string, unknown>) => (e: FormEvent) => { e.preventDefault(); run(name, body); };
   return (
     <Block icon="division" title="Triage and assignment">
-      <p className="muted">Suggested division: {c.suggested_division_name ?? "none"}. Response due {c.response_due_at ? new Date(c.response_due_at).toLocaleDateString() : "once a priority is set"}.</p>
+      <div className="case-triage-context"><div><span>Suggested division</span><strong>{c.suggested_division_name ?? "Not suggested"}</strong></div><div><span>Response due</span><strong>{c.response_due_at ? new Date(c.response_due_at).toLocaleDateString() : "Set a priority"}</strong></div></div>
       <Err e={err} />
       {p.triage && (
-        <form onSubmit={act("triage", { category, subcategory, division, priority, confidential_case: confCase })}>
+        <div className="case-triage-form" aria-busy={busy}>
+          <div className="case-step-title"><span>1</span><div><h3>Review complaint</h3><p>Changes to category, priority and confidentiality save automatically.</p></div></div>
           <div className="row">
-            <Field label="Category" required error={f("category")}><select required value={category} onChange={(e) => { setCategory(e.target.value); setSubcategory(""); }}>{meta.categories.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
-            <Field label="Sub-category" error={f("subcategory")}><select value={subcategory} onChange={(e) => setSubcategory(e.target.value)}><option value="">None</option>{cat?.subcategories.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}</select></Field>
-            {p.assign && <Field label="Division" error={f("division")}><select value={division} onChange={(e) => setDivision(e.target.value)}>{meta.divisions.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></Field>}
-            <Field label="Priority" required error={f("priority")}><select required value={priority} onChange={(e) => setPriority(e.target.value)}><option value="">Select</option>{meta.priorities.map((x) => <option key={x.id} value={x.id}>{x.name} ({x.resolution_days} working days)</option>)}</select></Field>
+            <Field label="Category" required error={f("category")}><select required disabled={busy} value={category} onChange={(e) => void saveReview({ category: e.target.value, subcategory: "" })}>{divCats.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
+            <Field label="Priority" required error={f("priority")}><select required disabled={busy} value={priority} onChange={(e) => void saveReview({ priority: e.target.value })}><option value="">Select</option>{meta.priorities.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>
           </div>
-          <label className="on-behalf"><input type="checkbox" checked={confCase} onChange={(e) => setConfCase(e.target.checked)} /><span><strong>Confidential case</strong><small>Restrict visibility to the named officer and Division Head.</small></span></label>
-          <button className="btn secondary" disabled={busy}><Icon name="check" />Confirm triage</button>
-        </form>
+          <label className="on-behalf"><input type="checkbox" disabled={busy} checked={confCase} onChange={(e) => void saveReview({ confidential_case: e.target.checked })} /><span><strong>Confidential case</strong><small>Restrict visibility to the named officer and Division Head.</small></span></label>
+          {busy && <p className="muted" role="status">Saving changes…</p>}
+        </div>
       )}
-      {p.assign && (
-        <form onSubmit={act("assign", { assigned_to: officer, priority, reason })} style={{ marginTop: 16 }}>
-          <h3>{c.assigned_to_name ? `Reassign (now ${c.assigned_to_name})` : "Assign an officer"}</h3>
-          <div className="row">
+      {(p.assign || p.refer || p.join) && <div className="case-routing-choice">
+        <div className="case-step-title"><span>{p.triage ? "2" : "1"}</span><div><h3>Choose how to proceed</h3><p>Assign an officer, refer to another division, or add officers to work together.</p></div></div>
+        <div className="case-routing-options" aria-label="Handling action">
+          {p.assign && <button type="button" aria-pressed={routing === "assign"} onClick={() => setRouting("assign")}><Icon name="users" size={20} /><span><strong>Assign officer</strong><small>Handle in this division</small></span><Icon name="check" size={18} /></button>}
+          {p.refer && <button type="button" aria-pressed={routing === "refer"} onClick={() => setRouting("refer")}><Icon name="send" size={20} /><span><strong>Refer complaint</strong><small>Send to another division</small></span><Icon name="check" size={18} /></button>}
+          {p.join && <button type="button" aria-pressed={routing === "join"} onClick={() => setRouting("join")}><Icon name="users" size={20} /><span><strong>Join officers</strong><small>Work together on this complaint</small></span><Icon name="check" size={18} /></button>}
+        </div>
+      </div>}
+      {p.join && routing === "join" && <form className="case-routing-form" aria-label="Join officers" onSubmit={act("join", { officers: joined })}>
+        <div className="case-routing-heading"><span className="icon-tile"><Icon name="users" size={20} /></span><div><h3>Join officers to this complaint</h3><p>Joined officers can view the case, add notes, message the complainant and work on findings. The main officer keeps responsibility for the case.</p></div></div>
+        <fieldset className="case-join-fieldset"><legend>Officers</legend><p className="muted">The Division Head and the assigned officer already have access. Tick an Investigating Officer to give them access; untick to remove it.</p>{f("officers") && <p className="error" role="alert">{f("officers")}</p>}
+          <span className="case-join-list" role="group" aria-label="Officers working together">
+            {team.loading ? <span>Loading officers…</span> : team.err ? <span role="alert">{team.err}</span> : <>
+              {team.data?.heads.map((h) => <span className="case-join-option case-join-fixed" key={h.id}><Icon name="check" size={18} /><span>{h.name}<small>{h.role} · full access to every case in this division</small></span></span>)}
+              {team.data?.assigned && <span className="case-join-option case-join-fixed"><Icon name="check" size={18} /><span>{team.data.assigned.name}<small>{team.data.assigned.role} · assigned officer</small></span></span>}
+              {team.data?.officers.length ? team.data.officers.map((o) => <label className="case-join-option" key={o.id}><input type="checkbox" aria-label={o.name} disabled={busy} checked={joined.includes(o.id)} onChange={(e) => setJoined((prev) => e.target.checked ? [...prev, o.id] : prev.filter((id) => id !== o.id))} /><span>{o.name}<small>{o.role} · tick to give access</small></span></label>) : <span className="muted">No other Investigating Officers are registered in this division.</span>}
+            </>}
+          </span>
+        </fieldset>
+        <button className="btn" disabled={busy || team.loading || !!team.err}><Icon name="users" />{busy ? "Saving…" : "Save joined officers"}</button>
+      </form>}
+      {p.assign && routing === "assign" && (
+        <form className="case-routing-form" aria-label="Assign officer" onSubmit={act("assign", { assigned_to: officer, priority, reason: assignNote })}>
+          <div className="case-routing-heading"><span className="icon-tile"><Icon name="users" size={20} /></span><div><h3>{c.assigned_to_name ? "Reassign officer" : "Assign an officer"}</h3><p>{c.assigned_to_name ? `Currently assigned to ${c.assigned_to_name}. Choose another officer in this division.` : "Keep the complaint in this division and choose an officer to handle it."}</p></div></div>
+          <div className="case-routing-row">
             <Field label="Officer" required error={f("assigned_to")}><select required value={officer} onChange={(e) => setOfficer(e.target.value)}><option value="">Select officer</option>{officers.data?.map((o) => <option key={o.id} value={o.id}>{o.name} · {o.role}</option>)}</select></Field>
-            {!c.priority && <Field label="Priority" required error={f("priority")}><select required value={priority} onChange={(e) => setPriority(e.target.value)}><option value="">Select</option>{meta.priorities.map((x) => <option key={x.id} value={x.id}>{x.name}</option>)}</select></Field>}
-            <Field label={c.assigned_to ? "Reason for reassigning" : "Note"} required={!!c.assigned_to} error={f("reason")}><input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+            <Field label={c.assigned_to ? "Reason for reassigning" : "Note"} required={!!c.assigned_to} error={f("reason")}><input required={!!c.assigned_to} placeholder={c.assigned_to ? "Why are you reassigning?" : "Optional instructions for the officer"} value={assignNote} onChange={(e) => setAssignNote(e.target.value)} /></Field>
+          <button className="btn" disabled={busy}><Icon name="users" />{c.assigned_to ? "Reassign officer" : "Assign officer"}</button>
           </div>
-          <button className="btn" disabled={busy}><Icon name="users" />{c.assigned_to ? "Reassign" : "Assign"}</button>
         </form>
       )}
-      {p.refer && (
-        <form onSubmit={act("refer", { division: refTo, reason })} style={{ marginTop: 16 }}>
-          <h3>Refer to another division</h3>
-          <div className="row">
-            <Field label="Division" required error={f("division")}><select required value={refTo} onChange={(e) => setRefTo(e.target.value)}><option value="">Select</option>{meta.divisions.filter((d) => d.id !== c.division).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></Field>
-            <Field label="Reason" required error={f("reason")}><input required value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+      {p.refer && routing === "refer" && (
+        <form className="case-routing-form case-routing-referral" aria-label="Refer to another division" onSubmit={act("refer", { division: refTo, reason: referReason })}>
+          <div className="case-routing-heading"><span className="icon-tile"><Icon name="send" size={20} /></span><div><h3>Refer to another division</h3><p>Transfer the complaint to a different division for handling.</p></div></div>
+          <div className="case-routing-row">
+            <Field label="Division" required error={f("division")}><select required value={refTo} onChange={(e) => setRefTo(e.target.value)}><option value="">Select division</option>{meta.divisions.filter((d) => d.id !== c.division).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></Field>
+            <Field label="Reason" required error={f("reason")}><input required placeholder="Why should this division handle it?" value={referReason} onChange={(e) => setReferReason(e.target.value)} /></Field>
+          <button className="btn secondary" disabled={busy}><Icon name="send" />Refer complaint</button>
           </div>
-          <button className="btn secondary" disabled={busy}><Icon name="send" />Refer</button>
         </form>
       )}
+      {(p.note || p.message) && <details className="case-action-disclosure"><summary><Icon name="plus" size={19} /><div><strong>Add supporting documents</strong><small>Upload files and choose who can view them</small></div><Icon name="chev" size={17} /></summary><div className="case-disclosure-content"><UploadDocuments c={c} onDone={onDone} /></div></details>}
       {p.not_in_mandate && (
-        <form onSubmit={act("not-in-mandate", { reason, authority_referred_to: authority })} style={{ marginTop: 16 }}>
-          <h3>Not within BICMA jurisdiction</h3>
-          <Field label="Reason (the complainant is emailed)" required error={f("reason")}><textarea required rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+        <details className="case-action-disclosure case-closure-disclosure"><summary><Icon name="close" size={19} /><div><strong>Outside BICMA jurisdiction</strong><small>Close this complaint and notify the complainant</small></div><Icon name="chev" size={17} /></summary>
+        <form className="case-disclosure-content" onSubmit={act("not-in-mandate", { reason: mandateReason, authority_referred_to: authority })}>
+          <Field label="Reason (the complainant is emailed)" required error={f("reason")}><textarea required rows={2} value={mandateReason} onChange={(e) => setMandateReason(e.target.value)} /></Field>
           <Field label="Authority referred to" hint="Optional: the agency the complainant is directed to." error={f("authority_referred_to")}><input value={authority} onChange={(e) => setAuthority(e.target.value)} /></Field>
           <button className="btn secondary" disabled={busy} onClick={(e) => { if (!confirm("Close this complaint as outside BICMA's jurisdiction?")) e.preventDefault(); }}><Icon name="close" />Close as not within mandate</button>
         </form>
+        </details>
       )}
     </Block>
   );
@@ -185,27 +224,38 @@ function Approval({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
   const [pub, setPub] = useState("");
   const [reason, setReason] = useState("");
   const [note, setNote] = useState("");
+  const [decision, setDecision] = useState<"approve" | "supervisor" | "return">("approve");
   return (
     <Block icon="check" title={p.reopen ? "Closed case" : "Division Head decision"}>
       <Err e={err} />
       {p.approve && (
         <>
-          <p>The officer has submitted the findings. Choose one: <strong>accept</strong> them (closes the case), <strong>send them to the Supervisor</strong> for approval, or <strong>return</strong> them to the officer.</p>
-          <form onSubmit={(e) => { e.preventDefault(); run("approve", { closure_reason: closure, public_message: pub }); }}>
-            <Field label="Closure reason" required error={f("closure_reason")}><textarea required rows={2} value={closure} onChange={(e) => setClosure(e.target.value)} /></Field>
-            <Field label="Message to complainant (optional)"><textarea rows={2} value={pub} onChange={(e) => setPub(e.target.value)} /></Field>
+          <div className="case-decision-intro"><Icon name="complaint" size={20} /><p>The officer’s findings are ready for review. Choose the next step for this complaint.</p></div>
+          <div className="case-decision-options" aria-label="Decision on officer findings">
+            <button type="button" className="case-decision-accept" aria-pressed={decision === "approve"} disabled={busy} onClick={() => setDecision("approve")}><Icon name="check" size={23} /><strong>Accept and close</strong><small>Approve the findings and close the case</small></button>
+            {p.send_to_management && <button type="button" className="case-decision-supervisor" aria-pressed={decision === "supervisor"} disabled={busy} onClick={() => setDecision("supervisor")}><Icon name="send" size={23} /><strong>Send to Supervisor</strong><small>Request the Supervisor’s approval</small></button>}
+            {p.reject && <button type="button" className="case-decision-return" aria-pressed={decision === "return"} disabled={busy} onClick={() => setDecision("return")}><Icon name="refresh" size={23} /><strong>Return to officer</strong><small>Ask the officer for further work</small></button>}
+          </div>
+          <div className="case-decision-form">
+          {decision === "approve" && <form className="decision-card" onSubmit={(e) => { e.preventDefault(); run("approve", { closure_reason: closure, public_message: pub }); }}>
+            <h4><Icon name="check" size={16} />Accept and close</h4>
+            <Field label="Closure reason" required error={f("closure_reason")}><textarea required rows={3} placeholder="Summarize why this complaint is being closed" value={closure} onChange={(e) => setClosure(e.target.value)} /></Field>
+            <Field label="Message to complainant (optional)"><textarea rows={3} placeholder="Add a message for the complainant, if needed" value={pub} onChange={(e) => setPub(e.target.value)} /></Field>
             <button className="btn" disabled={busy}><Icon name="check" />Accept and close</button>
-          </form>
-          {p.send_to_management && (
-            <form onSubmit={(e) => { e.preventDefault(); run("send-to-management", { note }); }} style={{ marginTop: 16 }}>
-              <Field label="Send to Supervisor: note (optional)"><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything they should look at" /></Field>
+          </form>}
+          {p.send_to_management && decision === "supervisor" && (
+            <form className="decision-card" onSubmit={(e) => { e.preventDefault(); run("send-to-management", { note }); }}>
+              <h4><Icon name="send" size={16} />Send to Supervisor</h4>
+              <Field label="Note (optional)"><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything they should look at" /></Field>
               <button className="btn secondary" disabled={busy}><Icon name="send" />Send to Supervisor</button>
             </form>
           )}
-          <form onSubmit={(e) => { e.preventDefault(); run("reject", { reason }); }} style={{ marginTop: 16 }}>
-            <Field label="Reject: what must be done?" required error={f("reason")}><textarea required rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
+          {p.reject && decision === "return" && <form className="decision-card" onSubmit={(e) => { e.preventDefault(); run("reject", { reason }); }}>
+            <h4><Icon name="refresh" size={16} />Return to officer</h4>
+            <Field label="What must be done?" required error={f("reason")}><textarea required rows={3} placeholder="Describe what needs to be checked or completed" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
             <button className="btn secondary" disabled={busy}><Icon name="refresh" />Return to officer</button>
-          </form>
+          </form>}
+          </div>
         </>
       )}
       {p.reopen && (
@@ -316,7 +366,7 @@ function Messages({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
             <div className="what"><strong>{m.author_name}</strong> <span className={`badge ${m.visibility === "public" ? "" : "warn"}`}>{m.visibility === "public" ? "Shown to complainant" : "Internal only"}</span>{m.kind === "info_request" && <span className="badge warn" style={{ marginLeft: 6 }}>Information request</span>}</div>
             <div className="when">{new Date(m.created_at).toLocaleString()}</div>
             <div style={{ whiteSpace: "pre-wrap" }}>{m.body}</div>
-            {m.attachments.map((a) => <div key={a.id}><a href={`/api/complaints/${c.id}/attachments/${a.id}/`}><Icon name="complaint" size={14} /> {a.original_name}</a></div>)}
+            {m.attachments.map((a) => <div key={a.id}><FileLink href={`/api/complaints/${c.id}/attachments/${a.id}/`} name={a.original_name} icon /></div>)}
           </li>
         ))}
         {c.messages.length === 0 && <li className="muted">No messages yet.</li>}
@@ -340,15 +390,19 @@ function Messages({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
 }
 
 function Stakeholder({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
-  const { busy, err, run } = useDo(c, onDone);
+  const { busy, err, run, f } = useDo(c, onDone);
   const [msg, setMsg] = useState("");
+  const [to, setTo] = useState<string[]>(c.provider_contact_email ? [c.provider_contact_email.toLowerCase()] : []);  // starts with the provider's contact email; change, remove or add more
   const [ok, setOk] = useState(false);
   return (
     <Block icon="send" title="Notify the provider">
-      <p className="muted">Sends the approved stakeholder email to {c.platform || c.provider_name || "the provider"} after initial review. The complainant's identity is never included.</p>
+      <p className="muted">Sends the approved stakeholder email to the address below ({c.platform || c.provider_name || "the provider"}) after initial review. The complainant's identity is never included.</p>
       <Err e={err} />
-      <Field label="Additional message"><textarea rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} /></Field>
-      <button className="btn secondary" disabled={busy} onClick={async () => setOk(await run("stakeholder-review", { message: msg }))}><Icon name="mail" />Send notice</button>
+      <Field label="Send to (email addresses)" required error={f("recipients")} hint={`${c.provider_contact_email ? "Starts with the provider's contact email. " : ""}Type or paste an address and press Enter to add it. You can send to up to 5 addresses at once.`}>
+        <EmailChips value={to} onChange={(list) => { setTo(list); setOk(false); }} />
+      </Field>
+      <Field label="Additional message" required><textarea required rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} /></Field>
+      <button className="btn secondary" disabled={busy || to.length === 0 || !msg.trim()} onClick={async () => setOk(await run("stakeholder-review", { message: msg, recipients: to }))}><Icon name="mail" />{to.length > 1 ? `Send notice to ${to.length} addresses` : "Send notice"}</button>
       {ok && <p className="notice" role="status">Notice sent.</p>}
     </Block>
   );
@@ -357,7 +411,7 @@ function Stakeholder({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) 
 export function CaseActions({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
   const meta = useList<Meta>("/meta/").data;
   const p = c.permissions;
-  const showTriage = p.triage || p.assign || p.refer || p.not_in_mandate;
+  const showTriage = p.triage || p.assign || p.refer || p.join || p.not_in_mandate;
   const showInv = p.start || p.return || p.resume || p.save_findings || p.request_info || p.resolve || !!c.investigation_findings;
   const hasDecision = p.mgmt_approve || p.send_back || p.approve || p.reopen;
   const tabs = [

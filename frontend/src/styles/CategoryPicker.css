@@ -1,0 +1,33 @@
+.catpick { position: relative; min-width: 0; }
+.catpick-button { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid var(--c-input-border); border-radius: 8px; background: #fff; color: var(--c-text); font: inherit; text-align: left; cursor: pointer; min-height: 42px; }
+.catpick-button[aria-expanded="true"] { border-color: var(--c-primary); box-shadow: 0 0 0 3px var(--c-primary-soft); }
+.catpick-button[aria-invalid="true"] { border-color: var(--c-accent); }
+.catpick-button:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
+.catpick-button svg { flex-shrink: 0; transform: rotate(90deg); color: var(--c-muted); }
+.catpick-button[aria-expanded="true"] svg { transform: rotate(-90deg); }
+.catpick-placeholder { color: var(--c-muted); }
+.catpick-required { position: absolute; left: 0; bottom: 0; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
+.catpick-panel { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); margin-top: 6px; border: 1px solid var(--c-border); border-radius: 12px; background: #fff; box-shadow: 0 10px 28px rgb(70 43 18 / 14%); overflow: hidden; }
+.catpick-list { max-height: 320px; overflow-y: auto; padding: 6px; scrollbar-width: thin; overscroll-behavior: contain; }
+.catpick-group { padding: 8px 10px 4px; font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; color: var(--c-muted); }
+.catpick-option { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 9px 10px; border-radius: 8px; cursor: pointer; font-size: .9rem; line-height: 1.35; }
+.catpick-option.active { background: var(--c-primary-soft); color: var(--c-primary-dark); }
+.catpick-option.chosen { font-weight: 600; }
+.catpick-info { padding: 16px 18px; border-left: 1px solid var(--c-border); background: #fcfaf7; font-size: .875rem; line-height: 1.6; max-height: 320px; overflow-y: auto; }
+.catpick-info strong { display: block; margin-bottom: 6px; color: var(--c-primary-dark); }
+.catpick-info p { margin: 0; }
+.catpick-about { display: flex; gap: 8px; align-items: flex-start; margin: 10px 0 0; padding: 10px 12px; border-radius: 8px; background: var(--c-primary-soft); color: var(--c-primary-dark); font-size: .8125rem; line-height: 1.55; }
+.catpick-about svg { flex-shrink: 0; margin-top: 2px; }
+@media (max-width: 700px) {
+  .catpick-panel { grid-template-columns: minmax(0, 1fr); }
+  .catpick-info { border-left: 0; border-top: 1px solid var(--c-border); max-height: 170px; order: -1; }
+  .catpick-list { max-height: 240px; }
+}
+
+/* Distinct division headings, with names retained as clear text labels. */
+.catpick-group { display: flex; align-items: flex-start; gap: 7px; margin: 8px 0 5px; padding: 10px; border-left: 3px solid currentColor; border-radius: 0 6px 6px 0; line-height: 1.6; }
+.catpick-group > .icon { flex-shrink: 0; margin-top: 2px; }
+.catpick-group.catpick-division-blue { color: #1e548c; background: #edf5ff; }
+.catpick-group.catpick-division-purple { color: #704099; background: #f7efff; }
+.catpick-group.catpick-division-green { color: #24633e; background: #edf8f0; }
+.catpick-group.catpick-division-slate { color: #4d5b70; background: #f0f3f7; }

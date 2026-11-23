@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import "./styles/AuthFeedback.css";
 import { api, ensureCsrf } from "./api";
 import type { User } from "./types";
+import { applyTheme } from "./theme";
 
 interface AuthState {
   user: User | null;
@@ -25,6 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [feedback]);
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  useEffect(() => { applyTheme(user?.theme); }, [user?.theme]);  // each person sees their own dashboard colour; signed out = default
 
   useEffect(() => {
     // Never overwrite a user who signed in while this first check was still running.

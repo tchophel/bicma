@@ -124,3 +124,73 @@
   .track-page .tracking-result-header > .badge { margin-left: 0; }
 }
 @media (max-width: 440px) { .track-search-card { grid-template-columns: minmax(0, 1fr); } .track-search-card .btn { margin: 0; width: 100%; } .track-page .tracking-facts { gap: 14px; grid-template-columns: minmax(0, 1fr); } .track-page .tracking-facts > div { border: 0; padding: 0; } }
+
+/* Dedicated email verification layout. */
+.track-search-card.track-code-card { grid-template-columns: minmax(0, 1fr); gap: 22px; max-width: 520px; margin-inline: auto; padding: 32px; border-top: 3px solid var(--c-primary); }
+.track-code-heading { text-align: center; }
+.track-code-icon { display: grid; place-items: center; width: 56px; height: 56px; margin: 0 auto 18px; border-radius: 16px; background: var(--c-primary-soft); color: var(--c-primary); }
+.track-code-heading .tracking-eyebrow { font-size: .68rem; }
+.track-code-heading h2 { margin: 10px 0 8px; font-size: 1.5rem; letter-spacing: -.025em; }
+.track-code-heading p { margin: 0; color: var(--c-muted); font-size: .9rem; line-height: 1.6; }
+.track-code-reference { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 12px 14px; border: 1px solid var(--c-border); border-radius: 8px; background: #fcfaf8; font-size: .8rem; }
+.track-code-reference > span { color: var(--c-muted); }
+.track-code-reference strong { overflow-wrap: anywhere; min-width: 0; }
+.track-code-notice { display: flex; align-items: flex-start; gap: 10px; padding: 14px; border-radius: 9px; background: var(--c-primary-soft); }
+.track-code-notice > .icon { flex-shrink: 0; margin-top: 2px; color: var(--c-primary); }
+.track-code-notice p { margin: 0; font-size: .8125rem; line-height: 1.7; }
+.track-code-card input.track-code-input { min-height: 62px; text-align: center; font-size: 1.65rem; font-weight: 600; letter-spacing: .35em; padding-inline: 14px; font-variant-numeric: tabular-nums; }
+.track-code-input::placeholder { color: #c5b8ae; opacity: 1; }
+.track-code-card .btn.track-code-confirm { width: 100%; margin: -6px 0 0; min-height: 48px; justify-content: center; }
+.track-code-actions { display: flex; flex-direction: column; align-items: center; gap: 16px; }
+.track-code-actions p { margin: 0; color: var(--c-muted); text-align: center; font-size: .8125rem; line-height: 1.6; }
+.track-code-link { display: inline-flex; align-items: center; justify-content: center; gap: 7px; background: transparent; border: 0; padding: 5px; color: var(--c-primary); font: inherit; font-size: .875rem; font-weight: 600; cursor: pointer; }
+.track-code-link:hover { text-decoration: underline; text-underline-offset: 4px; }
+.track-code-link:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 4px; border-radius: 3px; }
+.track-code-link:disabled { opacity: .5; cursor: wait; }
+.track-code-link.track-code-back { color: var(--c-muted); font-weight: 400; }
+.track-code-security { display: flex; align-items: center; justify-content: center; gap: 7px; border-top: 1px solid var(--c-border); padding-top: 18px; margin: 0; color: var(--c-muted); font-size: .75rem; }
+@media (max-width: 440px) { .track-search-card.track-code-card { padding: 24px 18px; gap: 20px; } .track-code-reference { flex-direction: column; align-items: flex-start; } }
+
+/* Verified complaint details and supporting documents. */
+.tracking-submitted { padding: 26px; border-top: 1px solid var(--c-border); }
+.tracking-section-title { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.tracking-submitted h3 { display: flex; align-items: center; gap: 9px; margin: 0; font-size: 1rem; }
+.tracking-submitted h3 > .icon { color: var(--c-primary); }
+.tracking-section-title .chip { display: inline-flex; align-items: center; gap: 5px; white-space: nowrap; }
+.tracking-section-intro { margin: 8px 0 22px; color: var(--c-muted); font-size: .85rem; line-height: 1.7; }
+.tracking-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 24px; margin: 0; }
+.tracking-detail-grid > div { padding: 16px 0; border-bottom: 1px solid var(--c-border); min-width: 0; }
+.tracking-detail-grid > div:first-child, .tracking-detail-grid > div:nth-child(2) { padding-top: 0; }
+.tracking-detail-grid .tracking-detail-wide { grid-column: 1 / -1; }
+.tracking-detail-grid dt { color: var(--c-muted); font-size: .78rem; margin-bottom: 7px; }
+.tracking-detail-grid dd { margin: 0; font-size: .9rem; line-height: 1.75; white-space: pre-wrap; overflow-wrap: anywhere; }
+.tracking-document-section { margin-top: 24px; }
+.tracking-document-section h4 { display: flex; align-items: center; gap: 9px; font-size: .875rem; margin: 0 0 12px; }
+.tracking-documents { list-style: none; padding: 0; margin: 12px 0 0; display: grid; gap: 10px; }
+.tracking-documents li { display: flex; align-items: center; gap: 12px; border: 1px solid var(--c-border); padding: 14px; border-radius: 10px; background: #fff; }
+.tracking-documents .icon-tile { width: 38px; height: 42px; flex-shrink: 0; background: var(--c-primary-soft); color: var(--c-primary); }
+.tracking-documents li > div { flex: 1; min-width: 0; }
+.tracking-documents strong { display: block; font-size: .85rem; font-weight: 600; overflow-wrap: anywhere; }
+.tracking-documents small { display: block; color: var(--c-muted); margin-top: 5px; font-size: .75rem; }
+.tracking-documents a { display: inline-flex; align-items: center; gap: 7px; padding: 8px 10px; border-radius: 6px; color: var(--c-primary); font-size: .8125rem; font-weight: 600; text-decoration: none; }
+.tracking-documents a:hover { background: var(--c-primary-soft); }
+.tracking-documents a:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
+.tracking-additional { background: #fcfaf8; }
+.tracking-additional-form textarea { min-height: 112px; resize: vertical; background: #fff; }
+.tracking-additional-form input[type=file] { padding: 16px; background: #fff; border: 1px dashed #cbb8a9; border-radius: 9px; max-width: 100%; }
+.tracking-additional-form input[type=file]::file-selector-button { padding: 8px 12px; margin-right: 12px; border: 1px solid var(--c-border); background: #fcfaf8; border-radius: 6px; color: var(--c-text); cursor: pointer; }
+.tracking-additional-form .btn { margin-top: 4px; }
+@media (max-width: 600px) { .tracking-submitted { padding: 22px 18px; } .tracking-detail-grid { grid-template-columns: minmax(0, 1fr); } .tracking-detail-grid > div:nth-child(2) { padding-top: 16px; } .tracking-documents li { gap: 8px; padding: 10px; } .tracking-additional-form .btn { width: 100%; justify-content: center; } }
+
+.tracking-document-view { display: inline-flex; align-items: center; justify-content: center; gap: 7px; flex-shrink: 0; padding: 9px 14px; border: 1px solid var(--c-primary); border-radius: 7px; background: var(--c-primary-soft); color: var(--c-primary); font: inherit; font-size: .8125rem; font-weight: 600; cursor: pointer; }
+.tracking-document-view:hover { background: var(--c-primary); color: #fff; }
+.tracking-document-dialog { width: min(900px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); padding: 0; border: 1px solid var(--c-border); border-radius: 14px; color: var(--c-text); box-shadow: 0 24px 80px #0003; }
+.tracking-document-dialog::backdrop { background: rgb(25 20 16 / 65%); }
+.tracking-document-dialog header { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 16px 20px; border-bottom: 1px solid var(--c-border); }
+.tracking-document-dialog h2 { margin: 0; font-size: 1rem; overflow-wrap: anywhere; }
+.tracking-document-close { display: grid; place-items: center; flex-shrink: 0; width: 40px; height: 40px; border: 1px solid var(--c-border); border-radius: 8px; background: #fff; cursor: pointer; color: var(--c-text); }
+.tracking-document-preview { display: grid; place-items: center; padding: 18px; background: #f5f3f0; min-height: 180px; }
+.tracking-document-preview img { display: block; max-width: 100%; max-height: calc(100dvh - 230px); object-fit: contain; }
+.tracking-document-preview iframe { width: 100%; height: min(65dvh, 740px); border: 0; background: #fff; }
+.tracking-document-dialog footer { padding: 14px 20px; border-top: 1px solid var(--c-border); }
+.tracking-document-dialog footer a { display: inline-flex; align-items: center; gap: 8px; color: var(--c-primary); font-size: .875rem; }

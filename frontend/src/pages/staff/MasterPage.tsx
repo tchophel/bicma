@@ -118,14 +118,9 @@ const opts = (rows?: { id: string; name: string }[]) => rows?.map((r) => ({ valu
 export function ProviderTypes() { return <MasterPage title="Provider / party types" subtitle="Types such as telecom operator, ISP or broadcaster." icon="category" path="provider-types" fields={[{ key: "name", label: "Name", required: true }]} />; }
 export function Outcomes() { return <MasterPage title="Outcomes" subtitle="Outcomes an officer records when resolving a complaint." icon="check" path="outcomes" fields={[{ key: "name", label: "Name", required: true }]} />; }
 export function ClosureReasons() { return <MasterPage title="Closure reasons" subtitle="Standard reasons for closing a complaint." icon="close" path="closure-reasons" fields={[{ key: "name", label: "Name", required: true }]} />; }
-export function Holidays() { return <MasterPage title="Public holiday calendar" subtitle="Working days exclude weekends and these dates when response timelines are calculated." icon="clock" path="holidays" fields={[{ key: "date", label: "Date", type: "date", required: true }, { key: "name", label: "Holiday", required: true }]} />; }
 export function Priorities() {
   return <MasterPage title="Priorities and timelines" subtitle="Response and resolution timelines, in working days, applied to each priority." icon="alert" path="priorities"
     fields={[{ key: "name", label: "Priority", required: true }, { key: "rank", label: "Rank", type: "number", required: true, hint: "Higher is more urgent.", min: 1 }, { key: "response_days", label: "Response (working days)", type: "number", required: true, min: 0 }, { key: "resolution_days", label: "Resolution (working days)", type: "number", required: true, min: 1 }]} />;
-}
-export function EmailTemplates() {
-  return <MasterPage title="Email templates" subtitle="Wording for each notification event. Placeholders: {reference} {subject} {status} {category} {provider} {message} {division} {officer} {tracking_url}." icon="mail" path="email-templates"
-    fields={[{ key: "event", label: "Event key", required: true, hint: "acknowledgement, status_change, info_request, closure, not_within_mandate, stakeholder_review" }, { key: "name", label: "Name", required: true }, { key: "recipient", label: "Recipient", hint: "complainant, provider, officer" }, { key: "subject", label: "Subject", required: true }, { key: "body", label: "Body", type: "textarea", required: true }]} />;
 }
 export function Providers() {
   const types = useList<Page<{ id: string; name: string }>>("/admin/provider-types/?page_size=200");

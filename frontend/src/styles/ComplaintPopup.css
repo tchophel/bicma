@@ -61,3 +61,20 @@
 .side-panel-bar .bar-actions { display: flex; align-items: center; gap: 6px; }
 .side-panel-actions { position: sticky; bottom: 0; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 18px -20px -20px; padding: 12px 20px; background: var(--c-surface); border-top: 1px solid var(--c-border); box-shadow: 0 -6px 16px rgb(40 25 10 / 6%); }
 .side-panel-actions .muted { font-size: .82rem; }
+
+/* Like Asana's task pane: the details panel takes half of the screen (never narrower than 560px, full screen on phones) */
+.side-panel { width: min(100vw, max(50vw, 560px)); }
+@media (max-width: 1100px) { .side-panel { width: min(100vw, max(60vw, 560px)); } }
+@media (max-width: 700px) { .side-panel { width: 100vw; } }
+
+/* Activity as a horizontal row of steps (scrolls sideways when there are many) */
+.side-panel .timeline.activity-row { display: flex; gap: 0; overflow-x: auto; padding-bottom: 8px; scrollbar-width: thin; }
+.side-panel .activity-row li { flex: 0 0 min(250px, 72%); padding: 40px 18px 0 0; }
+.side-panel .activity-row li:last-child { padding-bottom: 0; }
+.side-panel .activity-row li::before { display: block; left: 34px; right: 4px; top: 14px; bottom: auto; width: auto; height: 2px; background: var(--c-border); }
+.side-panel .activity-row li:last-child::before { display: none; }
+.side-panel .activity-row .dot { top: 0; left: 0; }
+.side-panel .activity-row li:last-child .dot { background: var(--c-primary); color: #fff; }
+.side-panel .activity-row .what { padding-top: 0; }
+.side-panel .activity-row li.muted { flex-basis: 100%; padding-top: 0; }
+.side-panel .activity-row li.muted::before { display: none; }

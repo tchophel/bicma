@@ -3,6 +3,10 @@ import { useSearchParams } from "react-router-dom";
 import { Icon } from "../../components/Icon";
 import { PageHeader, fmt } from "../../components/ui";
 import { useList } from "../../useList";
+import { api, ApiError } from "../../api";
+import { Modal } from "../../components/Modal";
+import { Field } from "../../components/ui";
+import { useToast } from "../../components/Toast";
 import { AuditLogs } from "./AuditLogs";
 import { ApiStatus } from "../../components/ApiStatus";
 
@@ -48,8 +52,24 @@ function LogTable({ kind }: { kind: "api" | "email" | "sms" }) {
   if (to) params.set("date_to", to);
   const { data, err, loading, reload } = useList<Data>(`/admin/logs/${kind}/?${params}`);
   const reset = (fn: () => void) => { fn(); setPage(1); };
+  const toast = useToast();
+  const [fixing, setFixing] = useState<Row | null>(null);   // the failed email whose address is being corrected
+  const [address, setAddress] = useState("");
+  const [working, setWorking] = useState<string | null>(null);
+  const [fixErr, setFixErr] = useState("");
+  /** Sends a failed case email again, to the same address or to a corrected one. */
+  async function resend(r: Row, to?: string) {
+    setWorking(r.id); setFixErr("");
+    try {
+      const res = await api<{ status: string; recipient: string; error: string }>(`/admin/logs/email/${r.id}/resend/`, { json: to ? { recipient: to } : {} });
+      if (res.status === "sent") toast.success(`Sent to ${res.recipient}.`);
+      else toast.error(`Still could not send to ${res.recipient}: ${res.error || "the mail server did not accept it"}.`);
+      setFixing(null); reload();
+    } catch (x) { setFixErr((x as ApiError).message); toast.error((x as ApiError).message); }
+    finally { setWorking(null); }
+  }
   const cols = kind === "api" ? ["When", "API", "Method", "Address", "Status", "Time", "Note"]
-    : kind === "email" ? ["When", "Type", "To", "Subject", "Case", "Status", "Error"] : ["When", "Type", "To", "Message", "Case", "Status", "Error"];
+    : kind === "email" ? ["When", "Type", "To", "Subject", "Case", "Status", "Error", "Action"] : ["When", "Type", "To", "Message", "Case", "Status", "Error"];
   return (
     <>
       <div className="card filter-bar" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))" }}>
@@ -71,11 +91,21 @@ function LogTable({ kind }: { kind: "api" | "email" | "sms" }) {
           {data?.results.map((r) => kind === "api" ? (
             <tr key={r.id}><td>{fmt(r.created_at)}</td><td>{String(r.service || "").toUpperCase()}</td><td>{String(r.method)}</td><td><code>{String(r.path)}</code></td><td>{statusBadge(Number(r.status))}</td><td>{String(r.duration_ms)} ms</td><td>{String(r.error || "")}</td></tr>
           ) : (
-            <tr key={r.id}><td>{fmt(r.created_at)}</td><td>{String(r.kind).replace(/_/g, " ")}</td><td>{String(r.recipient)}</td><td>{String(kind === "email" ? r.subject : r.message)}</td><td>{String(r.reference || "—")}</td><td>{sendBadge(String(r.status))}</td><td>{String(r.error || "")}</td></tr>
+            <tr key={r.id}><td>{fmt(r.created_at)}</td><td>{String(r.kind).replace(/_/g, " ")}</td><td>{String(r.recipient)}</td><td>{String(kind === "email" ? r.subject : r.message)}</td><td>{String(r.reference || "—")}</td><td>{sendBadge(String(r.status))}</td><td>{String(r.error || "")}</td>{kind === "email" && <td>{r.resendable ? <span style={{ display: "inline-flex", gap: 6, flexWrap: "wrap" }}><button type="button" className="btn secondary" disabled={working === r.id} onClick={() => resend(r)}><Icon name="refresh" size={15} />{working === r.id ? "Sending…" : "Resend"}</button><button type="button" className="btn secondary" disabled={working === r.id} onClick={() => { setFixing(r); setAddress(String(r.recipient)); setFixErr(""); }}><Icon name="edit" size={15} />Edit address</button></span> : r.status === "failed" ? <span className="muted" title="This email holds a one-time code or was delivered later. The person can ask for a new one.">Cannot be resent</span> : "—"}</td>}</tr>
           ))}
         </tbody>
       </table>
       {!loading && data?.results.length === 0 && <p className="muted" style={{ padding: 16 }}>No entries match.</p>}</div>
+      <Modal open={!!fixing} onClose={() => setFixing(null)} title="Correct the email address" icon="mail" busy={working !== null}>
+        {fixing && (
+          <form onSubmit={(e) => { e.preventDefault(); void resend(fixing, address.trim()); }}>
+            <p className="muted">The email “{String(fixing.subject)}” could not be sent{fixing.error ? ` (${String(fixing.error)})` : ""}. Fix the address and it is sent again straight away. The corrected address is saved on the case.</p>
+            {fixErr && <p className="error" role="alert">{fixErr}</p>}
+            <Field label="Send to (email address)" required><input type="email" required autoFocus value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
+            <button className="btn" disabled={working !== null || !address.trim()}><Icon name="send" />{working ? "Sending…" : "Save and send again"}</button>
+          </form>
+        )}
+      </Modal>
       <div className="pager">
         <span className="muted">{data?.count ?? 0} entr{data?.count === 1 ? "y" : "ies"}</span>
         <div>

@@ -20,3 +20,7 @@
 .category-subcategories > .btn { margin-left: auto; }
 @media (max-width: 1000px) { .category-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .category-card { padding: 14px; } .category-card-heading { align-items: flex-start; flex-direction: column; gap: 10px; } .category-fields { grid-template-columns: minmax(0, 1fr); gap: 0; } .category-subcategories > .btn { margin-left: 0; } }
+
+.category-description { margin-top: 14px; display: grid; gap: 8px; justify-items: start; }
+.category-description .field, .category-description label { width: 100%; }
+.category-description textarea { width: 100%; box-sizing: border-box; }

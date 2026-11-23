@@ -17,15 +17,18 @@ def allowed_actions(user, c, perms=None):
     st = c.internal_status
     head = user.base_role in HEAD_OR_ADMIN and _in_division(user, c)
     officer = user.base_role == Role.INVESTIGATOR and c.assigned_to_id == user.pk
+    joined = user.base_role == Role.INVESTIGATOR and _in_division(user, c) and c.joined_officers.filter(pk=user.pk).exists()
     handler = head or officer
     triage_role = user.base_role in (Role.FOCAL, Role.INVESTIGATOR, Role.SUPER_ADMIN) and _in_division(user, c)
     structural = {
-        "triage": triage_role and st in (S.RECEIVED, S.TRIAGE, S.REFERRED),
+        "triage": (triage_role and st in (S.RECEIVED, S.TRIAGE, S.REFERRED))
+        or (head and wf.investigation_first() and st in (S.ASSIGNED, S.INVESTIGATING, S.AWAITING_INFORMATION)),
         "assign": head and st in (S.RECEIVED, S.TRIAGE, S.REFERRED, S.ASSIGNED, S.INVESTIGATING, S.MANAGEMENT_REJECTED),
+        "join": head and st in (S.RECEIVED, S.TRIAGE, S.REFERRED, S.ASSIGNED, S.INVESTIGATING, S.AWAITING_INFORMATION),
         "refer": head and st in (S.RECEIVED, S.TRIAGE, S.REFERRED, S.ASSIGNED, S.INVESTIGATING),
         "not_in_mandate": head and st in (S.RECEIVED, S.TRIAGE, S.REFERRED, S.ASSIGNED),
         "start": handler and st == S.ASSIGNED and bool(c.assigned_to_id),
-        "save_findings": handler and st in (S.INVESTIGATING, S.AWAITING_INFORMATION),
+        "save_findings": (handler or joined) and st in (S.INVESTIGATING, S.AWAITING_INFORMATION),
         "request_info": handler and st == S.INVESTIGATING,
         "return": officer and st in (S.ASSIGNED, S.INVESTIGATING, S.AWAITING_INFORMATION),
         "resume": handler and st == S.AWAITING_INFORMATION,
@@ -37,11 +40,11 @@ def allowed_actions(user, c, perms=None):
         "approve": head and st in (S.SUBMITTED, S.RESOLVED),
         "reject": head and st in (S.SUBMITTED, S.RESOLVED),
         "reopen": head and st == S.CLOSED,
-        "message": handler and st not in (S.DRAFT, S.NOT_WITHIN_MANDATE),
-        "note": (handler or triage_role) and st != S.DRAFT,
+        "message": (handler or joined) and st not in (S.DRAFT, S.NOT_WITHIN_MANDATE),
+        "note": (handler or joined or triage_role) and st != S.DRAFT,
         "stakeholder_review": head and st not in (S.DRAFT, S.CLOSED, S.NOT_WITHIN_MANDATE),
         "register_draft": st == S.DRAFT and c.registered_by_id == user.pk,
     }
     allowed = perms if perms is not None else role_perms(user.role)
-    alias = {"register_draft": "register_complaint", "mgmt_reject": "mgmt_approve"}
+    alias = {"join": "assign", "register_draft": "register_complaint", "mgmt_reject": "mgmt_approve"}
     return {name: ok and (alias.get(name, name) in allowed) for name, ok in structural.items()}

@@ -1,7 +1,7 @@
 from rest_framework.test import APITestCase
 
 from accounts.models import Role, User
-from .models import FAQ, AuditLog
+from .models import FAQ, AuditLog, Category
 
 
 class FAQAdminTests(APITestCase):
@@ -101,3 +101,44 @@ class BrandedEmailTests(APITestCase):
         self.assertIn("Complaint update", html)
         mime = message.message()
         self.assertTrue(any(part.get("Content-ID") == "<bicma-logo>" for part in mime.walk()))
+
+
+class CategoryDescriptionTests(APITestCase):
+    def test_description_is_public_and_only_an_admin_edits_it(self):
+        from accounts.models import Role, User
+        from core.category_info import default_for
+        cat = Category.objects.create(name="Telecom tower structure", description=default_for("Telecom tower structure"))
+        data = self.client.get("/api/meta/").data
+        row = next(c for c in data["categories"] if c["id"] == str(cat.pk))
+        self.assertIn("tower", row["description"])
+        admin = User.objects.create_user("catadmin@example.org", "Strong-cat-pass-321!", role=Role.SUPER_ADMIN)
+        self.client.force_authenticate(admin)
+        r = self.client.patch(f"/api/admin/categories/{cat.pk}/", {"description": "Written by the admin."}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        cat.refresh_from_db()
+        self.assertEqual(cat.description, "Written by the admin.")
+        self.assertEqual(self.client.patch(f"/api/admin/categories/{cat.pk}/", {"description": "x" * 401}, format="json").status_code, 400)
+
+    def test_default_text_matches_names_ignoring_case(self):
+        from core.category_info import default_for
+        self.assertTrue(default_for("  MSO's "))
+        self.assertEqual(default_for("Something new"), "")
+
+
+class SingleUploadBoxTests(APITestCase):
+    def test_several_optional_documents_become_one_box_and_old_uploads_keep_their_label(self):
+        from accounts.models import Division
+        from core.formspecs import slot_label, spec_for
+        div = Division.objects.create(name="Media and Content Division", code="MCD")
+        cat = Category.objects.create(name="Film production-related", default_division=div)
+        spec = spec_for(cat)
+        self.assertEqual([d["key"] for d in spec["docs"]], ["supporting"])
+        self.assertEqual(spec["docs"][0]["hint"], "Contract or agreement, if any; payment receipts or bank transaction records; any other evidence supporting the claim.")
+        self.assertEqual(slot_label(spec, "receipts"), "Payment receipts or bank transaction records")  # an earlier upload
+
+    def test_required_and_conditional_documents_are_not_merged(self):
+        from accounts.models import Division
+        from core.formspecs import spec_for
+        div = Division.objects.create(name="Spectrum and Technology Division", code="STD")
+        spec = spec_for(Category.objects.create(name="Telecom tower structure", default_division=div))
+        self.assertEqual([(d["key"], d["required"]) for d in spec["docs"]], [("photo", True)])

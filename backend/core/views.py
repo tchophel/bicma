@@ -11,8 +11,8 @@ from rest_framework import status
 from rest_framework.decorators import action
 
 from .models import (
-    ApiLog, EmailLog, SmsLog,
-    FAQ, AuditLog, Category, ClosureReason, Dzongkhag, EmailTemplate, Holiday, Notification, Outcome, Priority,
+    ApiLog, EmailLog, NotificationLog, SmsLog,
+    FAQ, AuditLog, Category, ClosureReason, Dzongkhag, Notification, Outcome, Priority,
     Provider, ProviderType, Subcategory, SystemConfiguration,
 )
 from .serializers import (
@@ -92,7 +92,7 @@ class CategoryAdminViewSet(AuditedCategoryDeletionMixin, AuditedModelViewSet):
         class Writable(serializers.ModelSerializer):
             class Meta:
                 model = Category
-                fields = ["id", "name", "is_active", "default_division", "urban_division", "rural_division", "default_priority"]
+                fields = ["id", "name", "is_active", "default_division", "urban_division", "rural_division", "default_priority", "description"]
 
         return CategorySerializer if self.action in ("list", "retrieve") else Writable
 
@@ -159,7 +159,8 @@ class SettingsView(APIView):
 
     def _current(self):
         from .limits import get_limits
-        return {"reference_prefix": SystemConfiguration.get("reference_prefix", "BICMA-CMS"),
+        from complaints.models import reference_length
+        return {"reference_length": reference_length(),
                 "declaration_text": SystemConfiguration.get("declaration_text", DEFAULT_DECLARATION), **get_limits()}
 
     def get(self, request):
@@ -168,26 +169,29 @@ class SettingsView(APIView):
     def patch(self, request):
         from . import limits
         d, errors, changed = request.data, {}, {}
-        if "reference_prefix" in d:
-            prefix = str(d["reference_prefix"]).strip().upper()
-            if re.fullmatch(r"[A-Z0-9][A-Z0-9-]{1,19}", prefix):
-                changed["reference_prefix"] = prefix
+        if "reference_length" in d:
+            from complaints.models import REFERENCE_LENGTH_RANGE as lo_hi
+            raw = d["reference_length"]
+            if isinstance(raw, (int, str)) and not isinstance(raw, bool) and str(raw).strip().isdigit() and lo_hi[0] <= int(raw) <= lo_hi[1]:
+                changed["reference_length"] = int(raw)
             else:
-                errors["reference_prefix"] = ["Use 2-20 letters, numbers or hyphens (e.g. BICMA-CMS)."]
+                errors["reference_length"] = [f"Enter a number of digits from {lo_hi[0]} to {lo_hi[1]}."]
         if "declaration_text" in d:
             text = str(d["declaration_text"]).strip()
             if 20 <= len(text) <= 3000:
                 changed["declaration_text"] = text
             else:
                 errors["declaration_text"] = ["Enter the declaration (20 to 3000 characters)."]
-        lim = {k: d[k] for k in (*limits.BOUNDS, "upload_types") if k in d}
+        lim = {k: d[k] for k in (*limits.BOUNDS, "upload_types", "upload_instructions") if k in d}
         for k, msg in limits.validate_limits(lim).items():
             errors[k] = [msg]
         if errors:
             return Response(errors, status=status.HTTP_400_BAD_REQUEST)
-        for key, desc in (("reference_prefix", "Prefix of complaint reference numbers"), ("declaration_text", "Public form declaration")):
-            if key in changed:
-                SystemConfiguration.objects.update_or_create(key=key, defaults={"value": changed[key], "description": desc})
+        if "reference_length" in changed:
+            SystemConfiguration.objects.update_or_create(key="reference_serial_length", defaults={
+                "value": str(changed["reference_length"]), "description": "Digits in the random number at the end of a reference"})
+        if "declaration_text" in changed:
+            SystemConfiguration.objects.update_or_create(key="declaration_text", defaults={"value": changed["declaration_text"], "description": "Public form declaration"})
         if lim:
             before = limits.get_limits()
             limits.save_limits(lim)
@@ -220,8 +224,6 @@ ProviderAdminViewSet = _master(Provider, ["name", "provider_type", "licence_numb
 PriorityAdminViewSet = _master(Priority, ["name", "rank", "response_days", "resolution_days"], "priority")
 OutcomeAdminViewSet = _master(Outcome, ["name"], "outcome")
 ClosureReasonAdminViewSet = _master(ClosureReason, ["name"], "closure_reason")
-HolidayAdminViewSet = _master(Holiday, ["date", "name"], "holiday", ("name",))
-EmailTemplateAdminViewSet = _master(EmailTemplate, ["event", "name", "recipient", "subject", "body"], "email_template")
 
 
 class LogListView(APIView):
@@ -264,9 +266,47 @@ class LogListView(APIView):
             page, size = 1, 25
         total = qs.count()
         rows = list(qs[(page - 1) * size: page * size].values())
+        undelivered = set()
+        if kind == "email":
+            ids = [r["notification_id"] for r in rows if r.get("notification_id")]
+            undelivered = {n for n in NotificationLog.objects.filter(pk__in=ids).exclude(status="sent").values_list("pk", flat=True)}
         for r in rows:
             r["id"] = str(r["id"])
+            if kind == "email":
+                # a failed case email that has not been delivered since can be resent (optionally to a corrected address)
+                r["resendable"] = r["status"] == "failed" and r.get("notification_id") in undelivered
+                r["notification_id"] = str(r["notification_id"]) if r.get("notification_id") else None
         return Response({"count": total, "page": page, "pages": max(1, -(-total // size)), "results": rows})
+
+
+class EmailResendView(APIView):
+    """Administrator: send a failed case email again, optionally to a corrected address (the address is saved on the case email)."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request, pk):
+        from django.core.exceptions import ValidationError as DjangoValidationError
+        from django.core.validators import validate_email
+        from complaints.services import deliver
+        entry = EmailLog.objects.filter(pk=parse_uuid(pk)).select_related("notification").first()
+        note = entry.notification if entry else None
+        if entry is None or note is None:
+            return Response({"detail": "This email cannot be resent (it may hold a one-time code). The person can ask for a new one."}, status=400)
+        if note.status == "sent":
+            return Response({"detail": "This email has already been delivered."}, status=400)
+        address = str(request.data.get("recipient", "")).strip().lower()
+        before = note.recipient
+        if address and address != before:
+            try:
+                validate_email(address)
+            except DjangoValidationError:
+                return Response({"recipient": ["Enter a valid email address."]}, status=400)
+            note.recipient, note.attempts = address, 0  # a new address gets a fresh set of automatic retries
+            note.save(update_fields=["recipient", "attempts"])
+        delivered = deliver(note)
+        audit.log(request, "email.resend", entity_type="complaint", entity_id=note.complaint_id,
+                  detail={"event": note.event, "from": before, "to": note.recipient, "delivered": delivered})
+        return Response({"status": note.status, "recipient": note.recipient, "error": note.error})
 
 
 class ApiStatusView(APIView):

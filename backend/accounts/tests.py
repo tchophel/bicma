@@ -352,13 +352,25 @@ class PasswordResetOtpTests(APITestCase):
         self.assertEqual(self.verify("12ab56").status_code, 400)
 
 
-class ProfileBioTests(APITestCase):
-    def test_user_edits_their_own_bio_and_it_is_limited(self):
+class ProfileBioRemovedTests(APITestCase):
+    def test_bio_is_no_longer_shown_or_editable(self):
         user = User.objects.create_user("bio@example.org", "Strong-bio-pass-321!", role=Role.SUPERVISOR)
         self.client.force_authenticate(user)
-        r = self.client.patch("/api/auth/me/", {"bio": "Reviews complaints for the Supervisor."}, format="json")
+        r = self.client.patch("/api/auth/me/", {"bio": "ignored", "phone": "17123456", "designation": "Senior Officer", "employee_id": "E1"}, format="json")
         self.assertEqual(r.status_code, 200, r.content)
-        self.assertEqual(r.data["bio"], "Reviews complaints for the Supervisor.")
-        self.assertEqual(self.client.get("/api/auth/me/").data["bio"], "Reviews complaints for the Supervisor.")
-        self.assertEqual(self.client.patch("/api/auth/me/", {"bio": "x" * 501}, format="json").status_code, 400)
-        self.assertEqual(self.client.patch("/api/auth/me/", {"bio": ""}, format="json").status_code, 200)  # can be cleared
+        self.assertNotIn("bio", r.data)
+        user.refresh_from_db()
+        self.assertEqual((user.bio, user.phone, user.designation), ("", "17123456", "Senior Officer"))
+        self.assertIsNone(user.employee_id)  # employee ID stays admin-only
+        self.assertNotIn("bio", self.client.get("/api/auth/me/").data)
+
+class ProfileThemeTests(APITestCase):
+    def test_user_picks_their_own_dashboard_colour_from_the_list(self):
+        user = User.objects.create_user("theme@example.org", "Strong-theme-pass-321!", role=Role.SUPERVISOR)
+        self.client.force_authenticate(user)
+        self.assertEqual(self.client.get("/api/auth/me/").data["theme"], "orange")
+        r = self.client.patch("/api/auth/me/", {"theme": "blue"}, format="json")
+        self.assertEqual((r.status_code, r.data["theme"]), (200, "blue"))
+        self.assertEqual(self.client.patch("/api/auth/me/", {"theme": "hotpink"}, format="json").status_code, 400)
+        user.refresh_from_db()
+        self.assertEqual(user.theme, "blue")

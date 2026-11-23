@@ -45,7 +45,7 @@ export function Uploads() {
     e.preventDefault(); setMsg({});
     if (!cur) return;
     try {
-      await api("/admin/settings/", { method: "PATCH", json: { upload_max_kb: cur.upload_max_kb, upload_max_files: cur.upload_max_files, photo_max_kb: cur.photo_max_kb, upload_types: cur.upload_types } });
+      await api("/admin/settings/", { method: "PATCH", json: { upload_max_kb: cur.upload_max_kb, upload_max_files: cur.upload_max_files, photo_max_kb: cur.photo_max_kb, upload_types: cur.upload_types, upload_instructions: cur.upload_instructions } });
       setLim({}); reload(); toast.success("Upload settings saved.");
     } catch (x) { setMsg({ err: (x as ApiError).message }); toast.error((x as ApiError).message); }
   }
@@ -78,6 +78,7 @@ export function Uploads() {
             </div>
             <small className="muted">Profile photos are always JPG, PNG or WebP.</small>
           </fieldset>
+          <Field label="Upload instructions" hint="Shown in red beside supporting document uploads on all complaint forms. Leave empty to hide." ><textarea rows={3} maxLength={2000} value={cur.upload_instructions ?? ""} onChange={(e) => setLim({ ...lim, upload_instructions: e.target.value })} /></Field>
           {msg.err && <p className="error" role="alert">{msg.err}</p>}{msg.ok && <p className="notice" role="status">{msg.ok}</p>}
           <button className="btn"><Icon name="check" />Save upload settings</button>
         </form>

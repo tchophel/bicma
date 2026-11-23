@@ -85,7 +85,7 @@ class ComplaintQuerySet(models.QuerySet):
             return self.filter((Q(division=user.division) & ~Q(internal_status=InternalStatus.DRAFT)) | own_drafts)
         if user.base_role == Role.INVESTIGATOR:
             # only the cases assigned to this officer, plus the ones this officer registered (including their own drafts)
-            return self.filter(Q(assigned_to=user) | Q(registered_by=user))
+            return self.filter(Q(assigned_to=user) | Q(registered_by=user) | Q(pk__in=self.filter(joined_officers=user).values("pk")))
         return self.none()
 
 
@@ -148,6 +148,7 @@ class Complaint(UUIDModel):
     internal_status = models.CharField(max_length=40, choices=InternalStatus.choices, default=InternalStatus.RECEIVED, db_index=True)
     division = models.ForeignKey(Division, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
     assigned_to = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="assigned_complaints")
+    joined_officers = models.ManyToManyField(settings.AUTH_USER_MODEL, blank=True, related_name="joined_complaints")
     priority = models.ForeignKey(Priority, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
     confidential_case = models.BooleanField(default=False, help_text="Restricts visibility to named officers")
     referred_from = models.ForeignKey(Division, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
@@ -243,26 +244,49 @@ class ReferenceSerial(models.Model):
         constraints = [models.UniqueConstraint(fields=["year", "code"], name="uniq_reference_serial")]
 
 
+def _random_serial(width, taken):
+    """A random number of `width` digits (never all zeros) that `taken(candidate)` says is unused. If the space is
+    nearly full, widens by one digit rather than looping forever."""
+    import secrets
+    for w in range(width, width + 3):
+        for _ in range(60):
+            n = secrets.randbelow(10 ** w - 1) + 1
+            candidate = f"{n:0{w}d}"
+            if not taken(candidate):
+                return candidate
+    raise RuntimeError("Could not find an unused reference number.")
+
+
+REFERENCE_LENGTH_RANGE = (3, 10)
+
+
+def reference_length():
+    """How many digits the random number at the end of a reference has (Settings page; default 4)."""
+    lo, hi = REFERENCE_LENGTH_RANGE
+    try:
+        return max(lo, min(hi, int(SystemConfiguration.get("reference_serial_length", "4"))))
+    except (TypeError, ValueError):
+        return 4
+
+
 def next_reference(now, division=None):
-    """BICMA-Year-Code-Serial when the division has a reference code (serial restarts each year per division,
-    length from the `reference_serial_length` setting); otherwise the configurable-prefix running number."""
+    """BICMA-Year-Code-Number, e.g. BICMA-2026-3-0009 (Code = the division's reference code; without one: BICMA-Year-Number).
+    The number is random, not a running one, so references cannot be guessed or counted, and it is never reused.
+    Its length comes from the Settings page."""
     code = (getattr(division, "reference_code", "") or "").strip()
     if code:
         ReferenceSerial.objects.get_or_create(year=now.year, code=code)
-        serial = ReferenceSerial.objects.select_for_update().get(year=now.year, code=code)
-        serial.last_number += 1
+        serial = ReferenceSerial.objects.select_for_update().get(year=now.year, code=code)  # serialises issuing per division
+        serial.last_number += 1  # counts references issued
         serial.save(update_fields=["last_number"])
-        try:
-            width = max(1, min(10, int(SystemConfiguration.get("reference_serial_length", "4"))))
-        except ValueError:
-            width = 4
-        return f"BICMA-{now.year}-{code}-{serial.last_number:0{width}d}"
-    prefix = SystemConfiguration.get("reference_prefix", "BICMA-CMS")
-    counter, _ = ReferenceCounter.objects.get_or_create(year=now.year)
-    counter = ReferenceCounter.objects.select_for_update().get(pk=now.year)
-    counter.last_number += 1
-    counter.save(update_fields=["last_number"])
-    return f"{prefix}-{now.year}-{counter.last_number:06d}"
+        head = f"BICMA-{now.year}-{code}-"
+    else:
+        counter, _ = ReferenceCounter.objects.get_or_create(year=now.year)
+        counter = ReferenceCounter.objects.select_for_update().get(pk=now.year)
+        counter.last_number += 1
+        counter.save(update_fields=["last_number"])
+        head = f"BICMA-{now.year}-"
+    return head + _random_serial(reference_length(), lambda c: Complaint.objects.filter(reference=head + c).exists())
 
 
 class CaseMessage(UUIDModel):
@@ -319,3 +343,47 @@ class Attachment(UUIDModel):
 
     class Meta:
         ordering = ["created_at", "id"]
+
+
+class TrackCode(UUIDModel):
+    """One-time code emailed so a complainant can open the Track page for a complaint. Only a hash is kept;
+    one live code per complaint; five wrong tries end it."""
+
+    complaint = models.OneToOneField(Complaint, on_delete=models.CASCADE, related_name="track_code")
+    code_hash = models.CharField(max_length=200)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    created_at = models.DateTimeField(auto_now=True)  # refreshed on every send; used for the resend cooldown
+
+
+def followup_path(instance, filename):
+    import uuid as _uuid
+    ext = filename.rsplit(".", 1)[-1].lower() if "." in filename else "bin"
+    return f"followups/{instance.followup.complaint_id}/{_uuid.uuid4().hex}.{ext}"
+
+
+class FollowUp(UUIDModel):
+    """Additional information the complainant sends after filing (Track page). Kept in its own tables, apart from the
+    complaint, its workflow messages and the original attachments, so it can grow (up to MAX_FOLLOWUPS per complaint)
+    without touching them. Append-only; indexed on (complaint, created_at) so a page of ten is a cheap query."""
+
+    MAX_PER_COMPLAINT = 100
+
+    complaint = models.ForeignKey(Complaint, on_delete=models.PROTECT, related_name="follow_ups")
+    body = models.TextField(max_length=5000, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["-created_at", "-id"]
+        indexes = [models.Index(fields=["complaint", "-created_at"])]
+
+
+class FollowUpFile(UUIDModel):
+    followup = models.ForeignKey(FollowUp, on_delete=models.PROTECT, related_name="files")
+    file = models.FileField(upload_to=followup_path)
+    original_name = models.CharField(max_length=255)
+    size = models.PositiveIntegerField(default=0)
+    content_type = models.CharField(max_length=100, blank=True)
+
+    class Meta:
+        ordering = ["original_name", "id"]

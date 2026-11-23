@@ -39,7 +39,9 @@ def monthly(request, qs):
         done = c.resolved_at or c.closed_at
         place = ", ".join(x for x in (c.locality, c.dzongkhag.name if c.dzongkhag else "") if x)
         contact = ", ".join(x for x in (c.phone, c.email) if x) if see else ""
-        issue = f"{c.subject}: {c.description}" if c.description else c.subject
+        subject, description = c.subject.strip(), c.description.strip()
+        # Registration may already include the description in the subject.
+        issue = subject if not description or subject.casefold().endswith(description.casefold()) else f"{subject}: {description}"
         remarks = "; ".join(x for x in (c.outcome.name if c.outcome else "", c.closure_reason, c.recommendation) if x)
         rows.append([i, (c.provider.name if c.provider else c.platform) or "", c.created_at.date().isoformat(),
                      done.date().isoformat() if done else "", place, c.complainant_name if see else "Confidential",

@@ -1,0 +1,116 @@
+.reports-page { max-width: 1320px; margin-inline: auto; padding-bottom: 28px; }
+.report-builder.card { padding: 0; overflow: hidden; border: 1px solid var(--c-border); border-radius: 14px; box-shadow: 0 4px 24px rgb(69 46 30 / 4%); margin-bottom: 24px; }
+.report-builder-heading { display: flex; align-items: flex-start; gap: 14px; padding: 26px 28px; border-bottom: 1px solid var(--c-border); }
+.report-builder-heading .icon-tile { width: 46px; height: 46px; border-radius: 12px; flex-shrink: 0; color: var(--c-primary); background: var(--c-primary-soft); }
+.report-eyebrow { color: var(--c-primary); font-size: .625rem; font-weight: 700; letter-spacing: .13em; }
+.report-builder-heading h2 { margin: 5px 0 7px; font-size: 1.2rem; letter-spacing: -.025em; }
+.report-builder-heading p { margin: 0; color: var(--c-muted); font-size: .8125rem; line-height: 1.7; }
+.report-builder-fields { border: 0; padding: 26px 28px; margin: 0; min-width: 0; }
+.report-primary-fields { display: grid; grid-template-columns: minmax(0, 1.6fr) repeat(2, minmax(0, 1fr)); gap: 20px; padding-bottom: 26px; border-bottom: 1px solid var(--c-border); }
+.report-builder label { display: flex; flex-direction: column; gap: 9px; min-width: 0; }
+.report-builder label > span { display: flex; align-items: center; gap: 7px; font-size: .8125rem; font-weight: 600; }
+.report-builder label > span > .icon { color: var(--c-primary); }
+.report-builder select, .report-builder input { min-height: 46px; width: 100%; border: 1px solid #cdbcaf; border-radius: 8px; background-color: #fff; font-size: .875rem; }
+.report-builder select:focus, .report-builder input:focus { outline: 3px solid var(--c-primary-soft); outline-offset: 1px; border-color: var(--c-primary); }
+.report-type-field select { background-color: #fff9f2; border-color: #d6b69b; font-weight: 600; color: var(--c-primary-dark); }
+.report-filter-heading { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin: 22px 0 20px; }
+.report-filter-heading h3 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: .875rem; }
+.report-filter-heading h3 > .icon { color: var(--c-primary); }
+.report-filter-heading > span { font-size: .75rem; color: var(--c-muted); }
+.report-secondary-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; }
+.report-builder-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; padding: 18px 28px; background: #fcfaf7; border-top: 1px solid var(--c-border); }
+.report-builder-footer p { display: flex; align-items: center; gap: 8px; margin: 0; font-size: .75rem; color: var(--c-muted); }
+.report-builder-footer .btn { min-height: 44px; font-size: .875rem; }
+.report-builder > .error { margin: 16px 28px; }
+.report-start-note { display: flex; justify-content: center; align-items: center; gap: 16px; padding: 28px; color: var(--c-muted); }
+.report-start-note > .icon { color: var(--c-primary); flex-shrink: 0; }
+.report-start-note strong { font-size: .875rem; color: var(--c-text); }
+.report-start-note p { margin: 7px 0 0; font-size: .8125rem; line-height: 1.7; }
+.report-result.card { padding: 24px; border-radius: 14px; }
+.report-result-heading { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; padding-bottom: 20px; }
+.report-result-heading h2 { font-size: 1.15rem; line-height: 1.7; }
+.report-result-heading .btn { font-size: .75rem; }
+@media (max-width: 800px) { .report-primary-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } .report-type-field { grid-column: 1 / -1; } .report-secondary-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 500px) { .report-builder-heading, .report-builder-fields { padding: 22px 18px; } .report-primary-fields, .report-secondary-fields { grid-template-columns: minmax(0, 1fr); gap: 18px; } .report-builder-footer { padding: 18px; } .report-builder-footer .btn { width: 100%; justify-content: center; } .report-start-note { padding: 20px 8px; align-items: flex-start; } }
+@media print { .reports-page > .page-head, .report-builder, .report-start-note, .report-result-heading > .btn { display: none !important; } .report-result.card { border: 0; padding: 0; box-shadow: none; } }
+
+/* Keep long report headings and descriptions within readable columns. */
+.report-result .report-table-wrap th { white-space: normal; line-height: 1.6; vertical-align: top; font-size: .72rem; }
+.report-result .report-table-wrap td { white-space: normal; overflow-wrap: anywhere; vertical-align: top; font-size: .8rem; line-height: 1.7; }
+.report-monthly-table { table-layout: fixed; min-width: 1150px; }
+.report-monthly-table th:nth-child(1) { width: 5%; }
+.report-monthly-table th:nth-child(2) { width: 10%; }
+.report-monthly-table th:nth-child(3), .report-monthly-table th:nth-child(4) { width: 9%; }
+.report-monthly-table th:nth-child(5) { width: 9%; }
+.report-monthly-table th:nth-child(6) { width: 11%; }
+.report-monthly-table th:nth-child(7) { width: 12%; }
+.report-monthly-table th:nth-child(8) { width: 24%; }
+.report-monthly-table th:nth-child(9) { width: 11%; }
+.report-data-table td { max-width: 320px; min-width: 100px; }
+.report-long-text summary { cursor: pointer; list-style: none; }
+.report-long-text summary::-webkit-details-marker { display: none; }
+.report-long-text summary > span { display: block; color: var(--c-primary); font-size: .75rem; font-weight: 600; margin-top: 5px; }
+.report-long-text p { margin: 0; white-space: pre-wrap; }
+.report-long-text[open] summary { font-size: 0; }
+.report-long-text[open] summary > span { font-size: .75rem; margin: 0 0 8px; }
+.report-long-text[open] summary > span::after { content: " · Click to collapse"; }
+@media print { .report-monthly-table { min-width: 0; width: 100%; } .report-result .report-table-wrap { overflow: visible; } .report-result .report-table-wrap th, .report-result .report-table-wrap td { padding: 6px; font-size: 8pt; } .report-long-text > summary { display: none; } .report-long-text > p { display: block !important; content-visibility: visible; } .report-long-text::details-content { content-visibility: visible; display: block; } }
+
+.report-print-text { display: none; }
+@media print { .report-long-text { display: none; } .report-print-text { display: inline; white-space: pre-wrap; } }
+
+/* Charts and map under the report builder: bar graph, pie chart and map all shown together */
+.report-insights { margin-top: 18px; }
+.insight-toolbar { display: flex; align-items: center; justify-content: space-between; gap: 12px 20px; flex-wrap: wrap; margin-bottom: 14px; }
+.insight-toolbar h2 { margin: 0; font-size: 1.1rem; }
+.insight-by { display: flex; align-items: center; gap: 10px; font-size: .85rem; color: var(--c-muted); }
+.insight-by select { padding: 6px 10px; border: 1px solid var(--c-input-border); border-radius: 8px; background: #fff; font: inherit; color: var(--c-text); }
+.insight-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+.insight-card { padding: 20px 22px; min-width: 0; }
+.insight-map-card { grid-column: 1 / -1; }
+.insight-bars { height: 300px; overflow-y: auto; padding-right: 8px; margin-top: 12px; align-content: start; scrollbar-width: thin; }
+.insight-card .trend-pie { min-height: 300px; margin-top: 6px; }
+.insight-map-canvas { height: 420px; border-radius: 12px; border: 1px solid var(--c-border); overflow: hidden; z-index: 0; margin-top: 12px; }
+.insight-map-note { font-size: .8125rem; margin: 10px 0 0; }
+@media (max-width: 900px) { .insight-grid { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 600px) { .insight-card { padding: 16px; } .insight-map-canvas { height: 320px; } }
+@media print { .insight-by { display: none; } .insight-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .insight-map-canvas { height: 360px; } }
+
+/* Display all report filters together on wider screens. */
+.reports-page .report-secondary-fields { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 12px; }
+@media (max-width: 1050px) { .reports-page .report-secondary-fields { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@media (max-width: 650px) { .reports-page .report-secondary-fields { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (max-width: 400px) { .reports-page .report-secondary-fields { grid-template-columns: minmax(0, 1fr); } }
+
+/* New map: Bhutan drawn from Dzongkhag boundaries, shaded by complaints (no map tiles) */
+.bt-map { margin: 12px 0 0; }
+.bt-map-stage { position: relative; background: linear-gradient(180deg, #fbf8f4, #f6f1ea); border: 1px solid var(--c-border); border-radius: 14px; padding: 12px; }
+.bt-map svg { display: block; width: 100%; height: auto; max-height: 520px; }
+.bt-dz { stroke: #fff; stroke-width: 1.6; stroke-linejoin: round; cursor: pointer; transition: filter .15s, stroke-width .15s; outline: none; }
+.bt-dz.on, .bt-dz:hover, .bt-dz:focus-visible { stroke: var(--c-primary-dark); stroke-width: 2.6; filter: drop-shadow(0 3px 6px rgb(70 43 18 / 28%)); }
+.bt-label { font-size: 11px; fill: #6d6056; font-weight: 500; paint-order: stroke; stroke: rgb(255 255 255 / 70%); stroke-width: 2.5px; }
+.bt-label.has { fill: #2b2118; font-weight: 700; }
+.bt-count { font-size: 15px; font-weight: 800; fill: #1f160f; }
+.bt-readout { position: absolute; left: 16px; bottom: 14px; display: grid; gap: 2px; padding: 8px 12px; background: rgb(255 255 255 / 92%); border: 1px solid var(--c-border); border-radius: 10px; font-size: .85rem; box-shadow: var(--c-shadow); max-width: calc(100% - 32px); }
+.bt-readout span { color: var(--c-muted); }
+.bt-legend { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 12px; font-size: .8125rem; color: var(--c-muted); }
+.bt-ramp { width: 120px; height: 10px; border-radius: 5px; background: linear-gradient(90deg, color-mix(in srgb, var(--c-primary) 22%, white), var(--c-primary)); }
+.bt-none { display: inline-flex; align-items: center; gap: 6px; margin-left: 6px; }
+.bt-none i { width: 14px; height: 10px; border-radius: 3px; background: #f3eee8; border: 1px solid var(--c-border); }
+.bt-missing { flex-basis: 100%; }
+@media (max-width: 600px) { .bt-label { font-size: 13px; } .bt-count { font-size: 17px; } .bt-readout { position: static; margin-top: 10px; max-width: none; } }
+
+/* Bhutan's border: a bold outline around the whole country */
+.bt-border { fill: var(--c-primary-dark); stroke: var(--c-primary-dark); stroke-width: 6; stroke-linejoin: round; pointer-events: none; }
+.bt-dz { stroke-width: 1.4; }
+
+/* Border like a printed map: thin grey line around the country and between the Dzongkhags (no heavy outline) */
+.bt-border { display: none; }
+.bt-dz { stroke: #8c9097; stroke-width: 1; stroke-linejoin: round; vector-effect: non-scaling-stroke; }
+.bt-dz.on, .bt-dz:hover, .bt-dz:focus-visible { stroke: #3d3f44; stroke-width: 2; }
+
+/* Map names: all the same small size; shading is always green */
+.bt-label, .bt-label.has { font-size: 10px; font-weight: 500; fill: #3d3226; }
+.bt-ramp { background: linear-gradient(90deg, color-mix(in srgb, #1f7a46 22%, white), #1f7a46); }
+.bt-dz.on, .bt-dz:hover, .bt-dz:focus-visible { stroke: #14452a; }
+@media (max-width: 600px) { .bt-label, .bt-label.has { font-size: 11px; } }

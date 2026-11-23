@@ -68,4 +68,27 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   }
 }
 
+/** Uploads a form with progress (fetch cannot report upload progress). Errors come back the same way as from `api`. */
+export function uploadWithProgress<T = unknown>(path: string, form: FormData, onProgress: (percent: number) => void): Promise<T> {
+  track(1);
+  return new Promise<T>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", "/api" + path);
+    xhr.setRequestHeader("Accept", "application/json");
+    xhr.setRequestHeader("X-CSRFToken", cookie("csrftoken"));
+    xhr.withCredentials = true;
+    xhr.upload.onprogress = (e) => { if (e.lengthComputable) onProgress(Math.min(100, Math.round((e.loaded / e.total) * 100))); };
+    xhr.onerror = () => reject(new ApiError("The upload could not be completed. Check your connection and try again.", 0));
+    xhr.onabort = () => reject(new ApiError("The upload was cancelled.", 0));
+    xhr.onload = () => {
+      let data: unknown = null;
+      try { data = JSON.parse(xhr.responseText); } catch { /* non-JSON body */ }
+      if (xhr.status >= 200 && xhr.status < 300) { resolve(data as T); return; }
+      const { message, fields } = flatten(data);
+      reject(new ApiError(xhr.status === 429 ? "Too many requests. Please wait and try again." : message, xhr.status, fields, data));
+    };
+    xhr.send(form);
+  }).finally(() => track(-1));
+}
+
 export const ensureCsrf = () => api("/auth/csrf/");

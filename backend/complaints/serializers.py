@@ -8,6 +8,10 @@ from accounts.models import Division, Role
 from core import formspecs
 from core.models import Category, Dzongkhag, Outcome, Priority, Provider, ProviderType, Subcategory
 
+# Bhutan's bounding box: the geo-coordinate of an issue must fall inside it
+BHUTAN_LAT = (26.69, 28.33)
+BHUTAN_LNG = (88.74, 92.13)
+
 from .models import Attachment, CaseMessage, Complaint, StatusHistory
 
 CREATE_FIELDS = [
@@ -68,6 +72,10 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
         def need(field, msg="This field is required."):
             if not attrs.get(field):
                 errors[field] = msg
+
+        for field, (lo, hi), what in (("geo_latitude", BHUTAN_LAT, "latitude"), ("geo_longitude", BHUTAN_LNG, "longitude")):
+            if attrs.get(field) is not None and not lo <= attrs[field] <= hi:
+                errors[field] = f"The {what} is outside Bhutan. Pick a place inside Bhutan."
 
         cat = attrs.get("category")
         spec = formspecs.spec_for(cat)
@@ -267,11 +275,16 @@ def can_see_identity(user, complaint):
     if user.base_role == Role.FOCAL:
         return complaint.division_id == user.division_id
     if user.base_role == Role.INVESTIGATOR:
-        return complaint.assigned_to_id == user.pk or complaint.registered_by_id == user.pk
+        return complaint.assigned_to_id == user.pk or complaint.registered_by_id == user.pk or complaint.joined_officers.filter(pk=user.pk).exists()
     return False
 
 
 class ComplaintDetailSerializer(ComplaintListSerializer):
+    joined_officers = serializers.SerializerMethodField()
+
+    def get_joined_officers(self, obj):
+        return [{"id": str(u.pk), "name": u.get_full_name() or u.email} for u in obj.joined_officers.all()]
+
     subcategory_name = serializers.CharField(source="subcategory.name", read_only=True, default=None)
     provider_type_name = serializers.CharField(source="provider_type.name", read_only=True, default=None)
     outcome_name = serializers.CharField(source="outcome.name", read_only=True, default=None)
@@ -279,6 +292,8 @@ class ComplaintDetailSerializer(ComplaintListSerializer):
     registered_by_name = serializers.SerializerMethodField()
     status_history = StatusHistorySerializer(many=True, read_only=True)
     messages = serializers.SerializerMethodField()
+    follow_ups = serializers.SerializerMethodField()
+    provider_contact_email = serializers.SerializerMethodField()
     attachments = AttachmentSerializer(many=True, read_only=True)
     notifications = serializers.SerializerMethodField()
     related = serializers.SerializerMethodField()
@@ -298,8 +313,8 @@ class ComplaintDetailSerializer(ComplaintListSerializer):
             "authority_referred_to", "referral_date", "agency_name", "present_address", "complaining_for", "other_party_name",
             "details", "details_display", "form_division", "confidential_case", "response_due_at", "first_response_at", "resolved_at", "closed_at",
             "investigation_findings", "action_taken", "recommendation", "outcome", "outcome_name", "closure_reason",
-            "registered_by_name", "updated_at", "version", "paused", "status_history", "messages", "attachments",
-            "notifications", "related", "permissions",
+            "registered_by_name", "updated_at", "version", "paused", "status_history", "messages", "follow_ups", "provider_contact_email", "attachments",
+            "notifications", "related", "permissions", "joined_officers",
         ]
 
     def to_representation(self, obj):
@@ -325,6 +340,14 @@ class ComplaintDetailSerializer(ComplaintListSerializer):
 
     def get_messages(self, obj):
         return MessageSerializer(obj.messages.select_related("author").prefetch_related("attachments"), many=True).data
+
+    def get_provider_contact_email(self, obj):
+        return obj.provider.contact_email if obj.provider_id else ""
+
+    def get_follow_ups(self, obj):
+        return [{"id": str(f.pk), "body": f.body, "created_at": f.created_at,
+                 "files": [{"id": str(x.pk), "original_name": x.original_name, "size": x.size} for x in f.files.all()]}
+                for f in obj.follow_ups.prefetch_related("files")[:100]]
 
     def get_notifications(self, obj):
         return [
@@ -386,5 +409,12 @@ def validate_uploads(files):
         f.seek(0)
         if ext in MAGIC and not any(head.startswith(m) for m in MAGIC[ext]):
             raise serializers.ValidationError({"files": [f"{f.name}: the content does not match its file type."]})
+        from core import filescan
+        try:
+            filescan.scan(f, ext)
+        except filescan.Unsafe as why:
+            import logging
+            logging.getLogger("security").warning("Upload refused (%s): %s", f.name[:80], why)
+            raise serializers.ValidationError({"files": [f"{f.name}: this file was blocked because {why}. Please upload a clean copy."]})
         out.append(Attachment(file=f, original_name=f.name[:255], size=f.size, content_type=(f.content_type or "")[:100]))
     return out

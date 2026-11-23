@@ -37,6 +37,7 @@ def get_limits():
         "upload_max_files": _int("upload_max_files", getattr(settings, "ATTACHMENT_MAX_FILES", 5)),
         "photo_max_kb": _int("photo_max_kb", 5120),
         "upload_types": groups,
+        "upload_instructions": SystemConfiguration.get("upload_instructions", ""),
         "allowed_extensions": [e for g in groups for e in TYPE_GROUPS[g][1]],
         "type_catalog": [{"key": k, "label": v[0], "extensions": v[1]} for k, v in TYPE_GROUPS.items()],
     }
@@ -48,6 +49,10 @@ def validate_limits(values):
     for key, (lo, hi) in BOUNDS.items():
         if key in values and not (isinstance(values[key], int) and not isinstance(values[key], bool) and lo <= values[key] <= hi):
             errors[key] = f"Enter a whole number of KB from {lo} to {hi} ({hi // 1024} MB)." if key != "upload_max_files" else f"Enter a whole number from {lo} to {hi}."
+    if "upload_instructions" in values:
+        text = values["upload_instructions"]
+        if not isinstance(text, str) or len(text) > 2000:
+            errors["upload_instructions"] = "Enter upload instructions of up to 2000 characters."
     if "upload_types" in values:
         t = values["upload_types"]
         if not (isinstance(t, list) and t and all(x in TYPE_GROUPS for x in t)):
@@ -60,6 +65,8 @@ def validate_limits(values):
 
 
 def save_limits(values):
+    if "upload_instructions" in values:
+        SystemConfiguration.objects.update_or_create(key="upload_instructions", defaults={"value": values["upload_instructions"].strip(), "description": "Instructions shown above complaint uploads"})
     for key in BOUNDS:
         if key in values:
             SystemConfiguration.objects.update_or_create(key=key, defaults={"value": str(values[key]), "description": "Upload limit"})

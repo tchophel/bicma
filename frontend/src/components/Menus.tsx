@@ -5,6 +5,7 @@ import { useAuth } from "../auth";
 import type { AppNotification } from "../types";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
+import { useToast } from "./Toast";
 import css from "../styles/Layout.module.css";
 
 /** Closes on outside click and Escape. */
@@ -37,10 +38,28 @@ export function NotificationBell() {
   const [clearing, setClearing] = useState(false);
   const [clearError, setClearError] = useState("");
   const nav = useNavigate();
+  const toast = useToast();
+  const seen = useRef<Set<string> | null>(null);  // ids already shown; null until the first load, so old ones do not pop up
   const load = useCallback(() => {
-    api<{ unread_count: number; results: AppNotification[] }>("/notifications/").then((d) => { setItems(d.results); setUnread(d.unread_count); }).catch(() => {});
-  }, []);
-  useEffect(() => { load(); const t = setInterval(load, 60000); return () => clearInterval(t); }, [load]);
+    api<{ unread_count: number; results: AppNotification[] }>("/notifications/").then((d) => {
+      setItems(d.results); setUnread(d.unread_count);
+      const fresh = d.results.filter((n) => !n.read && !seen.current?.has(n.id));
+      if (seen.current) {  // a new notification arrived while you were working: say so, no refresh needed
+        if (fresh.length === 1) toast.info(fresh[0].message);
+        else if (fresh.length > 1) toast.info(`${fresh.length} new notifications. The latest: ${fresh[0].message}`);
+      }
+      seen.current = new Set([...(seen.current ?? []), ...d.results.map((n) => n.id)]);
+    }).catch(() => {});
+  }, [toast]);
+  // Live: check every few seconds while the page is visible, and straight away when you come back to it.
+  useEffect(() => {
+    load();
+    const tick = () => { if (document.visibilityState === "visible") load(); };
+    const t = setInterval(tick, 5000);
+    document.addEventListener("visibilitychange", tick);
+    window.addEventListener("focus", tick);
+    return () => { clearInterval(t); document.removeEventListener("visibilitychange", tick); window.removeEventListener("focus", tick); };
+  }, [load]);
 
   async function openItem(n: AppNotification) {
     setOpen(false);

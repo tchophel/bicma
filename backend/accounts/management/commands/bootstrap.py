@@ -38,23 +38,18 @@ DEFAULT_CATEGORIES = {
 }
 PRIORITIES = [("Urgent", 4, 1, 5), ("High", 3, 2, 10), ("Normal", 2, 3, 15), ("Low", 1, 5, 30)]
 PROVIDER_TYPES = ["Telecom operator", "ISP", "Cable TV operator", "Broadcaster", "Publisher", "OTT platform", "Other"]
+# Providers created once when the Providers list is empty (administrators edit or add more under Master data > Service providers).
+# Telecom operators are what the "Concerned telecom operator" tick-boxes on the complaint forms list. Licence numbers and
+# contact emails are left blank for an administrator to fill in.
+DEFAULT_PROVIDERS = [("Bhutan Telecom", "Telecom operator"), ("TashiCell", "Telecom operator")]
 OUTCOMES = ["Upheld", "Partly upheld", "Not upheld", "Referred to another authority", "Withdrawn"]
 CLOSURE_REASONS = ["Resolved", "Not within BICMA jurisdiction", "Withdrawn by complainant", "No response from complainant", "Referred"]
-TEMPLATES = [
-    ("acknowledgement", "Complaint acknowledgement", "complainant", "Complaint {reference} received", "Your complaint \"{subject}\" has been received.\n\nReference number: {reference}\nTrack it at: {tracking_url}\n\nBICMA"),
-    ("status_change", "Status update", "complainant", "Update on complaint {reference}", "The status of your complaint {reference} is now: {status}.\n\n{message}\n\nTrack it at: {tracking_url}\n\nBICMA"),
-    ("info_request", "Request for information", "complainant", "Information needed: complaint {reference}", "BICMA needs more information to continue with complaint {reference}:\n\n{message}\n\nReply at: {tracking_url}\n\nBICMA"),
-    ("closure", "Closure", "complainant", "Complaint {reference} closed", "Your complaint {reference} has been closed.\n\n{message}\n\nBICMA"),
-    ("not_within_mandate", "Outside jurisdiction", "complainant", "Complaint {reference}: outside BICMA jurisdiction", "Your complaint {reference} is outside BICMA's jurisdiction and has been closed.\n\n{message}\n\nBICMA"),
-    ("stakeholder_review", "Stakeholder notice after initial review", "provider", "Complaint {reference}: BICMA initial review", "BICMA has completed an initial review of complaint {reference} concerning {category}.\n\n{message}\n\nPlease respond to BICMA.\n\nBICMA"),
-]
-
 
 class Command(BaseCommand):
     help = "Idempotent first-run setup: default divisions, categories, settings and the initial Super Administrator."
 
     def handle(self, *args, **opts):
-        from core.models import ClosureReason, EmailTemplate, Outcome, Priority, ProviderType
+        from core.models import ClosureReason, Outcome, Priority, ProviderType
         if not Division.objects.exists():
             for name, code in DEFAULT_DIVISIONS:
                 Division.objects.create(
@@ -78,17 +73,22 @@ class Command(BaseCommand):
                                             rural_division=divs.get(rural) if rural else None, default_priority=normal)
                 Subcategory.objects.bulk_create([Subcategory(category=c, name=s) for s in subs])
             self.stdout.write("Created default categories (editable in the UI).")
+        from core.category_info import default_for  # fills only categories that have no text yet
+        for c in Category.objects.filter(description=""):
+            if default_for(c.name):
+                c.description = default_for(c.name)
+                c.save(update_fields=["description"])
         if not ProviderType.objects.exists():
             ProviderType.objects.bulk_create([ProviderType(name=n) for n in PROVIDER_TYPES])
+        from core.models import Provider
+        if not Provider.objects.exists():
+            kinds = {t.name: t for t in ProviderType.objects.all()}
+            Provider.objects.bulk_create([Provider(name=n, provider_type=kinds.get(k)) for n, k in DEFAULT_PROVIDERS])
+            self.stdout.write("Created default telecom operators (editable in Master data).")
         if not Outcome.objects.exists():
             Outcome.objects.bulk_create([Outcome(name=n) for n in OUTCOMES])
         if not ClosureReason.objects.exists():
             ClosureReason.objects.bulk_create([ClosureReason(name=n) for n in CLOSURE_REASONS])
-        for event, name, recipient, subject, body in TEMPLATES:
-            EmailTemplate.objects.get_or_create(event=event, defaults={"name": name, "recipient": recipient, "subject": subject, "body": body})
-        SystemConfiguration.objects.get_or_create(
-            key="reference_prefix", defaults={"value": "BICMA-CMS", "description": "Prefix of complaint reference numbers"}
-        )
         email = os.environ.get("BICMA_ADMIN_EMAIL")
         password = os.environ.get("BICMA_ADMIN_PASSWORD")
         if email and password and not User.objects.filter(role=Role.SUPER_ADMIN).exists():

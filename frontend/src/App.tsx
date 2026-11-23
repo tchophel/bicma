@@ -26,7 +26,7 @@ import { Permissions } from "./pages/staff/Permissions";
 import { Uploads } from "./pages/staff/Uploads";
 import { Logs } from "./pages/staff/Logs";
 import { Roles } from "./pages/staff/MasterPage";
-import { ClosureReasons, EmailTemplates, Holidays, Outcomes, Priorities, ProviderTypes, Providers } from "./pages/staff/MasterPage";
+import { ClosureReasons, Outcomes, Priorities, ProviderTypes, Providers } from "./pages/staff/MasterPage";
 
 function AdminOnly({ children }: { children: JSX.Element }) {
   const { user } = useAuth();
@@ -73,8 +73,6 @@ export default function App() {
             <Route path="priorities" element={<AdminOnly><Priorities /></AdminOnly>} />
             <Route path="outcomes" element={<AdminOnly><Outcomes /></AdminOnly>} />
             <Route path="closure-reasons" element={<AdminOnly><ClosureReasons /></AdminOnly>} />
-            <Route path="holidays" element={<AdminOnly><Holidays /></AdminOnly>} />
-            <Route path="email-templates" element={<AdminOnly><EmailTemplates /></AdminOnly>} />
             <Route path="logs" element={<AdminOnly><Logs /></AdminOnly>} />
             <Route path="audit" element={<Navigate to="/staff/logs?tab=audit" replace />} />
           </Route>

@@ -1,6 +1,7 @@
 import { Icon, type IconName } from "./Icon";
 import type { ReactNode } from "react";
 import "../styles/ui.css";
+import "../styles/StatusColors.css";
 
 export function Field({ label, required, hint, error, children }: {
   label: string; required?: boolean; hint?: string; error?: string; children: ReactNode;
@@ -19,7 +20,7 @@ const TONE: Record<string, string> = {
   resolved: "ok", closed: "ok", not_within_mandate: "bad", awaiting_information: "warn", referred: "warn", draft: "warn", submitted: "warn", pending_approval: "warn", management_rejected: "bad",
 };
 export function StatusBadge({ value, label }: { value: string; label: string }) {
-  return <span className={`badge ${TONE[value] ?? ""}`}><Icon name={TONE[value] === "ok" ? "check" : TONE[value] === "bad" ? "close" : TONE[value] === "warn" ? "clock" : "complaint"} size={14} />{label}</span>;
+  return <span className={`badge ${TONE[value] ?? ""}`} data-status={value}><Icon name={TONE[value] === "ok" ? "check" : TONE[value] === "bad" ? "close" : TONE[value] === "warn" ? "clock" : "complaint"} size={14} />{label}</span>;
 }
 
 export const fmt = (iso: string) => new Date(iso).toLocaleString();

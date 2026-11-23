@@ -1,7 +1,7 @@
 """The complaint workflow an Administrator can configure: which steps are on, and their order.
 
 Steps: triage (Division Head), investigation (Investigating Officer), supervisor (Supervisor approval) and closure
-(Division Head closes the case). Investigation and closure are always on. Turning triage off sends every new complaint
+(Division Head closes the case). Investigation and closure are always on. Placing the Investigating Officer before triage, or turning triage off, sends every new complaint
 straight to the Investigating Officer of its division with the fewest open cases. Turning supervisor approval off
 removes the "send to Supervisor" option so the Division Head closes the case directly.
 The status rules in complaints/services.py stay the safety net, so only orders that fit them are accepted.
@@ -23,9 +23,17 @@ _cache = {"at": 0.0, "steps": None}
 _TTL = 10  # seconds a worker process keeps the setting; saving clears it at once
 
 
-def _valid_order(keys):
+def order_error(keys):
+    """Why an arrangement cannot work, or "" when it can. Triage and the Investigating Officer may swap places;
+    Supervisor approval needs the findings; the Division Head closes last."""
     pos = {k: i for i, k in enumerate(keys)}
-    return pos["triage"] < pos["investigation"] < pos["supervisor"] < pos["closure"]
+    if pos["closure"] != len(keys) - 1:
+        return "Division Head closure stays last: only the Division Head can close a case."
+    if pos["supervisor"] < pos["investigation"]:
+        return "Supervisor approval needs the officer's findings, so it comes after the Investigating Officer."
+    if pos["supervisor"] < pos["triage"]:
+        return "Supervisor approval comes after triage, because the Division Head sets the category and priority first."
+    return ""
 
 
 def validate(steps):
@@ -39,9 +47,8 @@ def validate(steps):
     for s in clean:
         if STEPS[s["key"]]["locked"] and not s["enabled"]:
             return None, f"{STEPS[s['key']]['label']} cannot be switched off."
-    if not _valid_order(keys):
-        return None, "That order does not work: triage comes first, then the Investigating Officer, then Supervisor approval, and the Division Head closes last."
-    return clean, None
+    error = order_error(keys)
+    return (None, error) if error else (clean, None)
 
 
 def get_steps():
@@ -57,6 +64,13 @@ def get_steps():
 
 def enabled(key):
     return any(s["key"] == key and s["enabled"] for s in get_steps())
+
+
+def investigation_first():
+    """True when the Investigating Officer step is placed before Division Head triage: new complaints go straight to an
+    officer and the Division Head confirms triage afterwards."""
+    keys = [x["key"] for x in get_steps()]
+    return enabled("triage") and keys.index("investigation") < keys.index("triage")
 
 
 def save_steps(steps):

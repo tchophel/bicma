@@ -101,7 +101,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "core.pagination.StandardPagination",
     "PAGE_SIZE": 25,
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"public_submit": "10/hour", "track": "30/hour", "login": "10/minute", "captcha": "60/hour", "password_reset": "10/hour", "password_reset_verify": "40/hour", "cid_lookup": "20/hour"},
+    "DEFAULT_THROTTLE_RATES": {"public_submit": "10/hour", "track": "30/hour", "track_otp": "10/hour", "track_otp_verify": "40/hour", "login": "10/minute", "captcha": "60/hour", "password_reset": "10/hour", "password_reset_verify": "40/hour", "cid_lookup": "20/hour", "upload_scan": "200/hour"},
 }
 # Local development only: do not hit "Too many requests" while testing. Never on a deployed server (DJANGO_DEBUG=0) and never while
 # the test suite runs, because the tests check the real limits.
@@ -166,3 +166,9 @@ NDI = {
     "LOGIN_ATTRIBUTES": ["ID Number", "Full Name"],
     "PROOF_TTL_SECONDS": int((os.environ.get("NDI_PROOF_TTL_SECONDS") or "300")),
 }
+
+
+# Optional virus scanning of uploads with a ClamAV server (see core/filescan.py). Without it, the built-in checks still run.
+CLAMAV_HOST = os.environ.get("CLAMAV_HOST", "")
+CLAMAV_PORT = int(os.environ.get("CLAMAV_PORT") or "3310")
+CLAMAV_REQUIRED = os.environ.get("CLAMAV_REQUIRED", "0") == "1"  # 1 = refuse uploads while ClamAV is unreachable

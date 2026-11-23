@@ -20,7 +20,7 @@ def apply_filters(qs, params, user=None):
     p = params
     scope = p.get("scope")
     if scope == "mine" and user:
-        qs = qs.filter(assigned_to=user)
+        qs = qs.filter(Q(assigned_to=user) | Q(pk__in=qs.filter(joined_officers=user).values("pk")))
     elif scope == "triage":
         qs = qs.filter(internal_status__in=[S.RECEIVED, S.TRIAGE, S.REFERRED])
     elif scope == "division" and user and user.division_id:

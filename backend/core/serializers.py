@@ -15,7 +15,7 @@ class CategorySerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Category
-        fields = ["id", "name", "is_active", "default_division", "urban_division", "rural_division", "default_priority", "subcategories", "form"]
+        fields = ["id", "name", "is_active", "default_division", "urban_division", "rural_division", "default_priority", "description", "subcategories", "form"]
 
     def get_form(self, obj):
         from .formspecs import spec_for

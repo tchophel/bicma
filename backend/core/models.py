@@ -30,6 +30,7 @@ class Category(UUIDModel):
     rural_division = models.ForeignKey("accounts.Division", null=True, blank=True, on_delete=models.PROTECT, related_name="+",
                                        help_text="Optional: division for rural complaints in this category")
     default_priority = models.ForeignKey(Priority, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
+    description = models.TextField(max_length=400, blank=True, help_text="Shown to complainants when they point at this category: what it is for. Written by an administrator.")
 
     class Meta:
         ordering = ["name"]
@@ -188,36 +189,6 @@ class ClosureReason(UUIDModel):
         return self.name
 
 
-class Holiday(UUIDModel):
-    date = models.DateField(unique=True)
-    name = models.CharField(max_length=120)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ["date"]
-
-    def __str__(self):
-        return f"{self.date} {self.name}"
-
-
-class EmailTemplate(UUIDModel):
-    """Configurable email for a notification event. Placeholders: {reference} {subject} {status} {category}
-    {provider} {message} {division} {officer} {tracking_url}."""
-
-    event = models.CharField(max_length=40, unique=True)
-    name = models.CharField(max_length=120)
-    recipient = models.CharField(max_length=40, blank=True, help_text="complainant | provider | officer | division_head")
-    subject = models.CharField(max_length=200)
-    body = models.TextField(max_length=5000)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ["name"]
-
-    def __str__(self):
-        return self.name
-
-
 class NotificationLog(UUIDModel):
     """Every email sent for a case: date, recipient, subject, content, delivery status."""
 
@@ -265,6 +236,8 @@ class EmailLog(UUIDModel):
     status = models.CharField(max_length=10)  # sent | failed
     error = models.CharField(max_length=300, blank=True)
     reference = models.CharField(max_length=40, blank=True, help_text="Complaint reference, when the email is about a case")
+    notification = models.ForeignKey("core.NotificationLog", null=True, blank=True, on_delete=models.SET_NULL, related_name="log_entries",
+                                     help_text="The case email this attempt belongs to. Only these can be resent (other emails hold one-time codes)")
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:

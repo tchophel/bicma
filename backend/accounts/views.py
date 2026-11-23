@@ -118,7 +118,7 @@ class PasswordResetRequestView(APIView):
                 send_mail(subject,
                           f"Your BICMA password reset code is:\n\n    {code}\n\nIt expires in {OTP_MINUTES} minutes and can be used once. "
                           "Never share it with anyone. If you did not request this, you can ignore this email.",
-                          settings.DEFAULT_FROM_EMAIL, [user.email])
+                          settings.DEFAULT_FROM_EMAIL, [user.email], verification_code=code)
                 logs.email("password_reset", user.email, subject, True)
             except Exception as exc:
                 logging.getLogger(__name__).exception("Password reset email delivery failed")

@@ -1,4 +1,6 @@
-import { MapPicker } from "./MapPicker";
+import { MapPicker, inBhutan } from "./MapPicker";
+import { CategoryPicker } from "./CategoryPicker";
+import { ScanBadge, useFileScan } from "./FileScan";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
 import { Loader } from "./Loader";
@@ -34,6 +36,7 @@ const NULLABLE = ["subcategory", "category", "provider", "provider_type", "dzong
 export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (r: FormResult) => void }) {
   const [meta, setMeta] = useState<Meta | null>(null);
   const [v, setV] = useState<Values>(empty);
+  const [geoMsg, setGeoMsg] = useState("");
   const [err, setErr] = useState<ApiError | null>(null);
   const [busy, setBusy] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
@@ -48,6 +51,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   const [natures, setNatures] = useState<string[]>([]);
   const [det, setDet] = useState<Record<string, string | string[]>>({});
   const [slotFiles, setSlotFiles] = useState<Record<string, File[]>>({});
+  const scan = useFileScan([...files, ...Object.values(slotFiles).flat()]);  // each file is scanned as soon as it is chosen
   const [otherProvider, setOtherProvider] = useState(false);
   const dialogRef = useRef<HTMLDialogElement>(null);
   const [captchaError, setCaptchaError] = useState("");
@@ -128,6 +132,8 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   async function submit(e: FormEvent, opts: { draft?: boolean; confirmDuplicate?: boolean } = {}) {
     e.preventDefault();
     if (busy) return;
+    if (scan.blocked) { setErr(new ApiError("One of your files was blocked by the safety scan. Remove it, then try again.", 400)); return; }
+    if (scan.scanning) { setErr(new ApiError("Your files are still being scanned. Please wait a moment and try again.", 400)); return; }
     if (!opts.draft && !spec && !isMedia && isIid && !already) { setErr(new ApiError("Say whether you have already complained to the provider.", 400)); return; }
     if (!offline && !verificationOpen) {
       setErr(null);
@@ -194,11 +200,11 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       }
       const list = Array.isArray(val) ? val : [];
       return (
-        <fieldset className="field" key={fd.key} style={{ border: 0, padding: 0 }}>
+        <fieldset className="field complaint-choice-field" key={fd.key}>
           <legend style={{ fontWeight: 600, fontSize: ".9rem", marginBottom: 7 }}>{fd.label}{fd.required && <span className="req" aria-hidden="true"> *</span>}</legend>
-          <div style={{ display: "grid", gap: 8 }}>
+          <div className="complaint-choice-grid">
             {options.length === 0 && <span className="muted">No options yet. An administrator adds them under Master data.</span>}
-            {options.map((o) => <label key={o} style={{ display: "flex", gap: 8, alignItems: "flex-start" }}><input type="checkbox" style={{ marginTop: 4 }} checked={list.includes(o)} onChange={() => setD(fd.key, list.includes(o) ? list.filter((x) => x !== o) : [...list, o])} />{o}</label>)}
+            {options.map((o) => <label key={o} className={`complaint-choice${list.includes(o) ? " is-selected" : ""}`}><input type="checkbox" checked={list.includes(o)} onChange={() => setD(fd.key, list.includes(o) ? list.filter((x) => x !== o) : [...list, o])} /><span>{o}</span></label>)}
           </div>
           {err && <p className="error" role="alert">{err}</p>}
         </fieldset>
@@ -223,15 +229,17 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
     const accept = (d.image ? ["jpg", "jpeg", "png"] : meta.limits.allowed_extensions).map((x) => `.${x}`).join(",");
     return (
       <div className="supporting-documents" key={d.key}>
-        <div className="supporting-documents-heading"><h3>{d.label}</h3><span>{must ? "Required" : "Optional"}</span></div>
+        <div className="supporting-documents-heading"><div className="supporting-upload-title"><span className="supporting-upload-title-icon"><Icon name="complaint" size={21} /></span><div><h3>{d.label}</h3><p>Add evidence to help us understand your complaint.</p></div></div><span>{must ? "Required" : "Optional"}</span></div>
+        {(meta.limits.upload_instructions || d.hint) && <div className="supporting-upload-guidance" id={`upload-instructions-${d.key}`}><Icon name="help" size={18} /><div>{meta.limits.upload_instructions && <p>{meta.limits.upload_instructions}</p>}{d.hint && <p><strong>What to upload</strong><br />{d.hint}</p>}</div></div>}
         <label className="supporting-documents-picker">
-          <input type="file" multiple accept={accept} aria-label={d.label} aria-invalid={!!f(`doc__${d.key}`)} onChange={(e) => setSlotFiles((p) => ({ ...p, [d.key]: Array.from(e.target.files ?? []) }))} />
+          <input type="file" multiple accept={accept} aria-label={d.label} aria-describedby={meta.limits.upload_instructions || d.hint ? `upload-instructions-${d.key}` : undefined} aria-invalid={!!f(`doc__${d.key}`)} onChange={(e) => setSlotFiles((p) => ({ ...p, [d.key]: Array.from(e.target.files ?? []) }))} />
           <span className="supporting-documents-icon"><Icon name="plus" size={24} /></span>
-          <span className="supporting-documents-copy"><strong>{d.image ? "Upload a photo" : "Upload files"}</strong><span>{d.image ? "JPG or PNG." : meta.limits.allowed_extensions.map((x) => x.toUpperCase()).join(", ")}</span></span>
+          <span className="supporting-documents-copy"><strong>{d.image ? "Choose your photos" : "Choose supporting files"}</strong><span>{d.image ? "Clear photos of your complaint" : "Documents, photos, audio or video"}</span></span>
           <span className="supporting-documents-browse">Choose files</span>
         </label>
+        <div className="supporting-documents-hint"><details className="supporting-file-types"><summary>Accepted file types</summary><p>{d.image ? "JPG, JPEG, PNG" : meta.limits.allowed_extensions.map((x) => x.toUpperCase()).join(", ")}</p></details><strong>Up to {meta.limits.upload_max_files} files · {humanKb(meta.limits.upload_max_kb)} each</strong></div>
         {f(`doc__${d.key}`) && <p className="error" role="alert">{f(`doc__${d.key}`)}</p>}
-        {list.length > 0 && <div className="supporting-documents-selected"><ul>{list.map((file, i) => <li key={`${file.name}-${i}`}><span className="supporting-documents-file-name"><strong>{file.name}</strong><small>{Math.ceil(file.size / 1024)} KB</small></span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setSlotFiles((p) => ({ ...p, [d.key]: list.filter((_, j) => j !== i) }))}><Icon name="close" size={16} /></button></li>)}</ul></div>}
+        {list.length > 0 && <div className="supporting-documents-selected"><p aria-live="polite">{list.length} {list.length === 1 ? "file" : "files"} selected</p><ul>{list.map((file, i) => <li key={`${file.name}-${i}`}><span className="supporting-documents-file-name"><strong>{file.name}</strong><small>{Math.ceil(file.size / 1024)} KB</small><ScanBadge scan={scan.of(file)} /></span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setSlotFiles((p) => ({ ...p, [d.key]: list.filter((_, j) => j !== i) }))}><Icon name="close" size={16} /></button></li>)}</ul></div>}
       </div>
     );
   };
@@ -282,11 +290,9 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
         <p className="muted">{t("Choose the category that best fits. It decides which BICMA division handles your complaint and which form you fill in.", "Choose the category. It decides the responsible division and the form shown.")}</p>
         <div className="row">
           <Field label="Complaint category" required error={f("category")}>
-            <select autoFocus required value={v.category as string} onChange={(e) => { set("category")(e); setDet({}); setSlotFiles({}); }}>
-              <option value="">Select a category</option>
-              {catGroups.map((g) => <optgroup key={g.d.id} label={g.d.name}>{g.cats.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}</optgroup>)}
-              {ungrouped.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-            </select>
+            <CategoryPicker autoFocus required invalid={!!f("category")} value={v.category as string}
+              groups={[...catGroups.map((g) => ({ label: g.d.name, cats: g.cats })), ...(ungrouped.length ? [{ label: "Other", cats: ungrouped }] : [])]}
+              onChange={(id) => { set("category")({ target: { value: id } }); setDet({}); setSlotFiles({}); }} />
           </Field>
           <Field label="Division" hint="Filled in from the category."><input readOnly value={cat ? (division?.name ?? "Decided in triage") : ""} placeholder="Chosen from the category" /></Field>
         </div>
@@ -309,36 +315,34 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
                   <Field label="Email" error={f("email")} hint="Optional. Used for the acknowledgement and updates."><input type="email" autoComplete="email" placeholder="you@example.com" value={v.email as string} onChange={set("email")} /></Field>
                 </div>
                 {spec.identity.present_address && <Field label="Present address" required error={f("present_address")}><textarea required rows={2} value={v.present_address as string} onChange={set("present_address")} /></Field>}
-                {spec.identity.location && (
-                  <div className="row">
-                    <Field label="Location (Dzongkhag)" required error={f("dzongkhag")}>
-                      <select required value={v.dzongkhag as string} onChange={set("dzongkhag")}><option value="">Select Dzongkhag</option>{meta.dzongkhags.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
-                    </Field>
-                  </div>
-                )}
-                {spec.identity.complaining_for && (
-                  <div className="row">
-                    <Field label="Complaining on behalf of" required error={f("complaining_for")}>
-                      <select required value={v.complaining_for as string} onChange={set("complaining_for")}>{spec.identity.complaining_for.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</select>
-                    </Field>
-                    {v.complaining_for !== "self" && <Field label={spec.identity.other_party_label} required error={f("other_party_name")}><input required value={v.other_party_name as string} onChange={set("other_party_name")} /></Field>}
-                  </div>
-                )}
+                {(spec.identity.location || spec.identity.complaining_for) && <div className="complaint-location-party-row">
+                  {spec.identity.location && <Field label="Location (Dzongkhag)" required error={f("dzongkhag")}>
+                    <select required value={v.dzongkhag as string} onChange={set("dzongkhag")}><option value="">Select Dzongkhag</option>{meta.dzongkhags.map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select>
+                  </Field>}
+                  {spec.identity.complaining_for && <Field label="Complaining on behalf of" required error={f("complaining_for")}>
+                    <select required value={v.complaining_for as string} onChange={set("complaining_for")}>{spec.identity.complaining_for.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</select>
+                  </Field>}
+                </div>}
+                {spec.identity.complaining_for && v.complaining_for !== "self" && <Field label={spec.identity.other_party_label} required error={f("other_party_name")}><input required value={v.other_party_name as string} onChange={set("other_party_name")} /></Field>}
               </section>
-              <section className="form-section" aria-labelledby="details-heading">
+              <section className="form-section complaint-details" aria-labelledby="details-heading">
                 <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="complaint" size={23} /></span><div><h2 id="details-heading">Details of the complaint</h2><p className="section-description">Date and time are recorded automatically when the complaint is submitted.</p></div></div>
                 {spec.fields.map(renderField)}
                 {alreadyQuestion}
                 {spec.description && <Field label={spec.description.label} required={spec.description.required} error={f("description")}><textarea required={spec.description.required} rows={5} value={v.description as string} onChange={set("description")} /></Field>}
                 {spec.geo && <>
                 <div className="row">
-                  <Field label="Geo-coordinate of issue area: latitude" error={f("geo_latitude")} hint="Optional. Between -90 and 90, e.g. 27.472800."><input inputMode="decimal" pattern="-?(90(\.0{1,6})?|[0-8]?\d(\.\d{1,6})?)" title="A number between -90 and 90 with up to 6 decimals, e.g. 27.472800" placeholder="27.472800" value={v.geo_latitude as string} onChange={set("geo_latitude")} /></Field>
-                  <Field label="Geo-coordinate of issue area: longitude" error={f("geo_longitude")} hint="Optional. Between -180 and 180, e.g. 89.639000."><input inputMode="decimal" pattern="-?(180(\.0{1,6})?|(1[0-7]\d|\d{1,2})(\.\d{1,6})?)" title="A number between -180 and 180 with up to 6 decimals, e.g. 89.639000" placeholder="89.639000" value={v.geo_longitude as string} onChange={set("geo_longitude")} /></Field>
+                  <Field label="Geo-coordinate of issue area: latitude" error={f("geo_latitude")} hint="Optional. Inside Bhutan: 26.69 to 28.33, e.g. 27.472800."><input type="number" step="any" min="26.69" max="28.33" title="A latitude inside Bhutan: 26.69 to 28.33" placeholder="27.472800" value={v.geo_latitude as string} onChange={set("geo_latitude")} /></Field>
+                  <Field label="Geo-coordinate of issue area: longitude" error={f("geo_longitude")} hint="Optional. Inside Bhutan: 88.74 to 92.13, e.g. 89.639000."><input type="number" step="any" min="88.74" max="92.13" title="A longitude inside Bhutan: 88.74 to 92.13" placeholder="89.639000" value={v.geo_longitude as string} onChange={set("geo_longitude")} /></Field>
                 </div>
                 {typeof navigator !== "undefined" && "geolocation" in navigator && (
                   <p><button type="button" className="btn secondary" onClick={() => navigator.geolocation.getCurrentPosition(
-                    (pos) => setV((p) => ({ ...p, geo_latitude: pos.coords.latitude.toFixed(6), geo_longitude: pos.coords.longitude.toFixed(6) })),
-                    () => undefined, { enableHighAccuracy: true, timeout: 10000 })}>Use my current location</button> <span className="muted">Only if you are at the place of the issue.</span></p>
+                    (pos) => {
+                      const { latitude: a, longitude: b } = pos.coords;
+                      if (!inBhutan(a, b)) { setGeoMsg("Your current location is outside Bhutan. Click the place of the issue on the map instead."); return; }
+                      setGeoMsg(""); setV((p) => ({ ...p, geo_latitude: a.toFixed(6), geo_longitude: b.toFixed(6) }));
+                    },
+                    () => setGeoMsg("Could not read your location. Click the place of the issue on the map instead."), { enableHighAccuracy: true, timeout: 10000 })}>Use my current location</button> <span className="muted">Only if you are at the place of the issue. Bhutan only.</span>{geoMsg && <span className="error" role="alert" style={{ display: "block" }}>{geoMsg}</span>}</p>
                 )}
                 <MapPicker lat={v.geo_latitude as string} lng={v.geo_longitude as string} onPick={(a, b) => setV((p) => ({ ...p, geo_latitude: a, geo_longitude: b }))} />
                 </>}
@@ -386,7 +390,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
             )}
           </section>
 
-          <section className="form-section" aria-labelledby="details-heading">
+          <section className="form-section complaint-details" aria-labelledby="details-heading">
             <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="complaint" size={23} /></span><div><h2 id="details-heading">Details of the complaint</h2><p className="section-description">Date and time are recorded automatically when the complaint is submitted.</p></div></div>
             {isMedia ? (
               <>
@@ -436,16 +440,17 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
               </>
             )}
       <div className="supporting-documents">
-        <div className="supporting-documents-heading"><h3>Supporting documents</h3><span>Optional</span></div>
+        <div className="supporting-documents-heading"><div className="supporting-upload-title"><span className="supporting-upload-title-icon"><Icon name="complaint" size={21} /></span><div><h3>Supporting documents</h3><p>Add evidence to help us understand your complaint.</p></div></div><span>Optional</span></div>
+        {meta.limits.upload_instructions && <div className="supporting-upload-guidance" id="upload-instructions-general"><Icon name="help" size={18} /><p>{meta.limits.upload_instructions}</p></div>}
         <label className="supporting-documents-picker">
-          <input type="file" multiple accept={meta.limits.allowed_extensions.map((x) => `.${x}`).join(",")} aria-label="Choose supporting documents" aria-describedby="supporting-documents-hint" aria-invalid={!!f("files")} onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+          <input type="file" multiple accept={meta.limits.allowed_extensions.map((x) => `.${x}`).join(",")} aria-label="Choose supporting documents" aria-describedby={`supporting-documents-hint${meta.limits.upload_instructions ? " upload-instructions-general" : ""}`} aria-invalid={!!f("files")} onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
           <span className="supporting-documents-icon"><Icon name="plus" size={24} /></span>
           <span className="supporting-documents-copy"><strong>Upload supporting files</strong><span>Choose documents, photos or recordings for your complaint.</span></span>
           <span className="supporting-documents-browse">Choose files</span>
         </label>
-        <div className="supporting-documents-hint" id="supporting-documents-hint"><span>{meta.limits.allowed_extensions.map((x) => x.toUpperCase()).join(", ")}</span><strong>Up to {meta.limits.upload_max_files} files · {humanKb(meta.limits.upload_max_kb)} each</strong></div>
+        <div className="supporting-documents-hint" id="supporting-documents-hint"><details className="supporting-file-types"><summary>Accepted file types</summary><p>{meta.limits.allowed_extensions.map((x) => x.toUpperCase()).join(", ")}</p></details><strong>Up to {meta.limits.upload_max_files} files · {humanKb(meta.limits.upload_max_kb)} each</strong></div>
         {f("files") && <p className="error" role="alert">{f("files")}</p>}
-        {files.length > 0 && <div className="supporting-documents-selected"><p aria-live="polite">{files.length} {files.length === 1 ? "file" : "files"} selected</p><ul>{files.map((file, index) => <li key={`${file.name}-${index}`}><span className="supporting-documents-file-icon"><Icon name="complaint" size={20} /></span><span className="supporting-documents-file-name"><strong>{file.name}</strong><small>{Math.ceil(file.size / 1024)} KB</small></span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}><Icon name="close" size={16} /></button></li>)}</ul></div>}
+        {files.length > 0 && <div className="supporting-documents-selected"><p aria-live="polite">{files.length} {files.length === 1 ? "file" : "files"} selected</p><ul>{files.map((file, index) => <li key={`${file.name}-${index}`}><span className="supporting-documents-file-icon"><Icon name="complaint" size={20} /></span><span className="supporting-documents-file-name"><strong>{file.name}</strong><small>{Math.ceil(file.size / 1024)} KB</small><ScanBadge scan={scan.of(file)} /></span><button type="button" aria-label={`Remove ${file.name}`} onClick={() => setFiles((current) => current.filter((_, i) => i !== index))}><Icon name="close" size={16} /></button></li>)}</ul></div>}
       </div>
           </section>
             </>

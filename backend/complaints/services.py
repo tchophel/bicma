@@ -9,7 +9,7 @@ from django.utils import timezone
 from accounts.models import Role, User, roles_with_base
 from core import audit
 from core import workflowconfig as wf
-from core.models import EmailTemplate, Holiday, NotificationLog, Priority
+from core.models import NotificationLog, Priority
 from core.notifications import notify
 
 from .models import CaseMessage, Complaint, InternalStatus as S, OPEN_STATUSES, StatusHistory, next_reference
@@ -28,13 +28,12 @@ class WorkflowError(Exception):
 
 # ---------------------------------------------------------------- timelines
 def add_working_days(start, days):
-    """Add working days (Mon-Fri, skipping the configured public-holiday calendar)."""
-    holidays = set(Holiday.objects.filter(is_active=True, date__gte=start.date()).values_list("date", flat=True))
+    """Add working days (Monday to Friday)."""
     cur = start
     left = int(days)
     while left > 0:
         cur += dt.timedelta(days=1)
-        if cur.weekday() < 5 and cur.date() not in holidays:
+        if cur.weekday() < 5:
             left -= 1
     return cur
 
@@ -86,18 +85,15 @@ DEFAULT_TEMPLATES = {
     "resolution_rejected": ("Complaint {reference}: resolution returned", "officer", "The resolution for complaint {reference} ({subject}) was returned for further work.\n\n{message}"),
     "approval_requested": ("Complaint {reference}: resolution awaiting your approval", "supervisor", "The investigating officer has submitted findings for complaint {reference} ({subject}) for supervisor approval."),
     "management_rejected": ("Complaint {reference}: returned by supervisor", "division_head", "The Supervisor did not accept the findings for complaint {reference} ({subject}). Please decide: send it back to the investigating officer or assign another officer.\n\nReason: {message}"),
+    "followup_added": ("Complaint {reference}: complainant added information", "officer", "The complainant has added more information or documents to complaint {reference} ({subject}). Open the case to read it."),
     "info_reply": ("Complaint {reference}: complainant replied", "officer", "The complainant has replied to the information request on complaint {reference} ({subject})."),
 }
 
 
 def render_template(event, complaint, message=""):
-    tpl = EmailTemplate.objects.filter(event=event, is_active=True).first()
-    if tpl is None:
-        if event not in DEFAULT_TEMPLATES:
-            return None, None
-        subject, _, body = DEFAULT_TEMPLATES[event]
-    else:
-        subject, body = tpl.subject, tpl.body
+    if event not in DEFAULT_TEMPLATES:
+        return None, None
+    subject, _, body = DEFAULT_TEMPLATES[event]
     values = _Safe(
         reference=complaint.reference, subject=complaint.subject, status=complaint.get_internal_status_display(),
         category=complaint.category.name if complaint.category else "", provider=complaint.provider.name if complaint.provider else complaint.platform,
@@ -159,7 +155,7 @@ def deliver(entry):
         log.exception("Email delivery failed")
         entry.status, entry.error = "failed", str(exc)[:300]
     entry.save()
-    logs.email(entry.event, entry.recipient, entry.subject, entry.status == "sent", entry.error, entry.complaint.reference)
+    logs.email(entry.event, entry.recipient, entry.subject, entry.status == "sent", entry.error, entry.complaint.reference, notification=entry)
     return entry.status == "sent"
 
 
@@ -229,8 +225,12 @@ def _on_registered(complaint, registered_by, request):
         request, "complaint.create", actor=registered_by, entity_type="complaint", entity_id=complaint.pk,
         detail={"reference": complaint.reference, "channel": complaint.channel},
     )
-    if not wf.enabled("triage") and _auto_assign(complaint, request):
+    if (not wf.enabled("triage") or wf.investigation_first()) and _auto_assign(complaint, request):
+        if wf.enabled("triage"):  # officer first: the Division Head still confirms triage afterwards
+            heads = User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True, division_id=complaint.division_id)
+            notify(heads, f"New complaint {complaint.reference} went to {complaint.assigned_to.get_full_name() or complaint.assigned_to.email}; confirm triage", f"/staff/complaints/{complaint.pk}")
         send_event(complaint, "acknowledgement", complaint.email)
+        _notify_admins_new(complaint, registered_by)
         return
     # triage queue alert for the division head(s)
     heads = User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True)
@@ -240,6 +240,16 @@ def _on_registered(complaint, registered_by, request):
         heads = heads.exclude(pk=registered_by.pk)
     notify(heads, f"New complaint {complaint.reference} awaiting triage", f"/staff/complaints/{complaint.pk}")
     send_event(complaint, "acknowledgement", complaint.email)
+    _notify_admins_new(complaint, registered_by)
+
+
+def _notify_admins_new(complaint, registered_by=None):
+    """Administrators can see every complaint, so each new one shows in their notifications too (no personal data in the text)."""
+    admins = User.objects.filter(role__in=roles_with_base(Role.SUPER_ADMIN), is_active=True)
+    if registered_by:
+        admins = admins.exclude(pk=registered_by.pk)
+    where = f" for {complaint.division.name}" if complaint.division_id else ""
+    notify(admins, f"New complaint {complaint.reference} received{where}", f"/staff/complaints/{complaint.pk}")
 
 
 def _auto_assign(complaint, request):
@@ -257,7 +267,7 @@ def _auto_assign(complaint, request):
         if prio:
             apply_priority(complaint, prio)
     complaint.assigned_to = officer
-    move(complaint, S.ASSIGNED, actor=None, reason="Sent directly to the Investigating Officer (triage is switched off)", request=request, notify_complainant=False)
+    move(complaint, S.ASSIGNED, actor=None, reason="Sent directly to the Investigating Officer (workflow: officer first)", request=request, notify_complainant=False)
     notify([officer], f"Complaint {complaint.reference} assigned to you.", f"/staff/complaints/{complaint.pk}")
     email_users(complaint, "assignment", [officer])
     return True

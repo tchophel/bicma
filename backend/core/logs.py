@@ -26,10 +26,10 @@ def api_call(service, method, path, status, duration_ms, error=""):
         log.exception("Could not write the API log")
 
 
-def email(kind, recipient, subject, ok, error="", reference=""):
+def email(kind, recipient, subject, ok, error="", reference="", notification=None):
     try:
         with transaction.atomic():
             EmailLog.objects.create(kind=kind[:40], recipient=recipient[:254], subject=subject[:300],
-                                status="sent" if ok else "failed", error=error[:300], reference=reference[:40])
+                                status="sent" if ok else "failed", error=error[:300], reference=reference[:40], notification=notification)
     except Exception:  # pragma: no cover
         log.exception("Could not write the email log")

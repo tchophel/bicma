@@ -40,7 +40,6 @@ export function ComplaintPanel({ id, onClose, onChanged }: { id: string; onClose
           </header>
           <section className="complaint-popup-summary" aria-label="Complaint overview">
           <dl className="props">
-            {prop("activity", "Status", <StatusBadge value={c.internal_status} label={c.internal_status_display} />)}
             {prop("user", "Assignee", c.assigned_to_name ? <span className="cell-user"><span className="avatar-sm" aria-hidden="true">{c.assigned_to_name[0].toUpperCase()}</span>{c.assigned_to_name}</span> : <span className="muted">Unassigned</span>)}
             {prop("division", "Division", c.division_name ?? <span className="muted">Unassigned</span>)}
             {prop("category", "Category", <>{c.category_name}{c.subcategory_name ? ` / ${c.subcategory_name}` : ""}</>)}
@@ -62,7 +61,7 @@ export function ComplaintPanel({ id, onClose, onChanged }: { id: string; onClose
           </section>
           <section className="complaint-popup-card">
           <h3 className="side-h"><Icon name="history" size={16} />Activity</h3>
-          <ol className="timeline">
+          <ol className="timeline activity-row">
             {c.status_history.map((h, i) => (
               <li key={i}>
                 <span className="dot" aria-hidden="true"><Icon name={h.previous_status ? "refresh" : "plus"} size={14} /></span>
@@ -79,8 +78,8 @@ export function ComplaintPanel({ id, onClose, onChanged }: { id: string; onClose
           <h3 className="side-h"><Icon name="user" size={16} />Complainant</h3>
           <div className="complainant-identity"><span className="avatar-sm" aria-hidden="true">{c.complainant_name.slice(0, 1).toUpperCase()}</span><div><strong>{c.complainant_name}</strong><span className="muted">Complainant</span></div></div>
           <dl className="kv">
-            {c.phone && <><dt>Phone</dt><dd>{c.phone}</dd></>}
-            {c.email && <><dt>Email</dt><dd>{c.email}</dd></>}
+            <dt><Icon name="phone" size={14} />Phone</dt><dd>{c.phone ? <a href={`tel:${c.phone}`}>{c.phone}</a> : <span className="muted">{c.confidential ? "Hidden (confidential)" : "Not provided"}</span>}</dd>
+            <dt><Icon name="mail" size={14} />Email</dt><dd>{c.email ? <a href={`mailto:${c.email}`}>{c.email}</a> : <span className="muted">{c.confidential ? "Hidden (confidential)" : "Not provided"}</span>}</dd>
             <dt>Prefers</dt><dd>{c.preferred_contact === "sms" ? "SMS" : words(c.preferred_contact).replace(/^./, (letter) => letter.toUpperCase())}</dd>
             {c.on_behalf && <><dt>On behalf of</dt><dd>{c.affected_name} ({c.affected_relationship})</dd></>}
           </dl>

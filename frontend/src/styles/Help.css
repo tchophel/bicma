@@ -18,3 +18,5 @@
 .faq-pager { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 20px; font-size: .85rem; }
 .faq-empty { text-align: center; padding: 40px 24px; color: var(--c-muted); }
 @media (max-width: 1000px) { .faq-admin-grid { grid-template-columns: minmax(0, 1fr); } .faq-admin-form { grid-row: 1; } }
+
+.upload-warning-preview { color: #b42318; background: #fff1f0; border-left: 3px solid #b42318; padding: 12px 16px; white-space: pre-wrap; overflow-wrap: anywhere; }

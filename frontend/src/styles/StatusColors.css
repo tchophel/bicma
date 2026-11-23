@@ -1,0 +1,20 @@
+/* Stable status colours shared by badges, the progress rail and speech bubbles. */
+[data-status] { --status-color: #526071; --status-soft: #eff2f6; }
+[data-status=received] { --status-color: #245ca2; --status-soft: #edf4ff; }
+[data-status=triage] { --status-color: #92530b; --status-soft: #fff4df; }
+[data-status=assigned] { --status-color: #7540a3; --status-soft: #f5edff; }
+[data-status=investigating], [data-status=under_review] { --status-color: #116d71; --status-soft: #e8f8f6; }
+[data-status=awaiting_information] { --status-color: #9a490f; --status-soft: #fff0df; }
+[data-status=referred] { --status-color: #246986; --status-soft: #e9f5fc; }
+[data-status=submitted] { --status-color: #5047a5; --status-soft: #f0edff; }
+[data-status=pending_approval] { --status-color: #925d08; --status-soft: #fff8d9; }
+[data-status=management_rejected] { --status-color: #a12f4f; --status-soft: #ffedf2; }
+[data-status=resolved] { --status-color: #24633e; --status-soft: #eaf7ee; }
+[data-status=closed] { --status-color: #4b5867; --status-soft: #edf0f4; }
+[data-status=not_within_mandate] { --status-color: #a0392d; --status-soft: #fff0eb; }
+.badge[data-status] { color: var(--status-color); background: var(--status-soft); border-color: var(--status-soft); }
+.case-status-steps li[data-status], .case-status-steps li[data-status][aria-current=step] { color: var(--status-color); }
+.case-status-steps li[data-status] .case-status-node { color: var(--status-color); background: var(--status-soft); }
+.case-status-steps li[data-status][aria-current=step] .case-status-node { color: #fff; background: var(--status-color); box-shadow: 0 0 0 3px var(--status-soft); }
+.walker-speech[data-status], .walker-speech.walker-speech-done[data-status] { color: var(--status-color); border-color: var(--status-color); background: var(--status-soft); }
+.walker-speech[data-status]::after { background: var(--status-soft); border-color: var(--status-color); }

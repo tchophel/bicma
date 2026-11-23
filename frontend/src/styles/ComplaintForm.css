@@ -80,3 +80,131 @@
   .supporting-documents-copy { flex-basis: calc(100% - 60px); }
   .supporting-documents-browse { text-align: center; width: 100%; box-sizing: border-box; }
 }
+
+/* Two-column details with full-width document upload rows. */
+.complaint-form .complaint-details { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 24px; align-items: start; }
+.complaint-details > * { min-width: 0; }
+.complaint-details > .complaint-section-heading,
+.complaint-details > .row,
+.complaint-details > p,
+.complaint-details > [role=application],
+.complaint-details > .supporting-documents { grid-column: 1 / -1; }
+.complaint-details > .supporting-documents { margin-top: 0; }
+.upload-instructions { color: #b42318; background: #fff1f0; border-left: 3px solid #b42318; padding: 12px 16px; margin: 0 0 16px; white-space: pre-wrap; overflow-wrap: anywhere; }
+@media (max-width: 600px) {
+  .complaint-form .complaint-details,
+  .complaint-form .complaint-details .row { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Put the administrator's upload guidance beside the file picker. */
+.supporting-documents:has(> .upload-instructions) { display: grid; grid-template-columns: minmax(0, 3fr) minmax(0, 2fr); gap: 12px 24px; align-items: start; }
+.supporting-documents:has(> .upload-instructions) > * { grid-column: 1 / -1; min-width: 0; }
+.supporting-documents:has(> .upload-instructions) > .supporting-documents-heading { margin-bottom: 0; }
+.supporting-documents:has(> .upload-instructions) > .supporting-documents-picker { grid-column: 1; grid-row: 2; flex-wrap: wrap; }
+.supporting-documents:has(> .upload-instructions) > .upload-instructions { grid-column: 2; grid-row: 2; margin: 0; }
+@media (max-width: 600px) {
+  .supporting-documents:has(> .upload-instructions) { grid-template-columns: minmax(0, 1fr); }
+  .supporting-documents:has(> .upload-instructions) > .upload-instructions { grid-column: 1; grid-row: 3; }
+}
+
+/* Keep lengthy complaint choices out of the two-column field flow. */
+.complaint-details > .complaint-choice-field { grid-column: 1 / -1; }
+.complaint-form .complaint-choice-field { border: 0; padding: 0; margin-inline: 0; }
+.complaint-choice-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.complaint-choice { display: flex; align-items: flex-start; gap: 12px; padding: 14px 16px; min-width: 0; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-surface); font-size: .87rem; line-height: 1.55; cursor: pointer; transition: border-color .15s, background .15s; }
+.complaint-choice:hover { border-color: var(--c-primary); background: #fffbf5; }
+.complaint-choice.is-selected { border-color: var(--c-primary); background: var(--c-primary-soft); }
+.complaint-choice:focus-within { outline: 2px solid var(--c-primary); outline-offset: 2px; }
+.complaint-choice input[type=checkbox] { flex: 0 0 17px; width: 17px; height: 17px; min-height: 0; margin: 3px 0 0; accent-color: var(--c-primary); }
+.complaint-choice > span { min-width: 0; overflow-wrap: anywhere; }
+.complaint-form .row { align-items: start; }
+.complaint-form .field > span:first-child { line-height: 1.5; }
+.complaint-form textarea { line-height: 1.6; resize: vertical; }
+.complaint-details > .supporting-documents { margin-bottom: 0; padding-top: 24px; border-top: 1px solid var(--c-border); }
+.supporting-documents-heading { align-items: flex-start; justify-content: space-between; }
+.supporting-documents-heading h3 { line-height: 1.6; }
+.supporting-documents-heading > span { flex-shrink: 0; }
+.supporting-documents:has(> .upload-instructions) { align-items: stretch; }
+.supporting-documents:has(> .upload-instructions) > .supporting-documents-picker { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-content: center; gap: 12px; padding: 20px; }
+.supporting-documents:has(> .upload-instructions) .supporting-documents-icon { width: 42px; height: 42px; }
+.supporting-documents:has(> .upload-instructions) .supporting-documents-browse { grid-column: 1 / -1; justify-self: start; text-align: center; }
+.supporting-documents:has(> .upload-instructions) > .upload-instructions { border: 1px solid #fecdca; border-left: 3px solid #b42318; border-radius: 10px; font-size: .88rem; line-height: 1.75; padding: 18px 20px; }
+.upload-instructions::first-line { font-weight: 700; }
+.complaint-form .on-behalf { margin: 24px 28px; padding: 20px; border-radius: 12px; }
+.complaint-form .on-behalf > span > small { font-size: .85rem; line-height: 1.8; margin-top: 8px; }
+@media (max-width: 600px) {
+  .complaint-choice-grid { grid-template-columns: minmax(0, 1fr); }
+  .complaint-form .on-behalf { margin: 20px; }
+}
+
+/* Location picker: Dzongkhag names on the map (centred on their label point) */
+.dz-label { background: none; border: 0; pointer-events: none; }
+.dz-label span { display: inline-block; white-space: nowrap; transform: translate(-50%, -50%); font-size: 10px; font-weight: 600; color: #3d3226; text-shadow: -1px -1px 0 #fff, 1px -1px 0 #fff, -1px 1px 0 #fff, 1px 1px 0 #fff; }
+@media (max-width: 600px) { .dz-label span { font-size: 9px; } }
+
+/* On satellite imagery the Dzongkhag names need to be light with a dark halo to stay readable */
+.leaflet-container.on-satellite .dz-label span { color: #fff; text-shadow: -1px -1px 0 #1b1b1b, 1px -1px 0 #1b1b1b, -1px 1px 0 #1b1b1b, 1px 1px 0 #1b1b1b; }
+
+/* Neighbouring countries: visible but not selectable */
+.country-label { background: none; border: 0; pointer-events: none; }
+.country-label span { display: inline-block; transform: translate(-50%, -50%); white-space: nowrap; font-size: 11px; font-weight: 700; letter-spacing: .18em; color: #3d3226; opacity: .75; text-shadow: 0 0 3px #fff, 0 0 3px #fff; }
+.leaflet-container.on-satellite .country-label span { color: #fff; text-shadow: 0 0 3px #000, 0 0 3px #000; }
+.leaflet-container.outside-bhutan { cursor: not-allowed; }
+.outside-popup .leaflet-popup-content { margin: 8px 12px; font-size: .8125rem; }
+
+/* Scan result shown under each chosen file */
+.scan-badge { display: flex; align-items: flex-start; gap: 6px; margin-top: 4px; font-size: .78rem; line-height: 1.4; font-weight: 600; }
+.scan-badge svg { flex-shrink: 0; margin-top: 2px; }
+.scan-badge.scanning { color: var(--c-muted); }
+.scan-badge.ok { color: #1f6b3a; }
+.scan-badge.blocked { color: var(--c-accent); }
+.scan-badge.unknown { color: var(--c-muted); font-weight: 500; }
+.scan-spin { display: inline-flex; animation: scan-spin .9s linear infinite; }
+@keyframes scan-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .scan-spin { animation: none; } }
+
+.map-reset a { display: block; width: 30px; height: 30px; line-height: 30px; text-align: center; font-size: 20px; color: #333; text-decoration: none; background: #fff; }
+.map-reset a:hover { background: #f4f4f4; }
+
+/* Long-text fields (the description, explanations) use the full width of the form */
+.complaint-form .field:has(textarea), .complaint-details > .field:has(textarea), .complaint-form .row > .field:has(textarea) { grid-column: 1 / -1; width: 100%; }
+.complaint-form .field textarea { width: 100%; box-sizing: border-box; }
+
+.complaint-location-party-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: start; }
+.complaint-location-party-row > .field { min-width: 0; }
+.complaint-location-party-row > .field:only-child { grid-column: 1 / -1; }
+@media (max-width: 600px) { .complaint-location-party-row { grid-template-columns: minmax(0, 1fr); gap: 0; } }
+
+/* Supporting evidence: guidance, a single file picker, and a selected-file list. */
+.supporting-documents { padding: 22px; border: 1px solid var(--c-border); border-radius: 12px; background: #fff; }
+.complaint-details > .supporting-documents { padding: 22px; }
+.supporting-upload-title { display: flex; align-items: flex-start; gap: 12px; min-width: 0; }
+.supporting-upload-title-icon { display: grid; place-items: center; width: 40px; height: 40px; flex-shrink: 0; border-radius: 10px; background: var(--c-primary-soft); color: var(--c-primary); }
+.supporting-upload-title h3 { margin: 0 0 4px; }
+.supporting-upload-title p { margin: 0; color: var(--c-muted); font-size: .78rem; line-height: 1.7; }
+.supporting-upload-guidance { display: flex; align-items: flex-start; gap: 10px; padding: 14px 16px; margin: 18px 0; background: #fff9ed; border: 1px solid #ecdfbd; border-radius: 9px; color: #715322; font-size: .8125rem; line-height: 1.75; }
+.supporting-upload-guidance > .icon { flex-shrink: 0; margin-top: 3px; }
+.supporting-upload-guidance p { margin: 0; white-space: pre-wrap; }
+.supporting-upload-guidance p + p { margin-top: 10px; }
+.supporting-documents .supporting-documents-picker { display: flex; flex-wrap: nowrap; padding: 22px; gap: 14px; background: #fcfaf7; border: 1.5px dashed #cbb5a3; border-radius: 10px; }
+.supporting-documents .supporting-documents-picker:hover { background: var(--c-primary-soft); border-color: var(--c-primary); }
+.supporting-documents .supporting-documents-picker > input[type=file] { position: absolute !important; inset: 0; width: 100%; height: 100%; opacity: 0 !important; cursor: pointer; z-index: 1; margin: 0; border: 0; }
+.supporting-documents .supporting-documents-icon { width: 44px; height: 44px; background: #fff; border: 1px solid var(--c-border); border-radius: 12px; }
+.supporting-documents .supporting-documents-browse { background: var(--c-primary); border-color: var(--c-primary); color: #fff; padding: 10px 15px; }
+.supporting-documents-hint { margin-top: 14px; align-items: flex-start; }
+.supporting-file-types { font-size: .75rem; max-width: 65%; }
+.supporting-file-types summary { cursor: pointer; color: var(--c-primary); text-decoration: underline; text-underline-offset: 3px; }
+.supporting-file-types p { margin: 8px 0 0; color: var(--c-muted); line-height: 1.8; }
+.supporting-documents-selected li { background: #fcfaf8; }
+.supporting-documents-selected button:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
+@media (max-width: 600px) { .supporting-documents, .complaint-details > .supporting-documents { padding: 18px 14px; } .supporting-documents .supporting-documents-picker { flex-wrap: wrap; padding: 18px 14px; } .supporting-documents .supporting-documents-browse { width: 100%; } .supporting-upload-title { gap: 9px; } .supporting-file-types { max-width: 100%; } }
+
+/* Keep the upload guidance and chooser together in the first content row. */
+.supporting-documents:has(> .supporting-upload-guidance) { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 16px; align-items: stretch; }
+.supporting-documents:has(> .supporting-upload-guidance) > * { grid-column: 1 / -1; min-width: 0; }
+.supporting-documents:has(> .supporting-upload-guidance) > .supporting-documents-heading { margin: 0; }
+.supporting-documents:has(> .supporting-upload-guidance) > .supporting-upload-guidance { grid-column: 1; grid-row: 2; margin: 0; }
+.supporting-documents:has(> .supporting-upload-guidance) > .supporting-documents-picker { grid-column: 2; grid-row: 2; display: grid; grid-template-columns: 44px minmax(0, 1fr); align-content: center; }
+.supporting-documents:has(> .supporting-upload-guidance) .supporting-documents-browse { grid-column: 1 / -1; justify-self: start; }
+.supporting-documents:has(> .supporting-upload-guidance) > .supporting-documents-hint { margin-top: 0; }
+@media (max-width: 650px) { .supporting-documents:has(> .supporting-upload-guidance) { grid-template-columns: minmax(0, 1fr); } .supporting-documents:has(> .supporting-upload-guidance) > .supporting-upload-guidance, .supporting-documents:has(> .supporting-upload-guidance) > .supporting-documents-picker { grid-column: 1; grid-row: auto; } }

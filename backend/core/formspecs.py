@@ -83,9 +83,9 @@ SPECS = [
     ("std", ["bts"], [
         {"key": "request_type", "label": "Type of request", "type": "select", "required": True, "options": ["Addition of a BTS site", "Removal of a BTS site"]},
         _ops("operator", "Telecom operator", True)],
-     [_doc("tower_photo", "Photo of the concerned tower (mandatory for removal)", "when", when={"key": "request_type", "equals": "Removal of a BTS site"}, image=True)], True),
-    ("std", ["emf"], [_ops("operator", "Concerned telecom operator (optional)")], [_doc("photo", "Supporting document (photo, optional)", False, image=True)], True),
-    ("std", ["tower"], [_ops("operator", "Concerned telecom operator", True)], [_doc("photo", "Supporting document (photo)", True, image=True)], True),
+     [_doc("tower_photo", "Photo of the concerned tower (mandatory for removal)", "when", when={"key": "request_type", "equals": "Removal of a BTS site"}, image=True, hint="A clear photo of the tower you want removed (JPG or PNG).")], True),
+    ("std", ["emf"], [_ops("operator", "Concerned telecom operator (optional)")], [_doc("photo", "Supporting document (photo, optional)", False, image=True, hint="Photos of the measurement reading, the equipment or the site, and any measurement report (PDF).")], True),
+    ("std", ["tower"], [_ops("operator", "Concerned telecom operator", True)], [_doc("photo", "Supporting document (photo)", True, image=True, hint="A clear photo of the concerned tower (JPG or PNG).")], True),
     # ---- IID
     ("iid", ["internet"], [_prov("isp", "Name of ISP", True), _t("customer_id", "Customer service identification number provided by the ISP", True)], [], True),
     ("iid", ["cable"], [_prov("cable_provider", "Name of cable service provider", True)], [], True),
@@ -109,8 +109,7 @@ SPECS = [
         _t("medium", "Medium where the post / article / video was published", True), _t("link", "Post / article / video link, if published online"),
         {"key": "language", "label": "Language of the content", "type": "select", "required": True, "options": LANGUAGES},
         {"key": "remedy", "label": "Remedy sought", "type": "textarea", "required": True}],
-     [_doc("correspondence", "Correspondence with the concerned person or the media house, if received"),
-      _doc("published_copy", "A copy of the published material that may support your statement"), _doc("objection", "Statement of objection")], True),
+     [_doc("supporting", "Supporting documents (correspondence, published material, or statement of objection)")], True),
     ("mcd", ["reality"], [
         _t("show", "Name of reality show", True), _t("organisers", "Name of the organiser(s)", True),
         {"key": "nature", "label": "Nature of complaint", "type": "select", "required": True, "options": ["Voting procedures", "Non-payment of prizes"]},
@@ -159,11 +158,47 @@ def spec_for(category):
             best = (d, words, fields, docs, has_description)
     if best is None:
         return None
-    d, _, fields, docs, has_description = best
+    d, words, fields, docs, has_description = best
     geo = d == "std" or (d == "iid" and "rural" in words and ("coverage" in words or "network" in words))
-    docs = ([GENERAL_DOC] if d in ("std", "iid") else []) + [dict(x) for x in docs]
+    extra = [dict(x) for x in docs]
+    if d in ("std", "iid"):
+        # One upload box per form. A required (or required-when) document of the category replaces the general box, because
+        # the server checks it by name; an optional one is folded into the general box, which then says what to upload.
+        required = [x for x in extra if x.get("required") is True]
+        if required:
+            docs = required
+        else:
+            general = dict(GENERAL_DOC)
+            hints = [x["hint"] for x in extra if x.get("hint") and not x.get("required")]
+            if hints:
+                general["hint"] = hints[0]
+            # a document that is only required in some cases (e.g. the tower photo for a removal request) stays beside it
+            docs = [general] + [x for x in extra if x.get("required") == "when"]
+    else:
+        docs = extra
+    docs = _merge_plain_docs(docs)
     return {"division": d, "identity": IDENTITY[d], "fields": fields, "docs": docs, "geo": geo,
             "description": {"label": DESCRIPTION[d], "required": True} if has_description else None}
+
+
+def _merge_plain_docs(docs):
+    """Several always-shown, optional documents become one upload box that lists what to upload. Documents that depend on an
+    answer (`when`) or are required stay as they are. The merged box remembers the old keys so earlier uploads keep their labels."""
+    plain = [x for x in docs if not x.get("when") and not x.get("required") and x["key"] != GENERAL_DOC["key"]]
+    if len(plain) < 2:
+        return docs
+    parts = [x["label"][0].lower() + x["label"][1:] if x["label"][1:2].islower() else x["label"] for x in plain]
+    text = "; ".join(parts)
+    merged = {"key": "supporting", "label": "Supporting documents", "required": False, "hint": text[0].upper() + text[1:] + ".",
+              "also": [{"key": x["key"], "label": x["label"]} for x in plain]}
+    out, placed = [], False
+    for x in docs:
+        if x in plain:
+            if not placed:
+                out.append(merged); placed = True
+        else:
+            out.append(x)
+    return out
 
 
 def visible(item, details):
@@ -233,4 +268,7 @@ def slot_label(spec, key):
     for dct in (spec or {}).get("docs", []):
         if dct["key"] == key:
             return dct["label"]
+        for old in dct.get("also", []):
+            if old["key"] == key:
+                return old["label"]
     return key

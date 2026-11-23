@@ -20,7 +20,7 @@ from core.notifications import notify
 
 from . import services
 from .filters import apply_filters
-from .models import Attachment, CaseMessage, Channel, Complaint, InternalStatus as S
+from .models import Attachment, CaseMessage, Channel, Complaint, FollowUp, FollowUpFile, InternalStatus as S
 from .serializers import (
     ComplaintCreateSerializer, ComplaintDetailSerializer, ComplaintListSerializer, MessageSerializer,
     PublicTrackSerializer, validate_uploads,
@@ -113,6 +113,31 @@ class PublicCidLookupView(APIView):
         return Response({k: found[k] for k in ("first_name", "middle_name", "last_name", "full_name")})
 
 
+class PublicScanView(APIView):
+    """Checks chosen files right away (type, size and the safety scan) so the form can show each file's result before the
+    complaint is submitted. Nothing is stored. The same checks run again on submit."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser, FormParser]
+    throttle_scope = "upload_scan"
+
+    def post(self, request):
+        out = []
+        for f in request.FILES.getlist("files")[:10]:
+            try:
+                validate_uploads([f])
+                out.append({"name": f.name, "ok": True, "reason": ""})
+            except serializers.ValidationError as exc:
+                msg = str((exc.detail.get("files") or ["It cannot be uploaded."])[0])
+                msg = msg.split(": ", 1)[1] if ": " in msg else msg
+                msg = msg.replace(" Please upload a clean copy.", "")
+                msg = msg.split("blocked because ", 1)[1] if "blocked because " in msg else msg
+                msg = msg.strip().rstrip(".")
+                out.append({"name": f.name, "ok": False, "reason": msg[:1].upper() + msg[1:]})
+        return Response({"results": out})
+
+
 class PublicCaptchaView(APIView):
     authentication_classes = []
     permission_classes = [AllowAny]
@@ -138,6 +163,10 @@ def _verified(complaint, contact):
     return bool(complaint.phone) and len(_digits(contact)) == 8 and _digits(contact) == _digits(complaint.phone)
 
 
+def _public_file(f):
+    return {"id": str(f.pk), "name": f.original_name, "size": f.size, "kind": "followup" if isinstance(f, FollowUpFile) else "attachment"}
+
+
 def _submitted_details(c):
     """What the complainant submitted, shown read-only on the Track page once they are verified."""
     pairs = [
@@ -152,8 +181,9 @@ def _submitted_details(c):
         ("Description", c.description),
         ("Remedy sought", c.remedy_sought),
     ]
-    docs = [a.original_name for a in c.attachments.filter(visibility=CaseMessage.Visibility.PUBLIC, message__isnull=True)]
-    return {"fields": [{"label": k, "value": v} for k, v in pairs if v], "documents": docs}
+    attachments = list(c.attachments.filter(visibility=CaseMessage.Visibility.PUBLIC, message__isnull=True))
+    docs = [a.original_name for a in attachments]
+    return {"fields": [{"label": k, "value": v} for k, v in pairs if v], "documents": docs, "document_files": [_public_file(a) for a in attachments]}
 
 
 class PublicTrackView(APIView):
@@ -187,6 +217,190 @@ class PublicTrackView(APIView):
             ]
             data["can_reply"] = complaint.internal_status == S.AWAITING_INFORMATION
         return Response(data)
+
+
+TRACK_OTP_MINUTES = 10
+TRACK_OTP_MAX_TRIES = 5
+TRACK_OTP_RESEND_SECONDS = 60
+TRACK_OTP_SENT = ("If we found a complaint for that reference number or CID, a 6-digit code has been sent to the email address "
+                  "on it. Check your inbox and spam folder. The code is valid for 10 minutes.")
+
+
+def _find_for_otp(identifier):
+    """The complaint a Track code is for: by reference, or (for an 11-digit CID) the latest one with an email."""
+    ident = str(identifier or "").strip()
+    qs = Complaint.objects.exclude(internal_status=S.DRAFT)
+    if re.fullmatch(r"\d{11}", ident):
+        return qs.filter(cid=ident).exclude(email="").order_by("-created_at").first()
+    return qs.filter(reference=ident.upper()).first()
+
+
+class PublicTrackOtpView(APIView):
+    """Step 1 of tracking: email a 6-digit code to the address on the complaint. The answer is the same whether or not
+    a complaint exists, so this cannot be used to discover which references or CIDs are in the system."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "track_otp"
+
+    def post(self, request):
+        from datetime import timedelta
+        import secrets
+        from django.contrib.auth.hashers import make_password
+        from core.email import send_mail
+        from django.conf import settings
+        from core import logs
+        from .models import TrackCode
+        complaint = _find_for_otp(request.data.get("identifier"))
+        if complaint is not None and complaint.email:
+            prior = TrackCode.objects.filter(complaint=complaint).first()
+            if prior and (timezone.now() - prior.created_at).total_seconds() < TRACK_OTP_RESEND_SECONDS:
+                return Response({"detail": TRACK_OTP_SENT})  # resend cooldown: keep the code already sent
+            code = f"{secrets.randbelow(10 ** 6):06d}"
+            TrackCode.objects.update_or_create(complaint=complaint, defaults={
+                "code_hash": make_password(code), "expires_at": timezone.now() + timedelta(minutes=TRACK_OTP_MINUTES), "attempts": 0})
+            subject = "Your BICMA complaint tracking code"
+            try:
+                send_mail(subject,
+                          f"Your code to track complaint {complaint.reference} is:\n\n    {code}\n\nIt expires in {TRACK_OTP_MINUTES} minutes "
+                          "and can be used once. Never share it with anyone. If you did not ask for it, you can ignore this email.\n\nBICMA",
+                          settings.DEFAULT_FROM_EMAIL, [complaint.email], verification_code=code)
+                logs.email("track_otp", complaint.email, subject, True, "", complaint.reference)
+            except Exception as exc:
+                import logging
+                logging.getLogger(__name__).exception("Track code email delivery failed")
+                logs.email("track_otp", complaint.email, subject, False, str(exc)[:300], complaint.reference)
+        return Response({"detail": TRACK_OTP_SENT})
+
+
+class PublicTrackOtpVerifyView(APIView):
+    """Step 2: the emailed code. Returns the complaints it opens, each with a signed token that the Track page
+    passes to /public/track/ to show the full complaint."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "track_otp_verify"
+
+    def post(self, request):
+        from django.contrib.auth.hashers import check_password
+        from .models import TrackCode
+        code = str(request.data.get("code", "")).strip()
+        bad = Response({"detail": "That code is incorrect or has expired. Request a new code."}, status=status.HTTP_400_BAD_REQUEST)
+        if not re.fullmatch(r"\d{6}", code):
+            return Response({"code": ["Enter the 6-digit code."]}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            complaint = _find_for_otp(request.data.get("identifier"))
+            row = TrackCode.objects.select_for_update().filter(complaint=complaint).first() if complaint else None
+            if row is None or row.expires_at < timezone.now():
+                if row is not None:
+                    row.delete()
+                return bad
+            if not check_password(code, row.code_hash):
+                row.attempts += 1
+                if row.attempts >= TRACK_OTP_MAX_TRIES:
+                    row.delete()  # too many wrong guesses: this code is dead
+                else:
+                    row.save(update_fields=["attempts"])
+                return bad
+            row.delete()  # one use only
+        # Everything filed with the same email and CID is opened too, so one code covers all of the person's complaints.
+        mine = [complaint]
+        if complaint.cid:
+            mine += list(Complaint.objects.exclude(internal_status=S.DRAFT).exclude(pk=complaint.pk)
+                         .filter(cid=complaint.cid, email__iexact=complaint.email).order_by("-created_at")[:20])
+        return Response({"complaints": [{"reference": c.reference, "token": services.make_reply_token(c)} for c in mine]})
+
+
+FOLLOWUP_PAGE = 10
+FOLLOWUP_CLOSED = (S.DRAFT, S.CLOSED, S.NOT_WITHIN_MANDATE)
+
+
+def _followup_complaint(data):
+    """The complaint a follow-up call is about, only for someone who opened it with the emailed code or link."""
+    ref = str(data.get("reference", "")).strip().upper()
+    complaint = Complaint.objects.exclude(internal_status=S.DRAFT).filter(reference=ref).first()
+    if complaint is None or not services.check_reply_token(complaint, data.get("token")):
+        return None
+    return complaint
+
+
+def _followup_json(f):
+    return {"id": str(f.pk), "body": f.body, "created_at": f.created_at, "files": [x.original_name for x in f.files.all()], "document_files": [_public_file(x) for x in f.files.all()]}
+
+
+class PublicTrackDocumentView(APIView):
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "track"
+
+    def get(self, request, kind, file_id):
+        complaint = _followup_complaint(request.query_params)
+        if complaint is None:
+            raise Http404
+        if kind == "attachment":
+            document = complaint.attachments.filter(pk=file_id, visibility=CaseMessage.Visibility.PUBLIC).first()
+        elif kind == "followup":
+            document = FollowUpFile.objects.filter(pk=file_id, followup__complaint=complaint).first()
+        else:
+            raise Http404
+        if document is None:
+            raise Http404
+        # Only passive formats may render inline; other formats download.
+        safe_types = {"application/pdf", "image/jpeg", "image/png", "image/gif", "image/webp"}
+        content_type = document.content_type if document.content_type in safe_types else "application/octet-stream"
+        try:
+            response = FileResponse(document.file.open("rb"), as_attachment=content_type not in safe_types,
+                                    filename=document.original_name, content_type=content_type)
+        except FileNotFoundError:
+            raise Http404
+        response["Cache-Control"] = "private, no-store"
+        response["X-Content-Type-Options"] = "nosniff"
+        response["Referrer-Policy"] = "no-referrer"
+        response["Content-Security-Policy"] = "sandbox"
+        return response
+
+
+class PublicFollowUpView(APIView):
+    """Additional information from the complainant: a list (newest first, ten at a time) and a way to add one."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
+    throttle_scope = "track"
+
+    def post(self, request):
+        data = _flat(request.data)
+        complaint = _followup_complaint(data)
+        if complaint is None:
+            return Response({"detail": "This link has expired or is not valid. Enter your reference number again."}, status=status.HTTP_400_BAD_REQUEST)
+        if data.get("action") == "list":
+            try:
+                offset = max(0, int(data.get("offset", 0)))
+            except (TypeError, ValueError):
+                offset = 0
+            qs = complaint.follow_ups.prefetch_related("files")
+            return Response({"total": qs.count(), "open": complaint.internal_status not in FOLLOWUP_CLOSED,
+                             "items": [_followup_json(f) for f in qs[offset:offset + FOLLOWUP_PAGE]]})
+        body = str(data.get("message", "")).strip()
+        files = _files(request)
+        if not body and not files:
+            return Response({"message": ["Write something or attach a document."]}, status=status.HTTP_400_BAD_REQUEST)
+        if len(body) > 5000:
+            return Response({"message": ["Use at most 5,000 characters."]}, status=status.HTTP_400_BAD_REQUEST)
+        with transaction.atomic():
+            complaint = Complaint.objects.select_for_update().get(pk=complaint.pk)
+            if complaint.internal_status in FOLLOWUP_CLOSED:
+                return Response({"detail": "This complaint is closed, so no more information can be added."}, status=status.HTTP_400_BAD_REQUEST)
+            if complaint.follow_ups.count() >= FollowUp.MAX_PER_COMPLAINT:
+                return Response({"detail": f"You have reached the limit of {FollowUp.MAX_PER_COMPLAINT} additions. Contact BICMA for anything further."},
+                                status=status.HTTP_400_BAD_REQUEST)
+            fu = FollowUp.objects.create(complaint=complaint, body=body)
+            for att in files:
+                FollowUpFile.objects.create(followup=fu, file=att.file.file, original_name=att.original_name, size=att.size, content_type=att.content_type)
+            services.alert_officers(complaint, f"Complainant added information on {complaint.reference}.")
+            if complaint.assigned_to_id:
+                services.email_users(complaint, "followup_added", [complaint.assigned_to])
+        return Response({"detail": "Your information has been added."}, status=status.HTTP_201_CREATED)
 
 
 class PublicReplyView(APIView):
@@ -238,6 +452,37 @@ def _pk(value):
 
 def _bad(detail, field=None, code=400):
     return Response({field: [detail]} if field else {"detail": detail}, status=code)
+
+
+# Types the case page may show in place (`?view=1`). Everything else is only ever downloaded. The type is taken from the
+# file extension, never from what the uploader claimed, and images are served sandboxed.
+INLINE_TYPES = {"jpg": "image/jpeg", "jpeg": "image/jpeg", "png": "image/png", "gif": "image/gif", "webp": "image/webp", "pdf": "application/pdf",
+                "txt": "text/plain; charset=utf-8", "csv": "text/plain; charset=utf-8"}
+
+
+def _file_response(request, fieldfile, name):
+    ext = name.rsplit(".", 1)[-1].lower() if "." in name else ""
+    viewing = request.query_params.get("view") == "1"
+    if viewing and ext == "docx":
+        from django.http import HttpResponse
+        from core import docview
+        try:
+            page = docview.docx_to_html(fieldfile)
+        except docview.Unreadable:
+            page = '<!doctype html><meta charset="utf-8"><body style="font:15px system-ui;padding:24px;color:#555"><p>This document cannot be previewed. It may be damaged.</p></body>'
+        resp = HttpResponse(page, content_type="text/html; charset=utf-8")
+        resp["X-Content-Type-Options"] = "nosniff"
+        resp["Content-Security-Policy"] = "sandbox; default-src 'none'; img-src data:; style-src 'unsafe-inline'"  # nothing in it can run
+        resp["X-Frame-Options"] = "SAMEORIGIN"
+        return resp
+    inline = viewing and ext in INLINE_TYPES
+    resp = FileResponse(fieldfile.open("rb"), as_attachment=not inline, filename=name, content_type=INLINE_TYPES[ext] if inline else None)
+    resp["X-Content-Type-Options"] = "nosniff"
+    if inline:
+        if ext != "pdf":
+            resp["Content-Security-Policy"] = "sandbox"  # (Chrome's PDF viewer does not run inside a sandbox)
+        resp["X-Frame-Options"] = "SAMEORIGIN"  # so the preview dialog can show a PDF
+    return resp
 
 
 class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.CreateModelMixin, viewsets.GenericViewSet):
@@ -346,6 +591,19 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
         users = User.objects.filter(is_active=True, division_id=c.division_id, role__in=roles_with_base(Role.INVESTIGATOR))
         return Response([{"id": str(u.pk), "name": u.get_full_name() or u.email, "role": u.role_name} for u in users])
 
+    @action(detail=True, methods=["get"], url_path="team")
+    def team(self, request, pk=None):
+        """Who is on this case in its division: the Division Head(s) (full access already), the assigned officer, and every
+        other registered Investigating Officer, flagged `joined` when they were added to help."""
+        c = self.get_object()
+        person = lambda u, role: {"id": str(u.pk), "name": u.get_full_name() or u.email, "role": role}
+        base = User.objects.filter(is_active=True, division_id=c.division_id)
+        joined = set(c.joined_officers.values_list("pk", flat=True))
+        heads = [person(u, u.role_name) for u in base.filter(role__in=roles_with_base(Role.FOCAL))]
+        others = [{**person(u, u.role_name), "joined": u.pk in joined}
+                  for u in base.filter(role__in=roles_with_base(Role.INVESTIGATOR)).exclude(pk=c.assigned_to_id)]
+        return Response({"heads": heads, "assigned": person(c.assigned_to, c.assigned_to.role_name) if c.assigned_to_id else None, "officers": others})
+
     @action(detail=True, methods=["post"])
     def _assign_to_officer(self, request, name, reason_default):
         d = request.data
@@ -359,11 +617,15 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
             if c.assigned_to_id and not reason:
                 raise WorkflowError("A reason is required to reassign.", "reason")
             if not c.priority_id:
-                prio = Priority.objects.filter(pk=_pk(d.get("priority")), is_active=True).first()
+                # No priority asked for here: use the one sent (if any), else "Normal", else the lowest-ranked active one.
+                prio = (Priority.objects.filter(pk=_pk(d.get("priority")), is_active=True).first()
+                        or Priority.objects.filter(is_active=True, name__iexact="Normal").first()
+                        or Priority.objects.filter(is_active=True).order_by("rank").first())
                 if not prio:
-                    raise WorkflowError("Set the priority before assigning.", "priority")
+                    raise WorkflowError("No priority is configured. Ask an administrator to add one.", "priority")
                 services.apply_priority(c, prio)
             c.assigned_to = officer
+            c.joined_officers.remove(officer)
             if str(d.get("confidential_case", "")).lower() in ("1", "true"):
                 c.confidential_case = True
             services.move(c, S.ASSIGNED, actor=request.user, reason=reason or reason_default, request=request, notify_complainant=False)
@@ -374,6 +636,29 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
     @action(detail=True, methods=["post"])
     def assign(self, request, pk=None):
         return self._assign_to_officer(request, "assign", "Assigned to officer")
+
+    @action(detail=True, methods=["post"])
+    def join(self, request, pk=None):
+        def run(c):
+            raw_ids = request.data.get("officers")
+            if not isinstance(raw_ids, list) or len(raw_ids) > 20:
+                raise WorkflowError("Select up to 20 officers.", "officers")
+            ids = {_pk(value) for value in raw_ids}
+            if None in ids:
+                raise WorkflowError("Select valid officers.", "officers")
+            officers = list(User.objects.filter(pk__in=ids, is_active=True, division_id=c.division_id,
+                                               role__in=roles_with_base(Role.INVESTIGATOR)))
+            if len(officers) != len(ids) or c.assigned_to_id in ids:
+                raise WorkflowError("Select other Investigating Officers from this division.", "officers")
+            previous = set(c.joined_officers.values_list("pk", flat=True))
+            c.joined_officers.set(officers)
+            c.save()
+            added = [u for u in officers if u.pk not in previous]
+            if added:
+                notify(added, f"You have joined complaint {c.reference} to assist the assigned officer.", f"/staff/complaints/{c.pk}")
+            audit.log(request, "complaint.join_officers", entity_type="complaint", entity_id=c.pk,
+                      detail={"officers": [str(u.pk) for u in officers]})
+        return self._run(request, "join", run)
 
     @action(detail=True, methods=["post"])
     def refer(self, request, pk=None):
@@ -388,6 +673,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
                 raise WorkflowError("A reason is required to refer.", "reason")
             c.referred_from_id = c.division_id
             c.division = target
+            c.joined_officers.clear()
             c.assigned_to = None
             services.move(c, S.REFERRED, actor=request.user, reason=f"Referred to {target.name}: {reason}", request=request, notify_complainant=False)
             notify(User.objects.filter(role__in=roles_with_base(Role.FOCAL), is_active=True, division=target), f"Complaint {c.reference} referred to your division.", f"/staff/complaints/{c.pk}")
@@ -600,12 +886,28 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
     @action(detail=True, methods=["post"], url_path="stakeholder-review")
     def stakeholder_review(self, request, pk=None):
         def run(c):
-            if not c.provider_id or not c.provider.contact_email:
-                raise WorkflowError("The provider has no contact email in the master list.")
-            entry = services.send_event(c, "stakeholder_review", c.provider.contact_email, message=str(request.data.get("message", "")).strip())
-            if entry is None:
-                raise WorkflowError("No stakeholder email template is configured.")
-            audit.log(request, "complaint.stakeholder_notified", entity_type="complaint", entity_id=c.pk)
+            # Who to send to: the addresses typed on the form, or else the provider's contact email from the master list.
+            raw = request.data.get("recipients")
+            if isinstance(raw, list):
+                raw = ",".join(str(x) for x in raw)
+            raw = str(raw or "").strip() or (c.provider.contact_email if c.provider_id else "")
+            people = list(dict.fromkeys(p.strip().lower() for p in re.split(r"[,;\s]+", raw) if p.strip()))
+            if not people:
+                raise WorkflowError("Enter the email address to send the notice to.", "recipients")
+            if len(people) > 5:
+                raise WorkflowError("Send to at most 5 email addresses at a time.", "recipients")
+            from django.core.exceptions import ValidationError as DjangoValidationError
+            from django.core.validators import validate_email
+            for address in people:
+                try:
+                    validate_email(address)
+                except DjangoValidationError:
+                    raise WorkflowError(f"{address[:80]} is not a valid email address.", "recipients")
+            message = str(request.data.get("message", "")).strip()
+            for address in people:
+                if services.send_event(c, "stakeholder_review", address, message=message) is None:
+                    raise WorkflowError("No stakeholder email template is configured.")
+            audit.log(request, "complaint.stakeholder_notified", entity_type="complaint", entity_id=c.pk, detail={"recipients": people})
         return self._run(request, "stakeholder_review", run)
 
     @action(detail=True, methods=["post"], url_path="register")
@@ -657,9 +959,16 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
         if att is None:
             raise Http404
         audit.log(request, "complaint.attachment_download", entity_type="complaint", entity_id=c.pk, detail={"attachment": str(att.pk)})
-        resp = FileResponse(att.file.open("rb"), as_attachment=True, filename=att.original_name)
-        resp["X-Content-Type-Options"] = "nosniff"
-        return resp
+        return _file_response(request, att.file, att.original_name)
+
+    @action(detail=True, methods=["get"], url_path=r"followup-files/(?P<file_id>[0-9a-f-]{36})")
+    def followup_file(self, request, pk=None, file_id=None):
+        c = self.get_object()
+        f = FollowUpFile.objects.filter(followup__complaint=c, pk=file_id).first()
+        if f is None:
+            raise Http404
+        audit.log(request, "complaint.attachment_download", entity_type="complaint", entity_id=c.pk, detail={"followup_file": str(f.pk)})
+        return _file_response(request, f.file, f.original_name)
 
 
 class AdminUploadsView(APIView):

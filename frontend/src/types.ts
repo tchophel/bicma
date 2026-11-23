@@ -11,7 +11,7 @@ export interface User {
   cid: string | null;
   designation: string;
   phone: string;
-  bio?: string;
+  theme?: string;
   role: string;
   base_role: Role;
   role_display: string;
@@ -26,11 +26,11 @@ export interface Division { id: string; name: string; code: string; reference_co
 export interface Subcategory { id: string; name: string; is_active?: boolean; category?: string }
 export interface Category {
   id: string; name: string; is_active: boolean; subcategories: Subcategory[];
-  default_division: string | null; urban_division: string | null; rural_division: string | null; default_priority: string | null; form?: CategoryForm | null;
+  default_division: string | null; urban_division: string | null; rural_division: string | null; default_priority: string | null; description?: string; form?: CategoryForm | null;
 }
 export interface FormWhen { key: string; equals?: string; includes?: string }
 export interface FormField { key: string; label: string; type: "text" | "textarea" | "date" | "select" | "yesno" | "checks" | "provider" | "provider_checks"; required: boolean; options?: string[]; when?: FormWhen; past?: boolean; provider_type?: string }
-export interface FormDoc { key: string; label: string; required: boolean | "when"; when?: FormWhen; image?: boolean }
+export interface FormDoc { key: string; label: string; required: boolean | "when"; when?: FormWhen; image?: boolean; hint?: string }
 /** A category's own form, defined on the server (backend/core/formspecs.py). */
 export interface CategoryForm {
   division: "std" | "iid" | "mcd";
@@ -91,6 +91,7 @@ export interface CaseMessage {
 export interface AttachmentInfo { id: string; original_name: string; size: number; visibility: string; slot?: string; slot_label?: string; created_at: string }
 
 export interface ComplaintDetail extends ComplaintRow {
+  joined_officers: { id: string; name: string }[];
   complainant_type: string; cid: string; phone: string; email: string; locality: string; area_type: string;
   preferred_contact: string; on_behalf: boolean; affected_name: string; affected_relationship: string; affected_contact: string;
   subcategory: string | null; subcategory_name: string | null; description: string; incident_date: string | null; incident_time: string | null;
@@ -105,6 +106,8 @@ export interface ComplaintDetail extends ComplaintRow {
   closure_reason: string; registered_by_name: string | null; updated_at: string; version: number; paused: boolean; division: string | null; category: string | null;
   status_history: { previous_status: string; new_status: string; actor: string | null; reason: string; created_at: string }[];
   messages: CaseMessage[];
+  provider_contact_email?: string;
+  follow_ups: { id: string; body: string; created_at: string; files: { id: string; original_name: string; size: number }[] }[];
   attachments: AttachmentInfo[];
   notifications: { id: string; event: string; recipient: string; subject: string; status: string; created_at: string }[];
   related: { id: string; reference: string; subject: string; status: string; created_at: string }[];
@@ -138,6 +141,6 @@ export interface AppNotification { id: string; message: string; link: string; re
 
 export interface Limits {
   upload_max_kb: number; upload_max_files: number; photo_max_kb: number;
-  upload_types: string[]; allowed_extensions: string[];
+  upload_types: string[]; allowed_extensions: string[]; upload_instructions: string;
   type_catalog: { key: string; label: string; extensions: string[] }[];
 }

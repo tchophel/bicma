@@ -9,8 +9,8 @@ from django.template.loader import render_to_string
 LOGO = Path(__file__).resolve().parent / "assets" / "bicma-logo.png"
 
 
-def send_mail(subject, message, from_email, recipient_list, fail_silently=False):
-    html = render_to_string("emails/branded.html", {"subject": subject, "message": message})
+def send_mail(subject, message, from_email, recipient_list, fail_silently=False, *, verification_code=None):
+    html = render_to_string("emails/branded.html", {"subject": subject, "message": message, "verification_code": verification_code})
     email = EmailMultiAlternatives(subject, message, from_email, recipient_list)
     email.mixed_subtype = "related"
     email.attach_alternative(html, "text/html")

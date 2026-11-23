@@ -6,3 +6,15 @@
 .walker.arrived.done { animation: walker-hop .7s ease-out 1; }
 @keyframes walker-hop { 0% { transform: translateX(-50%) translateY(0); } 40% { transform: translateX(-50%) translateY(-16px); } 100% { transform: translateX(-50%) translateY(0); } }
 @media (prefers-reduced-motion: reduce) { .walker { transition: none; animation: none !important; } }
+
+/* Repeated walking uses one CSS cycle, independent of transition events. */
+.walker.walker-repeating { animation: walker-repeat var(--walker-cycle) linear infinite; transition: none; }
+@keyframes walker-repeat { 0% { left: var(--walker-start); } 87%, 100% { left: var(--walker-end); } }
+@media (prefers-reduced-motion: reduce) { .walker.walker-repeating { animation: none; } }
+
+.walker.walker-with-speech { width: max-content; }
+.walker-portrait { display: block; height: 100%; width: auto; }
+.walker-speech { position: absolute; bottom: calc(100% - 8px); left: 50%; transform: translateX(-50%); width: max-content; max-width: 160px; padding: 8px 12px; border: 1px solid var(--c-primary); border-radius: 12px; background: #fff; color: var(--c-primary-dark); font-size: .75rem; font-weight: 600; line-height: 1.5; text-align: center; box-shadow: 0 3px 12px rgb(45 30 20 / 8%); }
+.walker-speech::after { content: ""; position: absolute; bottom: -6px; left: calc(50% - 5px); width: 10px; height: 10px; background: #fff; border-right: 1px solid var(--c-primary); border-bottom: 1px solid var(--c-primary); transform: rotate(45deg); }
+.walker-speech.walker-speech-done { color: var(--c-ok); border-color: var(--c-ok); }
+.walker-speech-done::after { border-color: var(--c-ok); }

@@ -54,9 +54,9 @@ class UserSerializer(serializers.ModelSerializer):
         model = User
         fields = [
             "id", "email", "employee_id", "cid", "designation", "first_name", "last_name", "phone", "role", "role_display", "base_role",
-            "division", "division_name", "is_active", "last_login", "profile_photo", "bio",
+            "division", "division_name", "is_active", "last_login", "profile_photo", "theme",
         ]
-        read_only_fields = ["last_login", "bio"]
+        read_only_fields = ["last_login", "theme"]
 
 
 class ProfileSerializer(serializers.ModelSerializer):
@@ -64,7 +64,7 @@ class ProfileSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
-        fields = ["first_name", "last_name", "phone", "bio"]
+        fields = ["first_name", "last_name", "phone", "designation", "theme"]
 
 
 class UserWriteSerializer(UserSerializer):

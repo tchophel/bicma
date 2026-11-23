@@ -13,6 +13,14 @@ services:
       timeout: 3s
       retries: 20
 
+  # Optional virus scanner for uploads. Start with: docker compose --profile scan up -d clamav
+  # then set CLAMAV_HOST=clamav in .env (and CLAMAV_REQUIRED=1 to refuse uploads while it is down). First start downloads
+  # the virus definitions and takes a few minutes.
+  clamav:
+    image: clamav/clamav:stable
+    profiles: ["scan"]
+    restart: unless-stopped
+
   backend:
     build: ./backend
     command: sh -c "python manage.py migrate && python manage.py bootstrap && python manage.py runserver 0.0.0.0:8000"
@@ -33,6 +41,8 @@ services:
       BICMA_ADMIN_EMAIL: ${BICMA_ADMIN_EMAIL:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
       BCRS_API_URL: ${BCRS_API_URL:-}
+      CLAMAV_HOST: ${CLAMAV_HOST:-}
+      CLAMAV_REQUIRED: ${CLAMAV_REQUIRED:-0}
       NDI_API_CLIENT_ID: ${NDI_API_CLIENT_ID:-}
       NDI_API_CLIENT_SECRET: ${NDI_API_CLIENT_SECRET:-}
       NDI_NATS_SEED_KEY: ${NDI_NATS_SEED_KEY:-}

@@ -4,10 +4,10 @@ from django.core import mail
 from django.core.files.uploadedfile import SimpleUploadedFile
 from django.utils import timezone
 
-from accounts.models import Division
+from accounts.models import Division, Role, User
 from complaints.models import Complaint, InternalStatus as S
 from complaints.tests import Base, OfflineRegistrationTests
-from core.models import Category, EmailTemplate, Holiday, NotificationLog, Provider
+from core.models import Category, NotificationLog, Provider
 
 
 class WorkflowBase(Base):
@@ -70,13 +70,30 @@ class LifecycleTests(WorkflowBase):
         self.assertIsNotNone(c.priority_id)
         self.assertEqual(self.act(self.inv1, "start", c=c).status_code if c.assigned_to_id == self.inv1.pk else 200, 200)
 
+    def test_officer_first_sends_the_case_to_the_officer_and_the_head_confirms_triage_later(self):
+        from core import workflowconfig as wf
+        wf.save_steps(wf.validate([{"key": k, "enabled": True} for k in ("investigation", "triage", "supervisor", "closure")])[0])
+        self.addCleanup(lambda: wf.save_steps(wf.DEFAULT))
+        c, _ = self.make(division=self.d1)
+        c.refresh_from_db()
+        self.assertEqual(c.internal_status, S.ASSIGNED)
+        from complaints.workflow import allowed_actions
+        self.assertTrue(allowed_actions(self.focal1, c)["triage"])  # the Division Head can still confirm category and priority
+        wf.save_steps(wf.DEFAULT)
+        c.refresh_from_db()
+        self.assertFalse(allowed_actions(self.focal1, c)["triage"])  # triage first again: an assigned case is past triage
+
     def test_workflow_screen_validates_and_saves_the_steps(self):
         steps = lambda *flags: [{"key": k, "enabled": e} for k, e in zip(("triage", "investigation", "supervisor", "closure"), flags)]
         cl = self.login(self.admin)
         self.assertEqual(cl.put("/api/admin/workflow/", {"steps": steps(False, True, False, True)}, format="json").status_code, 200)
         self.assertEqual(cl.put("/api/admin/workflow/", {"steps": steps(True, False, True, True)}, format="json").status_code, 400)  # officer step cannot go off
         bad = list(reversed(steps(True, True, True, True)))
-        self.assertEqual(cl.put("/api/admin/workflow/", {"steps": bad}, format="json").status_code, 400)  # impossible order
+        r = cl.put("/api/admin/workflow/", {"steps": bad}, format="json")
+        self.assertEqual(r.status_code, 400)  # impossible order, and the reason is given
+        self.assertIn("last", r.data["steps"][0])
+        officer_first = [{"key": k, "enabled": True} for k in ("investigation", "triage", "supervisor", "closure")]
+        self.assertEqual(cl.put("/api/admin/workflow/", {"steps": officer_first}, format="json").status_code, 200)  # officer first is allowed
         self.assertEqual(self.login(self.focal1).put("/api/admin/workflow/", {"steps": steps(True, True, True, True)}, format="json").status_code, 403)
         from core import workflowconfig as wf
         wf.save_steps(wf.validate(steps(True, True, False, True))[0])
@@ -108,14 +125,26 @@ class LifecycleTests(WorkflowBase):
         self.assertEqual(self.act(self.inv1, "start").status_code, 404)  # not assigned, so the officer cannot even see the case
         self.assertEqual(self.act(self.focal1, "start").status_code, 403)  # still Received
 
-    def test_assignment_requires_priority_and_reason_on_reassign(self):
+    def test_assignment_sets_a_default_priority_and_requires_reason_on_reassign(self):
         Complaint.objects.filter(pk=self.c.pk).update(priority=None)
         r = self.act(self.focal1, "assign", {"assigned_to": str(self.inv1.pk)})
-        self.assertEqual(r.status_code, 400)
-        self.assertIn("priority", r.data)
-        self.to_assigned()
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertIsNotNone(self.reload().priority_id)  # no priority was asked for: a default was applied
         self.assertEqual(self.act(self.focal1, "assign", {"assigned_to": str(self.inv1.pk)}).status_code, 400)
         self.assertEqual(self.act(self.focal1, "assign", {"assigned_to": str(self.inv1.pk), "reason": "Workload"}).status_code, 200)
+
+    def test_team_lists_head_assigned_and_other_officers_of_this_division_only(self):
+        self.to_assigned()
+        extra = User.objects.create_user("inv1b@x.bt", password="Str0ng-pass-123", role=Role.INVESTIGATOR, division=self.d1)
+        r = self.login(self.focal1).get(f"/api/complaints/{self.c.pk}/team/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([h["id"] for h in r.data["heads"]], [str(self.focal1.pk)])
+        self.assertEqual(r.data["assigned"]["id"], str(self.inv1.pk))
+        ids = [o["id"] for o in r.data["officers"]]
+        self.assertEqual(ids, [str(extra.pk)])  # not the assigned officer, nobody from another division
+        self.assertEqual(self.act(self.focal1, "join", {"officers": [str(extra.pk)]}).status_code, 200)
+        r = self.login(self.focal1).get(f"/api/complaints/{self.c.pk}/team/")
+        self.assertTrue(r.data["officers"][0]["joined"])
 
     def test_cannot_assign_officer_of_another_division(self):
         r = self.act(self.focal1, "assign", {"assigned_to": str(self.inv2.pk), "priority": str(self.prio.pk)})
@@ -162,12 +191,11 @@ class LifecycleTests(WorkflowBase):
         self.assertIsNotNone(c.resolution_due_at)
         self.assertEqual(self.act(self.focal1, "triage", {"category": str(self.cat.pk)}).status_code, 400)
 
-    def test_working_day_timeline_skips_weekends_and_holidays(self):
+    def test_working_day_timeline_skips_weekends(self):
         from complaints.services import add_working_days
         fri = timezone.make_aware(dt.datetime(2026, 1, 2, 10, 0))  # a Friday
         self.assertEqual(add_working_days(fri, 1).date(), dt.date(2026, 1, 5))
-        Holiday.objects.create(date=dt.date(2026, 1, 5), name="Holiday")
-        self.assertEqual(add_working_days(fri, 1).date(), dt.date(2026, 1, 6))
+        self.assertEqual(add_working_days(fri, 5).date(), dt.date(2026, 1, 9))
 
 
 class SlaTests(WorkflowBase):
@@ -356,7 +384,7 @@ class RegistrationRuleTests(Base):
         r = c.post(f"/api/complaints/{pk}/register/", {}, format="json")
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(r.data["internal_status"], "received")
-        self.assertTrue(r.data["reference"].startswith("BICMA-CMS-"))
+        self.assertRegex(r.data["reference"], r"^BICMA-\d{4}-(\d+-)?\d{4,}$")
 
     def test_duplicate_warning(self):
         c = self.login(self.inv1)
@@ -399,16 +427,42 @@ class ConfidentialityTests(Base):
 
 
 class StakeholderEmailTests(WorkflowBase):
-    def test_stakeholder_notice_uses_template_and_hides_identity(self):
+    def test_stakeholder_notice_hides_identity(self):
         prov = Provider.objects.create(name="Acme", contact_email="legal@acme.bt")
         Complaint.objects.filter(pk=self.c.pk).update(provider=prov, confidential=True)
-        EmailTemplate.objects.create(event="stakeholder_review", name="s", subject="Notice {reference}", body="Issue: {subject}. {message}")
         mail.outbox.clear()
         r = self.act(self.focal1, "stakeholder-review", {"message": "Please respond"})
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(mail.outbox[0].to, ["legal@acme.bt"])
         self.assertNotIn("X", mail.outbox[0].body.replace("Please respond", "").replace("Issue", ""))  # complainant name absent
         self.assertEqual(self.act(self.inv1, "stakeholder-review", {}).status_code, 404)  # not assigned: not visible
+
+    def test_notice_goes_to_the_addresses_typed_on_the_form(self):
+        prov = Provider.objects.create(name="Acme", contact_email="legal@acme.bt")
+        Complaint.objects.filter(pk=self.c.pk).update(provider=prov)
+        mail.outbox.clear()
+        r = self.act(self.focal1, "stakeholder-review", {"message": "Hi", "recipients": "Boss@Acme.bt; ceo@acme.bt, boss@acme.bt"})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(sorted(m.to[0] for m in mail.outbox), ["boss@acme.bt", "ceo@acme.bt"])  # typed addresses, no duplicates
+
+    def test_notice_works_without_a_provider_when_an_address_is_typed(self):
+        Complaint.objects.filter(pk=self.c.pk).update(provider=None)
+        mail.outbox.clear()
+        self.assertEqual(self.act(self.focal1, "stakeholder-review", {"recipients": "office@agency.bt"}).status_code, 200)
+        self.assertEqual(mail.outbox[0].to, ["office@agency.bt"])
+
+    def test_notice_needs_valid_addresses(self):
+        Complaint.objects.filter(pk=self.c.pk).update(provider=None)
+        for bad in ({}, {"recipients": ""}, {"recipients": "not-an-email"}, {"recipients": "a@x.bt, nope"},
+                    {"recipients": ",".join(f"u{i}@x.bt" for i in range(6))}):
+            r = self.act(self.focal1, "stakeholder-review", bad)
+            self.assertEqual(r.status_code, 400, bad)
+            self.assertIn("recipients", r.data, bad)
+
+    def test_provider_contact_email_is_offered_as_the_default(self):
+        prov = Provider.objects.create(name="Acme2", contact_email="legal2@acme.bt")
+        Complaint.objects.filter(pk=self.c.pk).update(provider=prov)
+        self.assertEqual(self.login(self.focal1).get(f"/api/complaints/{self.c.pk}/").data["provider_contact_email"], "legal2@acme.bt")
 
     def test_failed_emails_are_logged_and_retried(self):
         from django.core.management import call_command
@@ -732,7 +786,12 @@ class AllowedFileTypeTests(Base):
 
     def test_admin_chooses_which_kinds_of_file_are_accepted(self):
         a = self.login(self.admin)
-        word = SimpleUploadedFile("a.docx", b"PK\x03\x04 x")
+        from io import BytesIO
+        import zipfile
+        buf = BytesIO()
+        with zipfile.ZipFile(buf, "w") as z:  # a real (if tiny) Word file: uploads are scanned now
+            z.writestr("[Content_Types].xml", "<Types/>"); z.writestr("word/document.xml", "<w:document/>")
+        word = SimpleUploadedFile("a.docx", buf.getvalue())
         pdf = lambda: SimpleUploadedFile("a.pdf", b"%PDF-1.4 x", content_type="application/pdf")
         post = lambda f: self.client.post("/api/public/complaints/", {**self.payload(), "files": [f]}, format="multipart")
         self.assertEqual(post(word).status_code, 201)
@@ -753,6 +812,15 @@ class AllowedFileTypeTests(Base):
 
 
 class MonthlyReportTests(WorkflowBase):
+    def test_issue_description_is_not_repeated_when_already_in_subject(self):
+        Complaint.objects.filter(pk=self.c.pk).update(subject="Internet Services: Slow internet.", description="Slow internet.")
+        row = self.login(self.admin).get("/api/reports/monthly/").data["rows"][0]
+        self.assertEqual(row[7], "Internet Services: Slow internet.")
+        Complaint.objects.filter(pk=self.c.pk).update(description="Connection drops every hour.")
+        row = self.login(self.admin).get("/api/reports/monthly/").data["rows"][0]
+        self.assertIn("Connection drops every hour.", row[7])
+
+
     def test_columns_match_the_bicma_layout_and_month_filter_works(self):
         from core.models import Provider
         prov = Provider.objects.create(name="Bhutan Cable TV")
@@ -978,16 +1046,33 @@ class ReferenceFormatTests(Base):
         self.d1.save(); self.d2.save()
         now = timezone.now()
         y = now.year
-        self.assertEqual(next_reference(now, self.d1), f"BICMA-{y}-3-0001")
-        self.assertEqual(next_reference(now, self.d1), f"BICMA-{y}-3-0002")
-        self.assertEqual(next_reference(now, self.d2), f"BICMA-{y}-1-0001")  # serial restarts per division
+        import re
+        from complaints.models import Complaint
+        refs = []
+        for d in (self.d1, self.d1, self.d2):
+            r = next_reference(now, d)
+            self.assertRegex(r, rf"^BICMA-{y}-{d.reference_code}-\d{{4}}$")
+            self.assertNotEqual(r.rsplit("-", 1)[1], "0000")
+            refs.append(r)
+        self.assertEqual(len(set(refs)), 3)
         from core.models import SystemConfiguration
         SystemConfiguration.objects.create(key="reference_serial_length", value="6")
-        self.assertEqual(next_reference(now, self.d1), f"BICMA-{y}-3-000003")
+        self.assertRegex(next_reference(now, self.d1), rf"^BICMA-{y}-3-\d{{6}}$")
+
+    def test_serial_is_random_not_running_and_widens_when_full(self):
+        from unittest.mock import patch
+        from complaints.models import _random_serial
+        serials = {_random_serial(4, lambda c: False) for _ in range(40)}
+        self.assertGreater(len(serials), 30)  # not 0001, 0002, ...
+        taken = set()
+        with patch("secrets.randbelow", side_effect=lambda n: 0):  # always picks 0001
+            first = _random_serial(4, lambda c: c in taken)
+            taken.add(first)
+            self.assertEqual(len(_random_serial(4, lambda c: c in taken)), 5)  # 4-digit space "full" -> 5 digits
 
     def test_division_without_code_keeps_running_number(self):
         from complaints.models import next_reference
-        self.assertTrue(next_reference(timezone.now(), self.d1).startswith("BICMA-CMS-"))
+        self.assertRegex(next_reference(timezone.now(), self.d1), rf"^BICMA-{timezone.now().year}-\d{{4}}$")  # no division code: BICMA-Year-Number
 
 
 class CategoryFormTests(Base):
@@ -1028,7 +1113,11 @@ class CategoryFormTests(Base):
         return self.client.post("/api/public/complaints/", self.body(*a, **kw), format="multipart")
 
     def photo(self, name="tower.png"):
-        return SimpleUploadedFile(name, b"\x89PNG\r\n\x1a\n" + b"0" * 30, content_type="image/png")
+        from io import BytesIO
+        from PIL import Image
+        buf = BytesIO()
+        Image.new("RGB", (8, 8), "white").save(buf, "PNG")  # a real picture: uploads are scanned now
+        return SimpleUploadedFile(name, buf.getvalue(), content_type="image/png")
 
     def test_each_category_matches_its_own_form(self):
         from core.formspecs import spec_for
@@ -1052,6 +1141,21 @@ class CategoryFormTests(Base):
         self.assertIn("other_party_name", r.data)
         self.assertEqual(self.post(self.rf, d, complaining_for="agency", other_party_name="Ministry of X").status_code, 201)
         self.assertIn("complaining_for", self.post(self.rf, d, complaining_for="nobody").data)
+
+    def test_geo_coordinate_is_asked_on_spectrum_forms_and_rural_mobile_network(self):
+        from core.formspecs import spec_for
+        self.assertTrue(spec_for(self.rf)["geo"])
+        self.assertTrue(spec_for(self.rural_cov)["geo"])
+        self.assertFalse(spec_for(self.isp)["geo"])
+        self.assertFalse(spec_for(self.rural_comm)["geo"])
+
+    def test_issue_location_must_be_inside_bhutan(self):
+        d = {"frequency": "100 MHz"}
+        self.assertEqual(self.post(self.rf, d, geo_latitude="27.429680", geo_longitude="89.639000").status_code, 201)
+        r = self.post(self.rf, d, geo_latitude="51.507400", geo_longitude="-0.127800")  # London
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("geo_latitude", r.data)
+        self.assertIn("geo_longitude", r.data)
 
     def test_bts_removal_requires_a_tower_photo(self):
         add = {"request_type": "Addition of a BTS site", "operator": ["B-Mobile"]}
@@ -1299,3 +1403,49 @@ class NoOutcomeNeededTests(WorkflowBase):
         c = self.reload()
         self.assertEqual((c.internal_status, c.outcome_id), (S.SUBMITTED, None))
         self.assertEqual(self.act(self.focal1, "approve", {"closure_reason": "Done"}).status_code, 200)  # and it can be approved and closed
+
+
+class EmailResendTests(WorkflowBase):
+    URL = "/api/admin/logs/email/"
+
+    def failed_entry(self):
+        from unittest.mock import patch
+        from complaints import services
+        from core.models import EmailLog
+        mail.outbox.clear()
+        with patch("complaints.services.send_mail", side_effect=OSError("smtp down")):
+            services.send_event(self.c, "stakeholder_review", "wrong@@acme.bt", message="Hi")
+        return EmailLog.objects.filter(status="failed").latest("created_at")
+
+    def test_failed_case_email_is_listed_as_resendable_and_can_be_edited_and_sent_again(self):
+        from core.models import AuditLog, NotificationLog
+        entry = self.failed_entry()
+        a = self.login(self.admin)
+        row = next(r for r in a.get(f"{self.URL}?result=failed").data["results"] if r["id"] == str(entry.pk))
+        self.assertTrue(row["resendable"])
+        # a malformed address is refused and nothing changes
+        self.assertEqual(a.post(f"{self.URL}{entry.pk}/resend/", {"recipient": "nope"}, format="json").status_code, 400)
+        r = a.post(f"{self.URL}{entry.pk}/resend/", {"recipient": "Right@Acme.bt"}, format="json")
+        self.assertEqual((r.status_code, r.data["status"], r.data["recipient"]), (200, "sent", "right@acme.bt"))
+        self.assertEqual(mail.outbox[-1].to, ["right@acme.bt"])
+        note = NotificationLog.objects.get(pk=entry.notification_id)
+        self.assertEqual((note.status, note.recipient), ("sent", "right@acme.bt"))
+        # delivered now: no longer resendable, and a second resend is refused
+        row = next(r for r in a.get(f"{self.URL}?result=failed").data["results"] if r["id"] == str(entry.pk))
+        self.assertFalse(row["resendable"])
+        self.assertEqual(a.post(f"{self.URL}{entry.pk}/resend/", {}, format="json").status_code, 400)
+        self.assertTrue(AuditLog.objects.filter(action="email.resend").exists())
+
+    def test_resend_without_a_new_address_retries_the_same_one(self):
+        from unittest.mock import patch
+        entry = self.failed_entry()
+        with patch("complaints.services.send_mail", side_effect=OSError("still down")):
+            r = self.login(self.admin).post(f"{self.URL}{entry.pk}/resend/", {}, format="json")
+        self.assertEqual((r.status_code, r.data["status"]), (200, "failed"))
+
+    def test_emails_with_one_time_codes_and_non_admins_cannot_resend(self):
+        from core.models import EmailLog
+        plain = EmailLog.objects.create(kind="password_reset", recipient="x@x.bt", subject="code", status="failed")
+        self.assertEqual(self.login(self.admin).post(f"{self.URL}{plain.pk}/resend/", {}, format="json").status_code, 400)
+        entry = self.failed_entry()
+        self.assertIn(self.login(self.focal1).post(f"{self.URL}{entry.pk}/resend/", {}, format="json").status_code, (401, 403))

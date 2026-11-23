@@ -65,6 +65,9 @@ class User(UUIDModel, AbstractUser):
     designation = models.CharField(max_length=120, blank=True)
     bio = models.TextField(max_length=500, blank=True, help_text="Short note about the user, edited by the user on their own profile")
     cid = models.CharField(max_length=11, unique=True, null=True, blank=True)
+    THEMES = ["orange", "blue", "green", "purple", "teal", "red", "slate"]
+    theme = models.CharField(max_length=12, default="orange", choices=[(t, t.title()) for t in THEMES],
+                             help_text="Colour of the user's own dashboard, chosen by the user on their profile")
 
     USERNAME_FIELD = "email"
     REQUIRED_FIELDS = []
