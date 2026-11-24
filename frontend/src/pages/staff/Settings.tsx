@@ -6,7 +6,7 @@ import { Icon } from "../../components/Icon";
 import { useList } from "../../useList";
 import "../../styles/Settings.css";
 
-type Settings = { reference_length: number; declaration_text: string };
+type Settings = { reference_length: number; declaration_text: string; reality_shows: string };
 
 export function SettingsPage() {
   const toast = useToast();
@@ -15,22 +15,24 @@ export function SettingsPage() {
   const current = saved ?? data;
   const [len, setLen] = useState<string | null>(null);
   const [decl, setDecl] = useState<string | null>(null);
+  const [shows, setShows] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<ApiError | null>(null);
   const [success, setSuccess] = useState(false);
   const value = len ?? String(current?.reference_length ?? 4);
   const declValue = decl ?? current?.declaration_text ?? "";
-  const dirty = !!current && (Number(value) !== current.reference_length || declValue !== current.declaration_text);
+  const showsValue = shows ?? current?.reality_shows ?? "";
+  const dirty = !!current && (Number(value) !== current.reference_length || declValue !== current.declaration_text || showsValue !== current.reality_shows);
   const digits = Math.max(3, Math.min(10, Number(value) || 4));
   const sample = `BICMA-${new Date().getFullYear()}-3-${"9".padStart(digits, "0")}`;
-  function reset() { setLen(null); setDecl(null); setError(null); setSuccess(false); }
+  function reset() { setLen(null); setDecl(null); setShows(null); setError(null); setSuccess(false); }
   async function save(e: FormEvent) {
     e.preventDefault();
     if (busy || !current) return;
     setBusy(true); setError(null); setSuccess(false);
     try {
-      const result = await api<Settings>("/admin/settings/", { method: "PATCH", json: { reference_length: Number(value), declaration_text: declValue } });
-      setSaved(result); setLen(null); setDecl(null); setSuccess(true); reload(); toast.success("Settings saved.");
+      const result = await api<Settings>("/admin/settings/", { method: "PATCH", json: { reference_length: Number(value), declaration_text: declValue, reality_shows: showsValue } });
+      setSaved(result); setLen(null); setDecl(null); setShows(null); setSuccess(true); reload(); toast.success("Settings saved.");
     } catch (x) { setError(x as ApiError); toast.error((x as ApiError).message); }
     finally { setBusy(false); }
   }
@@ -48,6 +50,11 @@ export function SettingsPage() {
               <div className="settings-reference-preview"><span>EXAMPLE REFERENCE</span><strong>{sample}</strong><small>BICMA · Year · Division code · Random number</small></div>
             </div>
             <p className="settings-inline-note"><Icon name="help" size={16} />Existing complaint reference numbers stay the same. A longer number allows more complaints per division each year; if the numbers ever run out, the next ones grow by one digit automatically.</p>
+          </section>
+          <section className="card settings-section" aria-labelledby="settings-shows">
+            <header className="settings-section-header"><span className="icon-tile"><Icon name="category" size={22} /></span><div><span className="settings-eyebrow">PUBLIC COMPLAINT FORM</span><h2 id="settings-shows">Reality shows</h2><p>The list people choose from on the Online Reality Show complaint form.</p></div></header>
+            <Field label="Reality shows" error={error?.fields.reality_shows} hint="One show per line. Complainants pick from this list, or choose “Other (specify)”. Leave it empty to let them type the name instead."><textarea rows={6} maxLength={24000} value={showsValue} onChange={(e) => { setShows(e.target.value); setSuccess(false); }} placeholder={"Name of the first show\nName of the second show"} /></Field>
+            <div className="settings-editor-footer"><span>{showsValue.split("\n").filter((x) => x.trim()).length} shows listed</span></div>
           </section>
           <section className="card settings-section" aria-labelledby="settings-declaration">
             <header className="settings-section-header"><span className="icon-tile"><Icon name="edit" size={22} /></span><div><span className="settings-eyebrow">PUBLIC COMPLAINT FORM</span><h2 id="settings-declaration">Complainant declaration</h2><p>The statement a complainant accepts before submitting a complaint.</p></div></header>

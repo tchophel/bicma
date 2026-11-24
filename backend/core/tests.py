@@ -126,6 +126,43 @@ class CategoryDescriptionTests(APITestCase):
 
 
 class SingleUploadBoxTests(APITestCase):
+    def test_content_has_one_required_upload_with_optional_document_guidance(self):
+        from accounts.models import Division
+        from core.formspecs import spec_for
+        div = Division.objects.create(name="Media and Content Division", code="MCD")
+        spec = spec_for(Category.objects.create(name="Content complaints", default_division=div))
+        self.assertEqual([d["key"] for d in spec["docs"]], ["published_copy"])
+        self.assertTrue(spec["docs"][0]["required"])
+        self.assertIn("published material", spec["docs"][0]["required_hint"])
+        self.assertIn("Correspondence", spec["docs"][0]["optional_hint"])
+
+
+    def test_voting_evidence_and_correspondence_share_one_upload_box(self):
+        from accounts.models import Division
+        from core.formspecs import slot_label, spec_for, visible
+        div = Division.objects.create(name="Media and Content Division", code="MCD")
+        cat = Category.objects.create(name="Reality shows", default_division=div)
+        spec = spec_for(cat)
+        docs = [d for d in spec["docs"] if visible(d, {"nature": "Voting procedures"})]
+        self.assertEqual([d["key"] for d in docs], ["supporting"])
+        self.assertIn("correspondence", docs[0]["hint"])
+        self.assertEqual(slot_label(spec, "voting_evidence"), "Evidence of voting")
+
+
+    def test_prize_complaint_documents_also_share_one_upload_box(self):
+        from accounts.models import Division
+        from core.formspecs import slot_label, spec_for, visible
+        div = Division.objects.create(name="Media and Content Division", code="MCD")
+        spec = spec_for(Category.objects.create(name="Online Reality Show", default_division=div))
+        for nature in ("Voting procedures", "Non-payment of prizes"):
+            docs = [d for d in spec["docs"] if visible(d, {"nature": nature})]
+            self.assertEqual([d["key"] for d in docs], ["supporting"], nature)
+            self.assertIn("correspondence", docs[0]["hint"])
+        prize = [d for d in spec["docs"] if visible(d, {"nature": "Non-payment of prizes"})][0]
+        self.assertIn("agreement", prize["hint"])
+        self.assertEqual(slot_label(spec, "announcement"), "Announcement, programme recording, or winner notification")  # earlier uploads keep their label
+        self.assertEqual(slot_label(spec, "agreement"), "A copy of the agreement")
+
     def test_several_optional_documents_become_one_box_and_old_uploads_keep_their_label(self):
         from accounts.models import Division
         from core.formspecs import slot_label, spec_for

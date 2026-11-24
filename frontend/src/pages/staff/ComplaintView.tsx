@@ -74,6 +74,7 @@ export function ComplaintView() {
             <dl className="kv" style={{ marginTop: 14 }}>
               {c.details_display?.map((d) => row(d.label, d.value))}
               {c.complaining_for && c.complaining_for !== "self" && row("Complaining on behalf of", `${words(c.complaining_for)}${c.other_party_name ? `: ${c.other_party_name}` : ""}`)}
+              {c.complaining_for && c.complaining_for !== "self" && <>{row("Complainant's relationship / designation", c.affected_relationship)}{row("Their contact details", c.affected_contact)}{c.authorised_to_act && <><dt>Authorised to act for them</dt><dd>{c.authorised_to_act === "yes" ? "Yes" : <strong style={{ color: "var(--c-accent)" }}>No: ask for proof of authority</strong>}</dd></>}</>}
               {row("Present address", c.present_address)}
               {row("Remedy sought", c.remedy_sought)}
               {row("Incident", [c.incident_date && fmtDate(c.incident_date), c.incident_time?.slice(0, 5)].filter(Boolean).join(" at "))}

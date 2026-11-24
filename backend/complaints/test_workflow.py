@@ -1193,13 +1193,92 @@ class CategoryFormTests(Base):
         self.assertIn("details.misconduct", self.post(self.journalist, {**base, "misconduct": ["made up"]}, **kw).data)
         self.assertIn("details.misconduct_date", self.post(self.journalist, {**base, "misconduct_date": "2999-01-01"}, **kw).data)
 
+    CONTENT = {"title": "T", "creator": "C", "published_on": "2026-01-05", "medium": "Facebook", "language": "English",
+               "previous": "No", "remedy": ["Removal of the content"]}
+
+    def content_post(self, details, **kw):
+        kw = {**dict(present_address="Thimphu", dzongkhag=None, locality=""), **kw}
+        return self.post(self.content, {**self.CONTENT, **details}, {"doc__published_copy": self.photo("post.png")}, **kw)
+
+    def test_media_complaint_for_someone_else_needs_relationship_and_authority(self):
+        d = {"nature": ["Others (Specify)"], "nature_other": "Spam"}
+        kw = dict(complaining_for="individual", other_party_name="Karma")
+        r = self.content_post(d, **kw)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("affected_relationship", r.data)
+        self.assertIn("authorised_to_act", r.data)
+        self.assertIn("authorised_to_act", self.content_post(d, affected_relationship="Brother", authorised_to_act="maybe", **kw).data)
+        r = self.content_post(d, affected_relationship="Brother", affected_contact="17123456", authorised_to_act="yes", **kw)
+        self.assertEqual(r.status_code, 201, r.data)
+        c = Complaint.objects.get(reference=r.data["reference"])
+        self.assertEqual((c.other_party_name, c.affected_relationship, c.affected_contact, c.authorised_to_act), ("Karma", "Brother", "17123456", "yes"))
+        self.assertEqual(self.content_post(d, complaining_for="self").status_code, 201)  # for yourself: none of it is asked
+
     def test_content_other_needs_specifying(self):
-        base = {"title": "T", "creator": "C", "nature": ["Others (Specify)"], "published_on": "2026-01-05", "medium": "Facebook",
-                "language": "English", "remedy": "Remove it"}
-        kw = dict(present_address="Thimphu", dzongkhag=None, locality="")
-        r = self.post(self.content, base, **kw)
+        r = self.content_post({"nature": ["Others (Specify)"]})
         self.assertIn("details.nature_other", r.data)
-        self.assertEqual(self.post(self.content, {**base, "nature_other": "Spam"}, **kw).status_code, 201)
+        self.assertEqual(self.content_post({"nature": ["Others (Specify)"], "nature_other": "Spam"}).status_code, 201)
+
+    def test_content_has_the_organiser_question_remedy_tickboxes_and_a_mandatory_copy(self):
+        base = {"nature": ["Misleading or false information"]}
+        # a copy of the published material is mandatory; correspondence is optional
+        r = self.post(self.content, {**self.CONTENT, **base}, present_address="Thimphu", dzongkhag=None, locality="")
+        self.assertIn("doc__published_copy", r.data)
+        self.assertNotIn("doc__supporting", r.data)
+        # "already raised with the creator/publisher" is required; a response is asked for only when it was
+        d = {k: v for k, v in {**self.CONTENT, **base}.items() if k != "previous"}
+        r = self.post(self.content, d, {"doc__published_copy": self.photo("post.png")}, present_address="Thimphu", dzongkhag=None, locality="")
+        self.assertIn("details.previous", r.data)
+        # remedy is a list of tick boxes: at least one, only from the list, and "Others (Specify)" needs its text
+        self.assertIn("details.remedy", self.content_post({**base, "remedy": []}).data)
+        self.assertIn("details.remedy", self.content_post({**base, "remedy": ["Free cash"]}).data)
+        self.assertIn("details.remedy_other", self.content_post({**base, "remedy": ["Others (Specify)"]}).data)
+        r = self.content_post({**base, "previous": "Yes", "response": "They ignored me", "remedy": ["Public apology", "Others (Specify)"], "remedy_other": "Meet me"})
+        self.assertEqual(r.status_code, 201, r.content)
+
+    def test_journalist_other_conduct_must_be_specified(self):
+        from core.formspecs import OTHER_CONDUCT
+        base = {"journalist": "A. B.", "media_org": "Daily", "misconduct_date": "2026-01-05", "misconduct": [OTHER_CONDUCT]}
+        kw = dict(complaining_for="self", present_address="Thimphu", dzongkhag=None, locality="")
+        self.assertIn("details.misconduct_other", self.post(self.journalist, base, **kw).data)
+        self.assertEqual(self.post(self.journalist, {**base, "misconduct_other": "Shouted at staff"}, **kw).status_code, 201)
+
+    def test_film_form_uses_the_requested_wording(self):
+        from core.formspecs import spec_for
+        labels = [f["label"] for f in spec_for(self.film)["fields"]]
+        for want in ("Name of the Production Company/Producer(s)", "Role in Production", "Agreed payment", "Payment received"):
+            self.assertIn(want, labels)
+
+    def test_reality_voting_method_other_and_the_organiser_question(self):
+        from core.formspecs import OTHER_OPTION, spec_for
+        kw = dict(present_address="Thimphu", dzongkhag=None, locality="")
+        common = {"show": "Star", "organisers": "Org", "nature": "Voting procedures", "voting_start": "2026-01-01", "voting_end": "2026-01-10", "voting_details": "Lost votes", "previous": "No"}
+        self.assertIn("details.voting_method_other", self.post(self.reality, {**common, "voting_method": [OTHER_OPTION]}, **kw).data)
+        self.assertEqual(self.post(self.reality, {**common, "voting_method": ["Online voting", OTHER_OPTION], "voting_method_other": "Postcards"}, **kw).status_code, 201)
+        self.assertEqual(self.post(self.reality, {**common, "voting_method": ["SMS voting", "Paid voting"]}, **kw).status_code, 201)  # several can be ticked
+        self.assertIn("details.voting_method", self.post(self.reality, {**common, "voting_method": []}, **kw).data)
+        self.assertIn("details.voting_method", self.post(self.reality, {**common, "voting_method": ["Smoke signals"]}, **kw).data)
+        # a stale "Other" answer from a hidden field does not block a prize complaint
+        prize = {"show": "Star", "organisers": "Org", "nature": "Non-payment of prizes", "actual_prize": "A", "announced_prize": "B", "winner_date": "2026-01-01", "previous": "No", "voting_method": [OTHER_OPTION]}
+        self.assertEqual(self.post(self.reality, prize, **kw).status_code, 201)
+        self.assertIn("Have you already raised this complaint with the organiser?", [f["label"] for f in spec_for(self.reality)["fields"] if f["key"] == "previous"][0])
+
+    def test_reality_show_names_become_a_list_when_an_administrator_adds_them(self):
+        from core.formspecs import OTHER_OPTION, spec_for
+        from core.models import SystemConfiguration
+        kw = dict(present_address="Thimphu", dzongkhag=None, locality="")
+        details = {"organisers": "Org", "nature": "Non-payment of prizes", "actual_prize": "A", "announced_prize": "B", "winner_date": "2026-01-01", "previous": "No"}
+        self.assertEqual(spec_for(self.reality)["fields"][0]["type"], "text")  # no list yet: the plain box stays
+        a = self.login(self.admin)
+        r = a.patch("/api/admin/settings/", {"reality_shows": "Talent Hunt\n\nStar Search\nTalent Hunt"}, format="json")
+        self.assertEqual((r.status_code, r.data["reality_shows"]), (200, "Talent Hunt\nStar Search"))
+        first = spec_for(self.reality)["fields"][0]
+        self.assertEqual((first["type"], first["options"]), ("select", ["Talent Hunt", "Star Search", OTHER_OPTION]))
+        self.assertEqual(self.post(self.reality, {**details, "show": "Talent Hunt"}, **kw).status_code, 201)
+        self.assertIn("details.show", self.post(self.reality, {**details, "show": "Not on the list"}, **kw).data)
+        self.assertIn("details.show_other", self.post(self.reality, {**details, "show": OTHER_OPTION}, **kw).data)
+        self.assertEqual(self.post(self.reality, {**details, "show": OTHER_OPTION, "show_other": "New Show"}, **kw).status_code, 201)
+        self.assertEqual(a.patch("/api/admin/settings/", {"reality_shows": ["x" * 121]}, format="json").status_code, 400)
 
     def test_reality_show_branches(self):
         kw = dict(present_address="Thimphu", dzongkhag=None, locality="")
@@ -1208,7 +1287,7 @@ class CategoryFormTests(Base):
         for k in ("voting_method", "voting_start", "voting_end", "voting_details"):
             self.assertIn(f"details.{k}", r.data)
         self.assertNotIn("details.actual_prize", r.data)
-        ok = {**common, "nature": "Voting procedures", "voting_method": "SMS voting", "voting_start": "2026-01-01", "voting_end": "2026-01-10", "voting_details": "Votes lost"}
+        ok = {**common, "nature": "Voting procedures", "voting_method": ["SMS voting"], "voting_start": "2026-01-01", "voting_end": "2026-01-10", "voting_details": "Votes lost"}
         self.assertEqual(self.post(self.reality, ok, **kw).status_code, 201)
         r = self.post(self.reality, {**common, "nature": "Non-payment of prizes"}, **kw)
         for k in ("actual_prize", "announced_prize", "winner_date"):

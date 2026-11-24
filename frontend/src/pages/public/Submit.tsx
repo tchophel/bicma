@@ -8,18 +8,29 @@ export function Submit() {
   return (
     <div className="container submit-page">
       <header className="submit-hero">
-        <span className="submit-eyebrow"><Icon name="complaint" size={16} />BICMA COMPLAINT PORTAL</span>
-        <h1>Submit a complaint</h1>
-        <p>Tell us what happened. It takes a few minutes.</p>
-        <div className="submit-reassurance"><Icon name="lock" size={16} /><span>Your details are used to process your complaint.</span></div>
+        <div className="submit-hero-copy">
+          <span className="submit-eyebrow"><Icon name="complaint" size={16} />BICMA COMPLAINT PORTAL</span>
+          <h1>Tell us what happened.</h1>
+          <p>Submit a complaint and follow its progress, all in one place.</p>
+          <div className="submit-hero-facts"><span><Icon name="clock" size={16} />Takes a few minutes</span><span><Icon name="lock" size={16} />Your details help us process your complaint</span></div>
+        </div>
+        <div className="submit-track-card"><span className="icon-tile"><Icon name="search" size={22} /></span><div><strong>Already submitted a complaint?</strong><p>Check the progress using your reference number.</p><Link to="/track">Track your complaint<Icon name="right" size={16} /></Link></div></div>
       </header>
       <div className="submit-layout">
         <ComplaintForm offline={false} onDone={(r) => nav("/submitted", { state: r, replace: true })} />
         <aside className="submit-guide" aria-label="Submission guidance">
-          <section className="card submit-checklist"><span className="icon-tile"><Icon name="edit" size={20} /></span><h2>Before you submit</h2><ul><li>Have your CID, phone number and email ready.</li><li>Choose the category that fits best; it decides which BICMA division handles it.</li><li>Include the date, time and place, and what outcome you want.</li><li>Attach bills, screenshots or letters if you have them.</li></ul></section>
+          <section className="card submit-checklist">
+            <div className="submit-checklist-heading"><span className="icon-tile"><Icon name="edit" size={20} /></span><div><span className="submit-small-label">GET READY</span><h2>Before you start</h2></div></div>
+            <ul>
+              <li><Icon name="user" size={18} /><div><strong>Your contact details</strong><p>Have your CID, phone number and email ready.</p></div></li>
+              <li><Icon name="category" size={18} /><div><strong>The right category</strong><p>Choose the closest match so your complaint reaches the right division.</p></div></li>
+              <li><Icon name="complaint" size={18} /><div><strong>What happened</strong><p>Include the place, key details and the outcome you’re looking for.</p></div></li>
+              <li><Icon name="plus" size={18} /><div><strong>Supporting documents</strong><p>Have bills, screenshots or letters ready, if available.</p></div></li>
+            </ul>
+          </section>
         </aside>
       </div>
-          <section className="submit-next" aria-label="After you submit"><h2>What happens next?</h2><ol><li><span>1</span><div><strong>Verify and submit</strong><p>Complete a short security check.</p></div></li><li><span>2</span><div><strong>Save your reference</strong><p>You’ll receive a reference number on screen and by email.</p></div></li><li><span>3</span><div><strong>Follow its progress</strong><p>Use your reference on the tracking page.</p></div></li></ol></section>
+      <section className="submit-next" aria-label="After you submit"><div className="submit-next-heading"><span className="submit-small-label">A SIMPLE PROCESS</span><h2>What happens next?</h2></div><ol><li><span><Icon name="check" size={19} /></span><div><small>STEP 01</small><strong>Verify and submit</strong><p>Complete a short security check to send your complaint.</p></div></li><li><span><Icon name="mail" size={19} /></span><div><small>STEP 02</small><strong>Save your reference</strong><p>Your reference appears on screen and is sent to the email you provide.</p></div></li><li><span><Icon name="search" size={19} /></span><div><small>STEP 03</small><strong>Follow its progress</strong><p>Use your reference on the <Link to="/track">tracking page</Link> to check for updates.</p></div></li></ol></section>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 import { MapPicker, inBhutan } from "./MapPicker";
 import { CategoryPicker } from "./CategoryPicker";
+import { YesNoBoxes } from "./YesNoBoxes";
 import { ScanBadge, useFileScan } from "./FileScan";
 import { Icon } from "./Icon";
 import { Modal } from "./Modal";
@@ -26,7 +27,7 @@ const empty: Values = {
   provider_type: "", provider: "", platform: "", already_complained: false, provider_reference: "", medium_of_publication: "",
   remedy_sought: "", website_or_social: "", additional_info: "", declaration_accepted: false, fax_number: "",
   concerned_frequency: "", publication_date: "", publication_url: "", nature_of_complaint: "",
-  agency_name: "", present_address: "", geo_latitude: "", geo_longitude: "", complaining_for: "self", other_party_name: "",
+  agency_name: "", present_address: "", geo_latitude: "", geo_longitude: "", complaining_for: "self", other_party_name: "", authorised_to_act: "",
 };
 let mediaIds = new Set<string>();
 const isMediaCat = (id: string) => mediaIds.has(id);
@@ -120,10 +121,8 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   const alreadyQuestion = isIid ? (
     <>
       <Field label="Already complained to the provider?" required error={f("already_complained")}>
-        <div style={{ display: "flex", gap: 20, minHeight: 46, alignItems: "center" }}>
-          <label style={{ display: "flex", gap: 6 }}><input type="radio" name="already" required checked={already === "yes"} onChange={() => { setAlready("yes"); setV((p) => ({ ...p, already_complained: true })); }} />Yes</label>
-          <label style={{ display: "flex", gap: 6 }}><input type="radio" name="already" required checked={already === "no"} onChange={() => { setAlready("no"); setV((p) => ({ ...p, already_complained: false })); }} />No</label>
-        </div>
+        <YesNoBoxes name="already" value={already === "yes" ? "Yes" : already === "no" ? "No" : ""} invalid={!!f("already_complained")}
+          onChange={(x) => { setAlready(x === "Yes" ? "yes" : x === "No" ? "no" : ""); setV((p) => ({ ...p, already_complained: x === "Yes" })); }} />
       </Field>
       {already === "yes" && <Field label="Provider reference number" required error={f("provider_reference")}><input required value={v.provider_reference as string} onChange={set("provider_reference")} /></Field>}
     </>
@@ -179,9 +178,10 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   // Officials register on a complainant's behalf, so the copy talks about "the complainant", not "you".
   const t = (pub: string, staff: string) => (offline ? staff : pub);
   if (!meta) return err ? <p className="error" role="alert">{err.message}</p> : <Loader label="Loading the form" />;
-  const shown = (w?: FormWhen) => {
+  const shown = (w?: FormWhen): boolean => {
     if (!w) return true;
-    const cur = det[w.key];
+    if (w.all) return w.all.every((x) => shown(x));
+    const cur = det[w.key ?? ""];
     return w.equals !== undefined ? cur === w.equals : Array.isArray(cur) && cur.includes(w.includes ?? "");
   };
   const setD = (k: string, val: string | string[]) => setDet((p) => ({ ...p, [k]: val }));
@@ -202,9 +202,10 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       return (
         <fieldset className="field complaint-choice-field" key={fd.key}>
           <legend style={{ fontWeight: 600, fontSize: ".9rem", marginBottom: 7 }}>{fd.label}{fd.required && <span className="req" aria-hidden="true"> *</span>}</legend>
+          <p className="complaint-choice-help"><span>Select all that apply</span><span>{list.length ? `${list.length} selected` : ""}</span></p>
           <div className="complaint-choice-grid">
             {options.length === 0 && <span className="muted">No options yet. An administrator adds them under Master data.</span>}
-            {options.map((o) => <label key={o} className={`complaint-choice${list.includes(o) ? " is-selected" : ""}`}><input type="checkbox" checked={list.includes(o)} onChange={() => setD(fd.key, list.includes(o) ? list.filter((x) => x !== o) : [...list, o])} /><span>{o}</span></label>)}
+            {options.map((o) => <label key={o} className={`complaint-choice${list.includes(o) ? " is-selected" : ""}${o.length > 110 ? " complaint-choice-long" : ""}`}><input type="checkbox" checked={list.includes(o)} onChange={() => setD(fd.key, list.includes(o) ? list.filter((x) => x !== o) : [...list, o])} /><span>{o}</span></label>)}
           </div>
           {err && <p className="error" role="alert">{err}</p>}
         </fieldset>
@@ -216,7 +217,8 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       <Field key={fd.key} label={fd.label} required={fd.required} error={err}>
         {fd.type === "textarea" ? <textarea rows={3} {...common} onChange={(e) => setD(fd.key, e.target.value)} />
           : fd.type === "date" ? <input type="date" max={fd.past ? today : undefined} {...common} onChange={(e) => setD(fd.key, e.target.value)} />
-          : fd.type === "select" || fd.type === "yesno" ? <select {...common} onChange={(e) => setD(fd.key, e.target.value)}><option value="">Select</option>{(fd.type === "yesno" ? ["Yes", "No"] : fd.options)?.map((o) => <option key={o} value={o}>{o}</option>)}</select>
+          : fd.type === "yesno" ? <YesNoBoxes name={fd.key} value={(val === "Yes" || val === "No" ? val : "") as "Yes" | "No" | ""} onChange={(x) => setD(fd.key, x)} invalid={!!err} />
+          : fd.type === "select" ? <select {...common} onChange={(e) => setD(fd.key, e.target.value)}><option value="">Select</option>{fd.options?.map((o) => <option key={o} value={o}>{o}</option>)}</select>
           : fd.type === "provider" ? <><input list={`providers-${fd.key}`} maxLength={150} {...common} onChange={(e) => setD(fd.key, e.target.value)} /><datalist id={`providers-${fd.key}`}>{meta?.providers.map((p) => <option key={p.id} value={p.name} />)}</datalist></>
           : <input maxLength={300} {...common} onChange={(e) => setD(fd.key, e.target.value)} />}
       </Field>
@@ -230,9 +232,9 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
     return (
       <div className="supporting-documents" key={d.key}>
         <div className="supporting-documents-heading"><div className="supporting-upload-title"><span className="supporting-upload-title-icon"><Icon name="complaint" size={21} /></span><div><h3>{d.label}</h3><p>Add evidence to help us understand your complaint.</p></div></div><span>{must ? "Required" : "Optional"}</span></div>
-        {(meta.limits.upload_instructions || d.hint) && <div className="supporting-upload-guidance" id={`upload-instructions-${d.key}`}><Icon name="help" size={18} /><div>{meta.limits.upload_instructions && <p>{meta.limits.upload_instructions}</p>}{d.hint && <p><strong>What to upload</strong><br />{d.hint}</p>}</div></div>}
+        {(meta.limits.upload_instructions || d.hint || d.required_hint || d.optional_hint) && <div className="supporting-upload-guidance" id={`upload-instructions-${d.key}`}><Icon name="help" size={18} /><div>{meta.limits.upload_instructions && <p>{meta.limits.upload_instructions}</p>}{d.hint && <p><strong>What to upload</strong><br />{d.hint}</p>}{d.required_hint && <p className="upload-required-detail"><strong>Required <span aria-hidden="true">*</span></strong><br />{d.required_hint}</p>}{d.optional_hint && <p className="upload-optional-detail"><strong>Optional</strong><br />{d.optional_hint}</p>}</div></div>}
         <label className="supporting-documents-picker">
-          <input type="file" multiple accept={accept} aria-label={d.label} aria-describedby={meta.limits.upload_instructions || d.hint ? `upload-instructions-${d.key}` : undefined} aria-invalid={!!f(`doc__${d.key}`)} onChange={(e) => setSlotFiles((p) => ({ ...p, [d.key]: Array.from(e.target.files ?? []) }))} />
+          <input type="file" multiple accept={accept} aria-label={d.label} aria-describedby={meta.limits.upload_instructions || d.hint || d.required_hint || d.optional_hint ? `upload-instructions-${d.key}` : undefined} aria-invalid={!!f(`doc__${d.key}`)} onChange={(e) => setSlotFiles((p) => ({ ...p, [d.key]: Array.from(e.target.files ?? []) }))} />
           <span className="supporting-documents-icon"><Icon name="plus" size={24} /></span>
           <span className="supporting-documents-copy"><strong>{d.image ? "Choose your photos" : "Choose supporting files"}</strong><span>{d.image ? "Clear photos of your complaint" : "Documents, photos, audio or video"}</span></span>
           <span className="supporting-documents-browse">Choose files</span>
@@ -273,20 +275,24 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       <section className="card category-summary" aria-live="polite">
         <span className="category-summary-icon"><Icon name="category" size={24} /></span>
         <div className="category-summary-copy">
-          <span className="form-section-step">YOUR COMPLAINT</span>
+          <span className="form-section-step">LET’S GET STARTED</span>
           <h2>{cat ? cat.name : "What is your complaint about?"}</h2>
           <p>{cat ? `${division?.name ?? "Division decided in triage"}` : "Choose the category that best describes your complaint to begin."}</p>
         </div>
-        <p className="category-summary-intro">Share what happened, add any supporting documents, and tell us the outcome you’re looking for.</p>
+        <p className="category-summary-intro">Share what happened and the outcome you’d like. We’ll guide you through the details.</p>
+        <ol className="category-summary-journey" aria-label="Complaint submission steps"><li><span>1</span>Choose a category</li><li><span>2</span>Add your details</li><li><span>3</span>Review &amp; submit</li></ol>
         <div className="category-summary-actions">
-          <button type="button" className="btn" onClick={() => setOpen(true)}><Icon name={cat ? "edit" : "complaint"} />{cat ? "Open complaint form" : "Start complaint"}</button>
+          <button type="button" className="btn" onClick={() => setOpen(true)}><Icon name={cat ? "edit" : "complaint"} />{cat ? "Continue your complaint" : "Start complaint"}<Icon name="right" size={18} /></button>
         </div>
       </section>
 
-      <Modal open={open} onClose={() => setOpen(false)} busy={busy || verificationOpen} wide title="What is your complaint about?" icon="complaint">
+      <Modal open={open} onClose={() => setOpen(false)} busy={busy || verificationOpen} wide title="What is your complaint about?" icon="category">
       {notices}
-      <section className="form-section" aria-labelledby="form-a-heading">
-        <h2 id="form-a-heading" className="sr-only">Complaint category</h2>
+      <nav className="complaint-form-navigation" aria-label="Complaint form sections">
+        {[{ id: "form-a-heading", title: "Category", icon: "category" as const }, { id: "identity-heading", title: "Your details", icon: "user" as const }, { id: "details-heading", title: "Your complaint", icon: "complaint" as const }].map((step, index) => <button key={step.id} type="button" disabled={index > 0 && !cat} onClick={() => document.getElementById(step.id)?.scrollIntoView({ block: "start", behavior: "instant" })}><span>{index + 1}</span><Icon name={step.icon} size={16} />{step.title}</button>)}
+      </nav>
+      <section className="form-section complaint-category-section" aria-labelledby="form-a-heading">
+        <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="category" size={22} /></span><div><span className="form-section-step">SECTION 01</span><h2 id="form-a-heading">Choose a category</h2></div></div>
         <p className="muted">{t("Choose the category that best fits. It decides which BICMA division handles your complaint and which form you fill in.", "Choose the category. It decides the responsible division and the form shown.")}</p>
         <div className="row">
           <Field label="Complaint category" required error={f("category")}>
@@ -303,7 +309,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
           {spec ? (
             <>
               <section className="form-section" aria-labelledby="identity-heading">
-                <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="users" size={23} /></span><div><h2 id="identity-heading">Complainant identity</h2></div></div>
+                <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="users" size={23} /></span><div><span className="form-section-step">SECTION 02</span><h2 id="identity-heading">Your details</h2><p className="section-description">Tell us who is making this complaint and how we can contact you.</p></div></div>
                 <div className="row">
                   <Field label="CID number" required={!offline} error={f("cid")} hint={cidState === "loading" ? "Looking up the name…" : cidState === "found" ? "Name filled from the citizen registry." : cidState === "missing" ? "No registry record found. Enter the name by hand." : cidState === "unavailable" ? "Registry lookup is unavailable. Enter the name by hand." : "11 digits. The name is filled in automatically."}>
                     <input required={!offline} inputMode="numeric" pattern="\d{11}" maxLength={11} placeholder="11-digit CID" value={v.cid as string} onChange={onCid} autoComplete="off" />
@@ -323,10 +329,25 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
                     <select required value={v.complaining_for as string} onChange={set("complaining_for")}>{spec.identity.complaining_for.map(([val, label]) => <option key={val} value={val}>{label}</option>)}</select>
                   </Field>}
                 </div>}
-                {spec.identity.complaining_for && v.complaining_for !== "self" && <Field label={spec.identity.other_party_label} required error={f("other_party_name")}><input required value={v.other_party_name as string} onChange={set("other_party_name")} /></Field>}
+                {spec.identity.complaining_for && v.complaining_for !== "self" && spec.division === "mcd" && (
+                  <fieldset className="represented-party">
+                    <legend>Details of the person or organisation represented</legend>
+                    <Field label="Name of the person/organisation" required error={f("other_party_name")}><input required maxLength={200} value={v.other_party_name as string} onChange={set("other_party_name")} /></Field>
+                    <Field label="Relationship or designation of the complainant" required error={f("affected_relationship")} hint="For example: brother, guardian, lawyer, spokesperson, director."><input required maxLength={100} value={v.affected_relationship as string} onChange={set("affected_relationship")} /></Field>
+                    <Field label="Contact details (if applicable)" error={f("affected_contact")} hint="Phone number or email of the person or organisation."><input maxLength={150} value={v.affected_contact as string} onChange={set("affected_contact")} /></Field>
+                    <div className="authorised-question">
+                      <span id="authorised-label" className="authorised-label">Are you authorised by the affected person or organisation to submit this complaint on their behalf? <b aria-hidden="true">*</b></span>
+                      <YesNoBoxes name="authorised" labelledBy="authorised-label" value={v.authorised_to_act === "yes" ? "Yes" : v.authorised_to_act === "no" ? "No" : ""} invalid={!!f("authorised_to_act")}
+                        onChange={(x) => setV((p) => ({ ...p, authorised_to_act: x === "Yes" ? "yes" : x === "No" ? "no" : "" }))} />
+                      {v.authorised_to_act === "no" && <p className="muted authorised-note">You can still submit. BICMA may ask you for proof of authority before acting on the complaint.</p>}
+                      {f("authorised_to_act") && <p className="error" role="alert">{f("authorised_to_act")}</p>}
+                    </div>
+                  </fieldset>
+                )}
+                {spec.identity.complaining_for && v.complaining_for !== "self" && spec.division !== "mcd" && <Field label={spec.identity.other_party_label} required error={f("other_party_name")}><input required value={v.other_party_name as string} onChange={set("other_party_name")} /></Field>}
               </section>
               <section className="form-section complaint-details" aria-labelledby="details-heading">
-                <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="complaint" size={23} /></span><div><h2 id="details-heading">Details of the complaint</h2><p className="section-description">Date and time are recorded automatically when the complaint is submitted.</p></div></div>
+                <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="complaint" size={23} /></span><div><span className="form-section-step">SECTION 03</span><h2 id="details-heading">Your complaint</h2><p className="section-description">Share the details and supporting evidence. Submission date and time are recorded automatically.</p></div></div>
                 {spec.fields.map(renderField)}
                 {alreadyQuestion}
                 {spec.description && <Field label={spec.description.label} required={spec.description.required} error={f("description")}><textarea required={spec.description.required} rows={5} value={v.description as string} onChange={set("description")} /></Field>}

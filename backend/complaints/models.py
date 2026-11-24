@@ -101,6 +101,8 @@ class Complaint(UUIDModel):
     cid = models.CharField(max_length=20, blank=True, help_text="CID for an individual; registration or licence number otherwise")
     complaining_for = models.CharField(max_length=20, default="self", help_text="self, or who the complaint is made for")
     other_party_name = models.CharField(max_length=200, blank=True, help_text="Name of the other concerned party when not complaining for self")
+    authorised_to_act = models.CharField(max_length=3, blank=True, choices=[("yes", "Yes"), ("no", "No")],
+                                         help_text="Media complaints made for another person or organisation: is the complainant authorised by them?")
     details = models.JSONField(default=dict, blank=True, help_text="Answers to the category-specific questions (core/formspecs.py)")
     agency_name = models.CharField(max_length=150, blank=True, help_text="Name of the agency when the complainant is an agency")
     present_address = models.TextField(blank=True, help_text="Present address (media content complaints)")

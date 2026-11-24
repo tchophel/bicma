@@ -911,3 +911,33 @@ class DocxPreviewTests(Base):
         r = self.view(b"line one\nline two <b>not bold</b>\n", name="notes.txt")
         self.assertEqual(r["Content-Type"].split(";")[0], "text/plain")
         self.assertNotIn("attachment", r["Content-Disposition"])
+
+
+class ReportFileNameTests(Base):
+    def get(self, user, url):
+        r = self.login(user).get(url)
+        self.assertEqual(r.status_code, 200, url)
+        return r
+
+    def test_exports_are_named_with_the_person_who_downloaded_and_the_date(self):
+        from django.utils import timezone
+        today = f"{timezone.localdate():%Y-%m-%d}"
+        self.admin.first_name, self.admin.last_name = "Tshering", "Chophel"
+        self.admin.save()
+        for ext in ("csv", "xlsx", "pdf"):
+            r = self.get(self.admin, f"/api/reports/monthly/?month=2026-11&export={ext}")
+            self.assertEqual(r["Content-Disposition"], f'attachment; filename="Tshering_Chophel_{today}.{ext}"')
+
+    def test_the_spreadsheet_says_what_report_it_is_and_who_downloaded_it(self):
+        from io import BytesIO
+        from openpyxl import load_workbook
+        self.focal1.first_name, self.focal1.last_name = "Pema", "Dorji"
+        self.focal1.save()
+        r = self.get(self.focal1, "/api/reports/summary/?export=xlsx")
+        self.assertIn('filename="Pema_Dorji_', r["Content-Disposition"])
+        cells = [str(c.value) for row in load_workbook(BytesIO(r.content)).active.iter_rows() for c in row if c.value]
+        self.assertTrue(any(v.startswith("Downloaded by Pema Dorji on ") for v in cells))
+        self.assertTrue(any("Complaint Summary Report" in v for v in cells))  # the report name is inside the file
+
+    def test_a_person_without_a_name_is_identified_by_their_email_name(self):
+        self.assertIn('filename="sup_', self.get(self.sup, "/api/reports/summary/?export=csv")["Content-Disposition"])

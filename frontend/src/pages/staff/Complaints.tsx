@@ -39,7 +39,7 @@ export function Complaints() {
   const canRegister = !!user?.permissions?.includes("register_complaint");
   return (
     <div className="complaints-page">
-      <PageHeader icon="complaint" title="Complaints" subtitle="Search and filter every complaint you are permitted to see.">
+      <PageHeader icon="complaint" title={<>Complaints {data && <span className="chip" title={filtered ? "Complaints matching your filters" : "All complaints you can see"} style={{ marginLeft: 8, verticalAlign: "middle" }}>{data.count}{filtered ? " found" : ""}</span>}</>} subtitle="Search and filter every complaint you are permitted to see.">
         {canRegister && <Link className="btn" to="/staff/register"><Icon name="plus" />Register complaint</Link>}
       </PageHeader>
       <section className="complaints-filters" aria-label="Search and filter complaints">

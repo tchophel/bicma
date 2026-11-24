@@ -28,9 +28,9 @@ export interface Category {
   id: string; name: string; is_active: boolean; subcategories: Subcategory[];
   default_division: string | null; urban_division: string | null; rural_division: string | null; default_priority: string | null; description?: string; form?: CategoryForm | null;
 }
-export interface FormWhen { key: string; equals?: string; includes?: string }
+export interface FormWhen { key?: string; equals?: string; includes?: string; all?: FormWhen[] }  // `all`: every listed condition must hold
 export interface FormField { key: string; label: string; type: "text" | "textarea" | "date" | "select" | "yesno" | "checks" | "provider" | "provider_checks"; required: boolean; options?: string[]; when?: FormWhen; past?: boolean; provider_type?: string }
-export interface FormDoc { key: string; label: string; required: boolean | "when"; when?: FormWhen; image?: boolean; hint?: string }
+export interface FormDoc { key: string; label: string; required: boolean | "when"; when?: FormWhen; image?: boolean; hint?: string; required_hint?: string; optional_hint?: string }
 /** A category's own form, defined on the server (backend/core/formspecs.py). */
 export interface CategoryForm {
   division: "std" | "iid" | "mcd";
@@ -107,6 +107,7 @@ export interface ComplaintDetail extends ComplaintRow {
   status_history: { previous_status: string; new_status: string; actor: string | null; reason: string; created_at: string }[];
   messages: CaseMessage[];
   provider_contact_email?: string;
+  authorised_to_act?: string;
   follow_ups: { id: string; body: string; created_at: string; files: { id: string; original_name: string; size: number }[] }[];
   attachments: AttachmentInfo[];
   notifications: { id: string; event: string; recipient: string; subject: string; status: string; created_at: string }[];

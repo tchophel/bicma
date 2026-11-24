@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import { useLocation, useSearchParams } from "react-router-dom";
+import { Link, useLocation, useSearchParams } from "react-router-dom";
 import { api, ApiError } from "../../api";
 import { Field, StatusBadge, fmt } from "../../components/ui";
 import { Icon, type IconName } from "../../components/Icon";
 import { WalkingMascot } from "../../components/WalkingMascot";
 import { useToast } from "../../components/Toast";
+import { ScanBadge, useFileScan } from "../../components/FileScan";
 import "../../styles/Track.css";
 
 interface TrackDocument { id: string; name: string; size: number; kind: "attachment" | "followup" }
@@ -104,9 +105,11 @@ export function Track() {
   }
   useEffect(() => { if (res && token) loadExtras(res.reference, token); else { setExtras([]); setExtraTotal(0); } }, [res?.reference, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const extraScan = useFileScan(extraFiles);  // each chosen file is checked for viruses and harmful content straight away
+  const replyScan = useFileScan(files);
   async function addExtra(e: FormEvent) {
     e.preventDefault();
-    if (extraBusy || !res) return;
+    if (extraBusy || !res || extraScan.blocked || extraScan.scanning) return;
     setExtraBusy(true); setExtraErr("");
     const fd = new FormData();
     fd.append("reference", res.reference); fd.append("token", token); fd.append("message", extraText);
@@ -124,7 +127,7 @@ export function Track() {
 
   async function sendReply(e: FormEvent) {
     e.preventDefault();
-    if (sending || !res) return;
+    if (sending || !res || replyScan.blocked || replyScan.scanning) return;
     setSending(true); setReplyErr("");
     const fd = new FormData();
     fd.append("reference", res.reference); fd.append("token", token); fd.append("message", reply);
@@ -151,7 +154,7 @@ export function Track() {
 
   const stage = res ? stageOf(res.public_status) : null;
   return (
-    <div className="container track-page">
+    <div className={`container track-page${res ? " track-page-with-result" : ""}`}>
       <dialog ref={previewDialog} className="tracking-document-dialog" onCancel={() => setPreview(null)} onClose={() => setPreview(null)} aria-labelledby="document-preview-title">
         {preview && <>
           <header><h2 id="document-preview-title">{preview.name}</h2><button type="button" className="tracking-document-close" aria-label="Close document preview" onClick={() => setPreview(null)}><Icon name="close" size={22} /></button></header>
@@ -161,16 +164,19 @@ export function Track() {
           <footer><a href={documentUrl(preview)} target="_blank" rel="noopener noreferrer">Open in a new tab<Icon name="eye" size={16} /></a></footer>
         </>}
       </dialog>
-      <header className="track-hero">
+      <header className={`track-hero${!res ? " track-entry-hero" : ""}`}>
         <span className="track-eyebrow"><Icon name="search" size={16} />BICMA COMPLAINT PORTAL</span>
         <h1>Track a complaint</h1>
         <p>{step === "code" ? "Verify your email to securely view your complaint." : "Enter your reference number or CID. We will email a 6-digit code to the address on the complaint."}</p>
       </header>
       {step === "id" ? (
-        <form className="card track-search-card" onSubmit={sendCode}>
-          <Field label="Reference number or CID" required hint="Find this in your confirmation email."><input required value={ref} onChange={(e) => setRef(e.target.value)} placeholder="0009" autoComplete="off" spellCheck={false} aria-invalid={!!err} aria-describedby={err ? "track-error" : undefined} /></Field>
+        <form className="card track-search-card track-lookup-card" onSubmit={sendCode} aria-busy={busy} aria-labelledby="track-lookup-title">
+          <div className="track-lookup-heading"><span className="track-lookup-icon"><Icon name="search" size={25} /></span><span className="tracking-eyebrow">STEP 1 OF 2 · FIND YOUR COMPLAINT</span><h2 id="track-lookup-title">Let’s find your complaint</h2><p>Use your complaint reference or the CID provided when you submitted it.</p></div>
+          <Field label="Reference number or CID" required hint="Find your reference in your confirmation email, or enter your 11-digit CID."><input required value={ref} onChange={(e) => setRef(e.target.value)} placeholder="e.g. 0009 or your 11-digit CID" autoComplete="off" spellCheck={false} aria-invalid={!!err} aria-describedby={err ? "track-error" : undefined} /></Field>
           {err && <p id="track-error" className="error" role="alert">{err}</p>}
-          <button className="btn" disabled={busy}><Icon name={busy ? "refresh" : "mail"} />{busy ? "Sending…" : "Send code"}</button>
+          <button className="btn track-lookup-submit" disabled={busy || !ref.trim()}><Icon name={busy ? "refresh" : "mail"} />{busy ? "Sending…" : "Send verification code"}<Icon name="right" size={17} /></button>
+          <div className="track-lookup-email"><Icon name="lock" size={18} /><p>We’ll email a 6-digit code to the address on your complaint before showing your details.</p></div>
+          <p className="track-lookup-new">Need to raise a new issue? <Link to="/submit">Submit a complaint<Icon name="right" size={14} /></Link></p>
         </form>
       ) : (
         <form className="card track-search-card track-code-card" onSubmit={confirmCode} aria-labelledby="track-code-title" aria-busy={busy}>
@@ -217,7 +223,7 @@ export function Track() {
             <section className="tracking-submitted">
               <div className="tracking-section-title"><h3><Icon name="complaint" size={20} />Your complaint</h3><span className="chip"><Icon name="lock" size={12} /> View only</span></div><p className="tracking-section-intro">The details you submitted with your complaint.</p>
               <dl className="tracking-detail-grid">
-                {res.details.fields.map((x) => <div key={x.label} className={["Description", "Remedy sought", "Title"].includes(x.label) ? "tracking-detail-wide" : undefined}><dt>{x.label}</dt><dd>{x.value}</dd></div>)}
+                {res.details.fields.map((x) => <div key={x.label} className={["Description", "Remedy sought"].includes(x.label) ? "tracking-detail-wide" : undefined}><dt>{x.label}</dt><dd>{x.value}</dd></div>)}
               </dl>
               {!!res.details.documents.length && <div className="tracking-document-section"><h4>Documents submitted <span className="chip">{res.details.documents.length}</span></h4>{res.details.document_files ? documentList(res.details.document_files) : <p>{res.details.documents.join(", ")}</p>}</div>}
             </section>
@@ -229,11 +235,16 @@ export function Track() {
               {extraOpen ? (
                 <form className="tracking-additional-form" onSubmit={addExtra}>
                   <Field label="Add information" hint="Anything new that helps BICMA with your complaint."><textarea rows={3} maxLength={5000} value={extraText} onChange={(e) => setExtraText(e.target.value)} /></Field>
+                  <div className="upload-send-row">
+                    <div className="tracking-compact-upload">
                   <Field label="Upload documents" hint="Optional. You can choose several files (photos, PDF and similar).">
-                    <input ref={extraInput} type="file" multiple onChange={(e) => setExtraFiles(Array.from(e.target.files ?? []))} />
-                  </Field>
+                      <input ref={extraInput} type="file" multiple onChange={(e) => setExtraFiles(Array.from(e.target.files ?? []))} />
+                    </Field>
+                    </div>
+                    <button className="btn" disabled={extraBusy || extraScan.blocked || extraScan.scanning || (!extraText.trim() && !extraFiles.length)}><Icon name="send" />{extraBusy ? "Sending…" : extraScan.blocked ? "Remove the blocked file" : extraScan.scanning && extraFiles.length ? "Scanning…" : "Send to BICMA"}</button>
+                  </div>
+                  {extraFiles.length > 0 && <ul className="scan-list" aria-label="Files to send">{extraFiles.map((f, i) => <li key={`${f.name}-${i}`}><strong>{f.name}</strong><small>{Math.ceil(f.size / 1024)} KB</small><ScanBadge scan={extraScan.of(f)} /></li>)}</ul>}
                   {extraErr && <p className="error" role="alert">{extraErr}</p>}
-                  <button className="btn" disabled={extraBusy || (!extraText.trim() && !extraFiles.length)}><Icon name="send" />{extraBusy ? "Sending…" : "Send to BICMA"}</button>
                 </form>
               ) : <p className="muted">This complaint is closed, so no more information can be added.</p>}
               {extras.length > 0 && (
@@ -265,11 +276,14 @@ export function Track() {
             <form onSubmit={sendReply} style={{ marginTop: 18 }}>
               <h3>Send the information BICMA asked for</h3>
               <Field label="Your reply" required><textarea required rows={4} maxLength={10000} value={reply} onChange={(e) => setReply(e.target.value)} /></Field>
-              <Field label="Additional documents" hint="Optional. You can choose several files (photos, PDF and similar).">
-                <input ref={fileInput} type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
-              </Field>
+              <div className="upload-send-row">
+                <Field label="Additional documents" hint="Optional. You can choose several files (photos, PDF and similar).">
+                  <input ref={fileInput} type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
+                </Field>
+                <button className="btn" disabled={sending || replyScan.blocked || replyScan.scanning}><Icon name="send" />{sending ? "Sending…" : replyScan.blocked ? "Remove the blocked file" : replyScan.scanning && files.length ? "Scanning…" : "Send to BICMA"}</button>
+              </div>
+              {files.length > 0 && <ul className="scan-list" aria-label="Files to send">{files.map((f, i) => <li key={`${f.name}-${i}`}><strong>{f.name}</strong><small>{Math.ceil(f.size / 1024)} KB</small><ScanBadge scan={replyScan.of(f)} /></li>)}</ul>}
               {replyErr && <p className="error" role="alert">{replyErr}</p>}
-              <button className="btn" disabled={sending}><Icon name="send" />{sending ? "Sending…" : "Send to BICMA"}</button>
             </form>
           )}
           <dl className="tracking-facts">

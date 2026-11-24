@@ -1,4 +1,5 @@
 import csv
+import html
 import io
 import statistics
 
@@ -151,7 +152,23 @@ def _subtitle(request):
     return f"{f or 'start'} to {t or 'today'}" if (f or t) else ""
 
 
-def _csv(title, cols, rows, subtitle=""):
+def _who(request):
+    """The signed-in person who is downloading: their full name, or their email when no name is set."""
+    u = request.user
+    return (u.get_full_name() or "").strip() or u.email
+
+
+def _filename(title, request, ext):
+    """The name of the person who is downloading, then the date: Tshering_Chophel_2026-11-23.xlsx
+    (letters, digits, dot, dash and underscore only). Which report and period it is are written inside the file."""
+    import re
+    import unicodedata
+    who = unicodedata.normalize("NFKD", _who(request).split("@")[0]).encode("ascii", "ignore").decode()
+    who = re.sub(r"[^A-Za-z0-9]+", "_", who).strip("_") or "user"
+    return f"{who[:100]}_{timezone.localdate():%Y-%m-%d}.{ext}"
+
+
+def _csv(title, cols, rows, subtitle="", filename="report.csv", by=""):  # CSV stays a clean table so it imports anywhere; the name is in the file name
     buf = io.StringIO()
     w = csv.writer(buf)
     w.writerow(cols)
@@ -159,11 +176,11 @@ def _csv(title, cols, rows, subtitle=""):
         # defuse spreadsheet formula injection from user-entered text
         w.writerow([("'" + str(v)) if isinstance(v, str) and v[:1] in "=+-@" else v for v in r])
     resp = HttpResponse(buf.getvalue(), content_type="text/csv")
-    resp["Content-Disposition"] = f'attachment; filename="{title}.csv"'
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
 
 
-def _xlsx(title, cols, rows, subtitle=""):
+def _xlsx(title, cols, rows, subtitle="", filename="report.xlsx", by=""):
     from openpyxl import Workbook
     wb = Workbook()
     ws = wb.active
@@ -171,17 +188,18 @@ def _xlsx(title, cols, rows, subtitle=""):
     ws.append([title.replace("_", " ")] + [""] * (len(cols) - 1))
     if subtitle:
         ws.append([subtitle] + [""] * (len(cols) - 1))
+    ws.append([f"Downloaded by {by} on {timezone.localtime():%Y-%m-%d %H:%M}"] + [""] * (len(cols) - 1))
     ws.append(cols)
     for r in rows:
         ws.append([("'" + v) if isinstance(v, str) and v[:1] in "=+-@" else v for v in r])
     buf = io.BytesIO()
     wb.save(buf)
     resp = HttpResponse(buf.getvalue(), content_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-    resp["Content-Disposition"] = f'attachment; filename="{title}.xlsx"'
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
 
 
-def _pdf(title, cols, rows, subtitle=""):
+def _pdf(title, cols, rows, subtitle="", filename="report.pdf", by=""):
     from reportlab.lib import colors
     from reportlab.lib.pagesizes import A4, landscape
     from reportlab.lib.styles import getSampleStyleSheet
@@ -194,9 +212,9 @@ def _pdf(title, cols, rows, subtitle=""):
     data = [[Paragraph(str(c), cell) for c in cols]] + [[Paragraph(str(v)[:300].replace("<", "&lt;"), cell) for v in r] for r in rows]
     t = Table(data, repeatRows=1)
     t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey), ("GRID", (0, 0), (-1, -1), 0.25, colors.grey), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
-    doc.build([Paragraph(title.replace("_", " "), st["Title"]), Paragraph((subtitle + " · " if subtitle else "") + f"Generated {timezone.now():%Y-%m-%d %H:%M}", st["Normal"]), t])
+    doc.build([Paragraph(title.replace("_", " "), st["Title"]), Paragraph((subtitle + " · " if subtitle else "") + f"Downloaded by {html.escape(by)} on {timezone.localtime():%Y-%m-%d %H:%M}", st["Normal"]), t])
     resp = HttpResponse(buf.getvalue(), content_type="application/pdf")
-    resp["Content-Disposition"] = f'attachment; filename="{title}.pdf"'
+    resp["Content-Disposition"] = f'attachment; filename="{filename}"'
     return resp
 
 
@@ -227,5 +245,5 @@ class ReportView(APIView):
             if fmt not in EXPORTERS:
                 return Response({"detail": "Export as csv, xlsx or pdf."}, status=400)
             audit.log(request, "report.export", entity_type="report", entity_id=key, detail={"format": fmt, "rows": len(rows)})
-            return EXPORTERS[fmt](title.replace(" ", "_"), cols, rows, _subtitle(request))
+            return EXPORTERS[fmt](title.replace(" ", "_"), cols, rows, _subtitle(request), _filename(title, request, fmt), _who(request))
         return Response({"title": title, "subtitle": _subtitle(request), "columns": cols, "rows": rows[:1000], "total_rows": len(rows)})

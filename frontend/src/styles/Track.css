@@ -194,3 +194,75 @@
 .tracking-document-preview iframe { width: 100%; height: min(65dvh, 740px); border: 0; background: #fff; }
 .tracking-document-dialog footer { padding: 14px 20px; border-top: 1px solid var(--c-border); }
 .tracking-document-dialog footer a { display: inline-flex; align-items: center; gap: 8px; color: var(--c-primary); font-size: .875rem; }
+
+/* Reference lookup matches the email verification card. */
+.track-entry-hero { max-width: 580px; text-align: center; margin: 4px auto 26px; }
+.track-entry-hero .track-eyebrow { font-size: .65rem; letter-spacing: .13em; }
+.track-entry-hero h1 { font-size: clamp(1.8rem, 3.5vw, 2.3rem); margin: 14px 0 12px; }
+.track-entry-hero > p { font-size: .875rem; line-height: 1.9; }
+.track-search-card.track-lookup-card { display: grid; grid-template-columns: minmax(0, 1fr); gap: 22px; max-width: 520px; margin-inline: auto; padding: 30px; border-radius: 14px; border-top: 3px solid var(--c-primary); box-shadow: 0 8px 32px rgb(69 46 30 / 5%); }
+.track-lookup-heading { text-align: center; }
+.track-lookup-icon { display: grid; place-items: center; width: 56px; height: 56px; margin: 0 auto 18px; border: 1px solid #f0dac6; border-radius: 16px; background: var(--c-primary-soft); color: var(--c-primary); }
+.track-lookup-heading .tracking-eyebrow { font-size: .625rem; }
+.track-lookup-heading h2 { margin: 10px 0 9px; color: #452e1e; font-size: 1.35rem; letter-spacing: -.03em; }
+.track-lookup-heading p { color: var(--c-muted); margin: 0; font-size: .8125rem; line-height: 1.8; }
+.track-lookup-card .field { gap: 9px; }
+.track-lookup-card .field > span { font-size: .8125rem; font-weight: 600; }
+.track-lookup-card input { min-height: 52px; border-radius: 9px; font-size: .9rem; letter-spacing: .015em; background: #fff; }
+.track-lookup-card .field small { font-size: .75rem; line-height: 1.8; color: var(--c-muted); }
+.track-lookup-card .btn.track-lookup-submit { display: flex; width: 100%; align-items: center; justify-content: center; gap: 9px; margin: -4px 0 0; min-height: 48px; font-size: .875rem; }
+.track-lookup-submit > .icon:last-child { margin-left: auto; }
+.track-lookup-submit > .icon:first-child { margin-right: auto; }
+.track-lookup-email { display: flex; align-items: flex-start; gap: 10px; padding: 14px; border: 1px solid #ece2d7; border-radius: 9px; background: #fcfaf7; }
+.track-lookup-email > .icon { flex-shrink: 0; margin-top: 2px; color: var(--c-primary); }
+.track-lookup-email p { margin: 0; color: var(--c-muted); font-size: .75rem; line-height: 1.8; }
+.track-lookup-new { display: flex; align-items: center; justify-content: center; flex-wrap: wrap; gap: 5px; margin: 0; padding-top: 18px; border-top: 1px solid var(--c-border); color: var(--c-muted); font-size: .75rem; line-height: 1.8; }
+.track-lookup-new a { display: inline-flex; align-items: center; gap: 5px; color: var(--c-primary); font-weight: 600; text-decoration: none; }
+.track-lookup-new a:hover { text-decoration: underline; }
+@media (max-width: 440px) { .track-search-card.track-lookup-card { padding: 24px 18px; gap: 20px; } .track-entry-hero { margin-bottom: 22px; } }
+
+/* Give verified complaint details room for three columns. */
+.track-page.track-page-with-result { max-width: 1180px; }
+.track-page-with-result .tracking-detail-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0 26px; }
+.track-page-with-result .tracking-detail-grid > div { padding: 16px 0; }
+.track-page-with-result .tracking-detail-grid > div:nth-child(-n+3) { padding-top: 0; }
+.track-page-with-result .tracking-document-section > .tracking-documents { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.track-page-with-result .tracking-additional-form { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr) auto; gap: 20px; align-items: start; }
+.track-page-with-result .tracking-additional-form > .field { margin: 0; min-width: 0; }
+.track-page-with-result .tracking-additional-form > .btn { margin-top: 29px; }
+.track-page-with-result .tracking-additional-form > .error { grid-column: 1 / -1; }
+@media (max-width: 900px) { .track-page-with-result .tracking-detail-grid, .track-page-with-result .tracking-document-section > .tracking-documents { grid-template-columns: repeat(2, minmax(0, 1fr)); } .track-page-with-result .tracking-detail-grid > div:nth-child(3) { padding-top: 16px; } .track-page-with-result .tracking-additional-form { grid-template-columns: repeat(2, minmax(0, 1fr)); } .track-page-with-result .tracking-additional-form > .btn { margin-top: 0; justify-self: start; } }
+@media (max-width: 600px) { .track-page-with-result .tracking-detail-grid, .track-page-with-result .tracking-document-section > .tracking-documents, .track-page-with-result .tracking-additional-form { grid-template-columns: minmax(0, 1fr); } .track-page-with-result .tracking-detail-grid > div:nth-child(2) { padding-top: 16px; } .track-page-with-result .tracking-additional-form > .btn { width: 100%; justify-content: center; } }
+
+/* Additional information stays in a single vertical flow. */
+.track-page-with-result .tracking-additional-form { grid-template-columns: minmax(0, 1fr); }
+.track-page-with-result .tracking-additional-form > .btn { margin-top: 0; justify-self: start; }
+@media (max-width: 600px) { .track-page-with-result .tracking-additional-form > .btn { justify-self: stretch; } }
+
+/* The file box and the Send button side by side */
+.upload-send-row { display: flex; align-items: flex-start; gap: 16px; flex-wrap: wrap; }
+.upload-send-row > .field, .upload-send-row > label { flex: 1 1 280px; min-width: 0; margin-bottom: 0; }
+.upload-send-row > .btn { flex: 0 0 auto; margin-top: 27px; white-space: nowrap; }
+@media (max-width: 600px) { .upload-send-row > .btn { margin-top: 0; width: 100%; justify-content: center; } }
+
+/* Files chosen on the Track page, each with its scan result */
+.scan-list { list-style: none; margin: 12px 0; padding: 0; display: grid; gap: 8px; }
+.scan-list li { display: grid; gap: 2px; padding: 10px 12px; border: 1px solid var(--c-border); border-radius: 10px; background: #fff; font-size: .85rem; min-width: 0; }
+.scan-list strong { overflow-wrap: anywhere; font-weight: 600; }
+.scan-list small { color: var(--c-muted); }
+.scan-badge { display: flex; align-items: flex-start; gap: 6px; margin-top: 4px; font-size: .78rem; line-height: 1.4; font-weight: 600; }
+.scan-badge svg { flex-shrink: 0; margin-top: 2px; }
+.scan-badge.scanning { color: var(--c-muted); }
+.scan-badge.ok { color: #1f6b3a; }
+.scan-badge.blocked { color: var(--c-accent); }
+.scan-badge.unknown { color: var(--c-muted); font-weight: 500; }
+.scan-spin { display: inline-flex; animation: scan-spin .9s linear infinite; }
+@keyframes scan-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .scan-spin { animation: none; } }
+
+.tracking-compact-upload { width: 100%; max-width: 360px; min-width: 0; }
+.tracking-compact-upload .field { margin: 0; }
+.tracking-compact-upload .field > span { font-size: .78rem; }
+.tracking-additional-form .tracking-compact-upload input[type=file] { padding: 8px 10px; min-height: 36px; font-size: .75rem; border-radius: 7px; width: 100%; box-sizing: border-box; }
+.tracking-additional-form .tracking-compact-upload input[type=file]::file-selector-button { padding: 5px 8px; margin-right: 8px; font-size: .72rem; }
+.tracking-compact-upload .field small { font-size: .7rem; line-height: 1.6; }

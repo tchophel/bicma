@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { api } from "../api";
 import { Loader } from "./Loader";
 import { NavLink, Link, Outlet, Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../auth";
@@ -32,8 +33,9 @@ export function PublicLayout() {
       <main id="main" className={pub.main}><Outlet /></main>
       <footer className={pub.footer}>
         <div className={pub.footInner}>
-          <div className={pub.footBrand}><strong>BICMA</strong><span>Bhutan InfoComm and Media Authority</span></div>
-          <span>&copy; {new Date().getFullYear()} BICMA. All rights reserved.</span>
+          <div className={pub.footBrand}><img src="/bicma-logo.png" alt="BICMA logo" className={pub.footLogo} /><strong>BICMA</strong><span>Bhutan InfoComm and Media Authority</span></div>
+          <span className={pub.footCopy}>&copy; {new Date().getFullYear()} BICMA. All rights reserved.</span>
+          <span className={pub.footCredit}>Developed by <strong>GovTech Agency</strong></span>
         </div>
       </footer>
     </div>
@@ -94,6 +96,15 @@ export function StaffLayout() {
     try { localStorage.setItem("nav-folded", JSON.stringify(next)); } catch { /* storage unavailable */ }
     return next;
   });
+  // How many complaints this person can see, for the badge on "All complaints". Refreshed on every page change and every 30 s.
+  const [total, setTotal] = useState<number | null>(null);
+  useEffect(() => {
+    if (!user) return;
+    const load = () => api<{ count: number }>("/complaints/?page_size=1").then((d) => setTotal(d.count)).catch(() => {});
+    load();
+    const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 30000);
+    return () => clearInterval(t);
+  }, [user, pathname]);
   if (loading) return <div className="page-loader"><Loader /></div>;
   if (!user) return <Navigate to="/staff" replace />;
   const groups = NAV.map((g) => ({ ...g, items: g.items.filter((i) => (!i.roles || i.roles.includes(user.base_role)) && (!i.perm || user.permissions?.includes(i.perm))) })).filter((g) => g.items.length);
@@ -124,7 +135,7 @@ export function StaffLayout() {
                 if (n.to.startsWith("/staff/complaints")) {
                   const triage = n.to.includes("scope=triage");
                   const active = pathname === "/staff/complaints" && search.includes("scope=triage") === triage;
-                  return <Link key={n.to} to={n.to} aria-current={active ? "page" : undefined}><Icon name={n.icon} />{n.label}</Link>;
+                  return <Link key={n.to} to={n.to} aria-current={active ? "page" : undefined}><Icon name={n.icon} />{n.label}{!triage && total !== null && <span className={css.navCount} aria-label={`${total} complaints`}>{total}</span>}</Link>;
                 }
                 return <NavLink key={n.to} to={n.to}><Icon name={n.icon} />{n.label}</NavLink>;
               })}

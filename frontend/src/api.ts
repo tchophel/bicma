@@ -42,7 +42,7 @@ export async function api<T = unknown>(path: string, init: RequestInit & { json?
   const headers: Record<string, string> = { Accept: "application/json" };
   if (init.json !== undefined) headers["Content-Type"] = "application/json";
   if (method !== "GET") headers["X-CSRFToken"] = cookie("csrftoken");
-  const quiet = path.startsWith("/notifications/"); // the bell polls in the background; no spinner for that
+  const quiet = path.startsWith("/notifications/") || path === "/complaints/?page_size=1"; // background polling (the bell, the sidebar count): no spinner for that
   if (!quiet) track(1);
   try {
     const res = await fetch("/api" + path, {

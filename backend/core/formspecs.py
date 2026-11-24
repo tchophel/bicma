@@ -53,8 +53,11 @@ MISCONDUCT = [
     "Disrespectful or insensitive behaviour during interviews or interactions",
     "Disclosure of confidential news sources without proper justification",
     "Unprofessional behaviour towards fellow journalists or media professionals",
-    "Other conduct-related complaint",
+    "Other conduct-related complaint (Specify)",
 ]
+OTHER_CONDUCT = "Other conduct-related complaint (Specify)"
+OTHER_OPTION = "Other (specify)"
+REMEDIES = ["Removal of the content", "Correction or clarification", "Public apology", "Right of reply", "Warning to the content creator / publisher", OTHER_SPECIFY]
 CONTENT_NATURE = [
     "National Security, Sovereignty, or Unity: content threatening the Tsa-Wa-Sum, national security, or communal harmony",
     "Cultural & Religious Sensitivity: content disrespecting Bhutanese culture, traditions, religious figures, or sacred sites",
@@ -72,6 +75,7 @@ CONTENT_NATURE = [
 ]
 LANGUAGES = ["Dzongkha", "English", "Tshangla (Sharchopkha)", "Lhotshamkha", "Other"]
 VOTING = {"key": "nature", "equals": "Voting procedures"}
+VOTING_OTHER = {"all": [VOTING, {"key": "voting_method", "includes": OTHER_OPTION}]}
 PRIZE = {"key": "nature", "equals": "Non-payment of prizes"}
 
 # (division, keywords, name shown in admin, fields, documents, description label/required or None)
@@ -99,7 +103,8 @@ SPECS = [
     ("mcd", ["journalist"], [
         _t("journalist", "Name of journalist / entity complained against", True), _t("media_org", "Media organization", True), _t("designation", "Designation"),
         {"key": "misconduct_date", "label": "Date of the alleged misconduct", "type": "date", "required": True, "past": True},
-        {"key": "misconduct", "label": "Nature of alleged misconduct", "type": "checks", "required": True, "options": MISCONDUCT}],
+        {"key": "misconduct", "label": "Nature of alleged misconduct", "type": "checks", "required": True, "options": MISCONDUCT},
+        _t("misconduct_other", "Please specify", True, when={"key": "misconduct", "includes": OTHER_CONDUCT})],
      [_doc("evidence", "Evidence to support your allegation")], True),
     ("mcd", ["content"], [
         _t("title", "Title of the post, article or video published", True), _t("creator", "Name of content creator / publisher", True),
@@ -108,26 +113,37 @@ SPECS = [
         {"key": "published_on", "label": "Date of publication", "type": "date", "required": True, "past": True},
         _t("medium", "Medium where the post / article / video was published", True), _t("link", "Post / article / video link, if published online"),
         {"key": "language", "label": "Language of the content", "type": "select", "required": True, "options": LANGUAGES},
-        {"key": "remedy", "label": "Remedy sought", "type": "textarea", "required": True}],
-     [_doc("supporting", "Supporting documents (correspondence, published material, or statement of objection)")], True),
+        {"key": "previous", "label": "Have you already raised this complaint with the content creator / publisher? (Yes/No)", "type": "yesno", "required": True, "options": YES_NO},
+        {"key": "response", "label": "Response received", "type": "textarea", "required": False, "when": {"key": "previous", "equals": "Yes"}},
+        {"key": "remedy", "label": "Remedy sought", "type": "checks", "required": True, "options": REMEDIES},
+        _t("remedy_other", "Please specify", True, when={"key": "remedy", "includes": OTHER_SPECIFY})],
+     [_doc("published_copy", "Supporting documents", True,
+           required_hint="A copy of the published material: a screenshot, photo, recording, printout or file of the post, article or video you are complaining about.",
+           optional_hint="Correspondence with the content creator / publisher, or a statement of objection, if available.",
+           also=[{"key": "supporting", "label": "Correspondence with the content creator / publisher, or a statement of objection"}])], True),
     ("mcd", ["reality"], [
         _t("show", "Name of reality show", True), _t("organisers", "Name of the organiser(s)", True),
         {"key": "nature", "label": "Nature of complaint", "type": "select", "required": True, "options": ["Voting procedures", "Non-payment of prizes"]},
-        {"key": "voting_method", "label": "Voting method", "type": "select", "required": True, "options": ["Online voting", "SMS voting", "Paid voting", "Other"], "when": VOTING},
+        {"key": "voting_method", "label": "Voting method", "type": "checks", "required": True, "options": ["Online voting", "SMS voting", "Paid voting", OTHER_OPTION], "when": VOTING},
+        _t("voting_method_other", "Please specify the voting method", True, when=VOTING_OTHER),
         {"key": "voting_start", "label": "Voting period: start date", "type": "date", "required": True, "when": VOTING},
         {"key": "voting_end", "label": "Voting period: end date", "type": "date", "required": True, "when": VOTING},
         {"key": "voting_details", "label": "Details of the complaint", "type": "textarea", "required": True, "when": VOTING},
         _t("actual_prize", "Actual prize received", True, when=PRIZE), _t("announced_prize", "Announced prize", True, when=PRIZE),
         {"key": "winner_date", "label": "Date declared winner", "type": "date", "required": True, "past": True, "when": PRIZE},
-        {"key": "previous", "label": "Previous complaint to the organiser?", "type": "yesno", "required": True, "options": YES_NO},
+        {"key": "previous", "label": "Have you already raised this complaint with the organiser? (Yes/No)", "type": "yesno", "required": True, "options": YES_NO},
         {"key": "response", "label": "Response received", "type": "textarea", "required": False, "when": {"key": "previous", "equals": "Yes"}}],
-     [_doc("voting_evidence", "Evidence of voting (screenshots, voting receipts, transaction records or other documents)", False, when=VOTING),
-      _doc("agreement", "A copy of the agreement", False, when=PRIZE),
-      _doc("announcement", "Announcement, programme recording, or winner notification", False, when=PRIZE),
-      _doc("correspondence", "Correspondence with the organiser, if received")], False),
+     [_doc("supporting", "Supporting documents", False, when=VOTING,
+           hint="Voting screenshots, voting receipts, transaction records or other evidence, and any correspondence with the organiser.",
+           also=[{"key": "voting_evidence", "label": "Evidence of voting"}, {"key": "correspondence", "label": "Correspondence with the organiser"}]),
+      _doc("supporting", "Supporting documents", False, when=PRIZE,
+           hint="A copy of the agreement; the announcement, programme recording or winner notification; and any correspondence with the organiser.",
+           also=[{"key": "agreement", "label": "A copy of the agreement"},
+                 {"key": "announcement", "label": "Announcement, programme recording, or winner notification"},
+                 {"key": "correspondence", "label": "Correspondence with the organiser, if received"}])], False),
     ("mcd", ["film", "production"], [
-        _t("film", "Name of the film", True), _t("company", "Name of the production company / producer(s)", True), _t("role", "Role in production", True),
-        _t("agreed_payment", "Agreed payment", True), _t("amount_received", "Amount received", True)],
+        _t("film", "Name of the film", True), _t("company", "Name of the Production Company/Producer(s)", True), _t("role", "Role in Production", True),
+        _t("agreed_payment", "Agreed payment", True), _t("amount_received", "Payment received", True)],
      [_doc("contract", "Contract or agreement, if any"), _doc("receipts", "Payment receipts or bank transaction records"),
       _doc("other_evidence", "Any other evidence supporting the claim")], False),
 ]
@@ -159,6 +175,8 @@ def spec_for(category):
     if best is None:
         return None
     d, words, fields, docs, has_description = best
+    if d == "mcd" and "reality" in words:
+        fields = _with_reality_shows(fields)
     geo = d == "std" or (d == "iid" and "rural" in words and ("coverage" in words or "network" in words))
     extra = [dict(x) for x in docs]
     if d in ("std", "iid"):
@@ -181,15 +199,24 @@ def spec_for(category):
             "description": {"label": DESCRIPTION[d], "required": True} if has_description else None}
 
 
+def _lower_first(text):
+    return text[0].lower() + text[1:] if text[1:2].islower() else text
+
+
+def what_to_upload(labels):
+    """"Contract or agreement, if any; payment receipts or bank transaction records." from a list of document names."""
+    text = "; ".join(_lower_first(x) for x in labels)
+    return (text[0].upper() + text[1:] + ".") if text else ""
+
+
 def _merge_plain_docs(docs):
     """Several always-shown, optional documents become one upload box that lists what to upload. Documents that depend on an
-    answer (`when`) or are required stay as they are. The merged box remembers the old keys so earlier uploads keep their labels."""
+    answer (`when`) or are required stay as they are (a category that wants one box per answer lists it itself, with `also`
+    naming the old keys). The merged box remembers the old keys so earlier uploads keep their labels."""
     plain = [x for x in docs if not x.get("when") and not x.get("required") and x["key"] != GENERAL_DOC["key"]]
     if len(plain) < 2:
         return docs
-    parts = [x["label"][0].lower() + x["label"][1:] if x["label"][1:2].islower() else x["label"] for x in plain]
-    text = "; ".join(parts)
-    merged = {"key": "supporting", "label": "Supporting documents", "required": False, "hint": text[0].upper() + text[1:] + ".",
+    merged = {"key": "supporting", "label": "Supporting documents", "required": False, "hint": what_to_upload([x["label"] for x in plain]),
               "also": [{"key": x["key"], "label": x["label"]} for x in plain]}
     out, placed = [], False
     for x in docs:
@@ -201,14 +228,40 @@ def _merge_plain_docs(docs):
     return out
 
 
-def visible(item, details):
-    w = item.get("when")
-    if not w:
-        return True
+def _holds(w, details):
+    if "all" in w:  # every listed condition must hold
+        return all(_holds(x, details) for x in w["all"])
     cur = details.get(w["key"])
     if "equals" in w:
         return cur == w["equals"]
     return isinstance(cur, list) and w["includes"] in cur
+
+
+def reality_shows():
+    """The reality shows an administrator listed under Settings (one per line)."""
+    from core.models import SystemConfiguration
+    raw = SystemConfiguration.get("reality_shows", "") or ""
+    return list(dict.fromkeys(x.strip() for x in raw.splitlines() if x.strip()))[:200]
+
+
+def _with_reality_shows(fields):
+    """"Name of reality show" becomes a list to pick from (plus "Other (specify)"), when shows are listed in Settings."""
+    import copy
+    shows = reality_shows()
+    if not shows:
+        return fields
+    fields = copy.deepcopy(fields)
+    for i, f in enumerate(fields):
+        if f["key"] == "show":
+            fields[i] = {"key": "show", "label": "Name of reality show", "type": "select", "required": True, "options": shows + [OTHER_OPTION]}
+            fields.insert(i + 1, _t("show_other", "Please specify the name of the reality show", True, when={"key": "show", "equals": OTHER_OPTION}))
+            break
+    return fields
+
+
+def visible(item, details):
+    w = item.get("when")
+    return True if not w else _holds(w, details)
 
 
 def validate(spec, details, present_slots, today=None):

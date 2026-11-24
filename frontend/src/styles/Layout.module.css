@@ -137,3 +137,7 @@
   .side { width: 88vw; }
   .main { padding: 12px; }
 }
+
+/* Number of complaints on the "All complaints" link */
+.navCount { margin-left: auto; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: #f2eeec; color: #6d6056; font-size: .72rem; font-weight: 700; line-height: 1.6; text-align: center; font-variant-numeric: tabular-nums; }
+.side a[aria-current=page] .navCount { background: var(--c-primary); color: #fff; }

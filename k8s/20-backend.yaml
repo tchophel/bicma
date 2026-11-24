@@ -17,12 +17,12 @@ spec:
       securityContext: { fsGroup: 10001 }
       initContainers:
         - name: migrate
-          image: dev-harbor.systems.gov.bt/bcs/cms-backend:v10
+          image: dev-harbor.systems.gov.bt/bcs/cms-backend:v11
           command: [sh, -c, "python manage.py migrate --noinput && python manage.py bootstrap"]
           envFrom: [{ configMapRef: { name: cms-config } }, { secretRef: { name: cms-secrets } }]
       containers:
         - name: backend
-          image: dev-harbor.systems.gov.bt/bcs/cms-backend:v10
+          image: dev-harbor.systems.gov.bt/bcs/cms-backend:v11
           envFrom: [{ configMapRef: { name: cms-config } }, { secretRef: { name: cms-secrets } }]
           env: [{ name: HOME, value: /tmp }]
           ports: [{ containerPort: 8000 }]

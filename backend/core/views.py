@@ -160,7 +160,8 @@ class SettingsView(APIView):
     def _current(self):
         from .limits import get_limits
         from complaints.models import reference_length
-        return {"reference_length": reference_length(),
+        from .formspecs import reality_shows
+        return {"reference_length": reference_length(), "reality_shows": "\n".join(reality_shows()),
                 "declaration_text": SystemConfiguration.get("declaration_text", DEFAULT_DECLARATION), **get_limits()}
 
     def get(self, request):
@@ -176,6 +177,14 @@ class SettingsView(APIView):
                 changed["reference_length"] = int(raw)
             else:
                 errors["reference_length"] = [f"Enter a number of digits from {lo_hi[0]} to {lo_hi[1]}."]
+        if "reality_shows" in d:
+            raw = d["reality_shows"]
+            lines = [x.strip() for x in (raw if isinstance(raw, list) else str(raw or "").splitlines())]
+            lines = list(dict.fromkeys(x for x in lines if x))
+            if len(lines) > 200 or any(len(x) > 120 for x in lines):
+                errors["reality_shows"] = ["Up to 200 shows, each at most 120 characters."]
+            else:
+                changed["reality_shows"] = "\n".join(lines)
         if "declaration_text" in d:
             text = str(d["declaration_text"]).strip()
             if 20 <= len(text) <= 3000:
@@ -190,6 +199,9 @@ class SettingsView(APIView):
         if "reference_length" in changed:
             SystemConfiguration.objects.update_or_create(key="reference_serial_length", defaults={
                 "value": str(changed["reference_length"]), "description": "Digits in the random number at the end of a reference"})
+        if "reality_shows" in changed:
+            SystemConfiguration.objects.update_or_create(key="reality_shows", defaults={
+                "value": changed["reality_shows"], "description": "Reality shows listed on the Online Reality Show complaint form (one per line)"})
         if "declaration_text" in changed:
             SystemConfiguration.objects.update_or_create(key="declaration_text", defaults={"value": changed["declaration_text"], "description": "Public form declaration"})
         if lim:

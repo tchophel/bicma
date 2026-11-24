@@ -21,7 +21,7 @@ CREATE_FIELDS = [
     "platform", "provider", "provider_type", "already_complained", "provider_reference", "medium_of_publication",
     "remedy_sought", "website_or_social", "additional_info", "declaration_accepted", "date_received",
     "concerned_frequency", "geo_latitude", "geo_longitude", "publication_date", "publication_url", "nature_of_complaint",
-    "agency_name", "present_address", "complaining_for", "other_party_name", "details",
+    "agency_name", "present_address", "complaining_for", "other_party_name", "authorised_to_act", "details",
 ]
 PHONE_RE = re.compile(r"^(\+975)?\d{8}$")
 CID_RE = re.compile(r"^\d{11}$")
@@ -102,6 +102,10 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
                     errors["complaining_for"] = "Choose who the complaint is for."
                 elif who != "self":
                     need("other_party_name", "Enter the name of the other concerned party.")
+                    if spec["division"] == "mcd":  # media complaints for another person or organisation: who they are, and the authority to act
+                        need("affected_relationship", "Enter your relationship or designation.")
+                        if attrs.get("authorised_to_act") not in ("yes", "no"):
+                            errors["authorised_to_act"] = "Say whether you are authorised to submit this complaint on their behalf."
             errors.update(formspecs.validate(spec, attrs.get("details"), self.context.get("present_slots", set())))
         else:
             cat = attrs.get("category")
@@ -168,8 +172,14 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
                 if not attrs.get(f) and not self.context.get("draft"):
                     raise serializers.ValidationError({f: "Required when submitting on behalf of another person."})
         else:
+            # a media complaint made for another person or organisation keeps who they are to the complainant and how to reach them
+            represented = bool(spec and spec["identity"]["complaining_for"] and spec["division"] == "mcd"
+                               and (attrs.get("complaining_for") or "self") != "self")
             for f in ("affected_name", "affected_relationship", "affected_contact"):
-                attrs[f] = ""
+                if not (represented and f != "affected_name"):
+                    attrs[f] = ""
+            if not represented:
+                attrs["authorised_to_act"] = ""
         return attrs
 
 
@@ -310,7 +320,7 @@ class ComplaintDetailSerializer(ComplaintListSerializer):
             "already_complained", "provider_reference", "medium_of_publication", "remedy_sought", "website_or_social",
             "additional_info", "declaration_accepted", "date_received", "suggested_division", "suggested_division_name",
             "concerned_frequency", "geo_latitude", "geo_longitude", "publication_date", "publication_url", "nature_of_complaint",
-            "authority_referred_to", "referral_date", "agency_name", "present_address", "complaining_for", "other_party_name",
+            "authority_referred_to", "referral_date", "agency_name", "present_address", "complaining_for", "other_party_name", "authorised_to_act",
             "details", "details_display", "form_division", "confidential_case", "response_due_at", "first_response_at", "resolved_at", "closed_at",
             "investigation_findings", "action_taken", "recommendation", "outcome", "outcome_name", "closure_reason",
             "registered_by_name", "updated_at", "version", "paused", "status_history", "messages", "follow_ups", "provider_contact_email", "attachments",

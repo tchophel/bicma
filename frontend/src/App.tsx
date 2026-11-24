@@ -9,6 +9,7 @@ import { Help } from "./pages/staff/Help";
 import { Home } from "./pages/public/Home";
 import { Submit, Submitted } from "./pages/public/Submit";
 import { Track } from "./pages/public/Track";
+import { NotFound } from "./pages/public/NotFound";
 import { Categories } from "./pages/staff/Categories";
 import { ComplaintView } from "./pages/staff/ComplaintView";
 import { Complaints } from "./pages/staff/Complaints";
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="staff" element={<Login />} />
             <Route path="staff/forgot-password" element={<PasswordRecovery key="request" />} />
             <Route path="staff/reset-password/:uid/:token" element={<PasswordRecovery key="reset" reset />} />
+            <Route path="*" element={<NotFound />} />
           </Route>
           <Route path="staff" element={<StaffLayout />}>
             <Route path="profile" element={<Profile />} />
@@ -76,7 +78,6 @@ export default function App() {
             <Route path="logs" element={<AdminOnly><Logs /></AdminOnly>} />
             <Route path="audit" element={<Navigate to="/staff/logs?tab=audit" replace />} />
           </Route>
-          <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </BrowserRouter>
     </AuthProvider>

@@ -1,0 +1,10 @@
+.nf { display: grid; place-items: center; padding: 56px 16px; min-height: 60vh; }
+.nf-card { width: min(640px, 100%); text-align: center; background: var(--c-surface); border: 1px solid var(--c-border); border-top: 5px solid var(--c-brand-orange); border-radius: 14px; box-shadow: var(--c-shadow); padding: 36px 28px 32px; }
+.nf-code { display: flex; justify-content: center; align-items: center; gap: 6px; font-size: clamp(4rem, 16vw, 7rem); font-weight: 800; line-height: 1; color: var(--c-primary); }
+.nf-zero { display: inline-flex; align-items: center; }
+.nf-zero img { height: clamp(5rem, 18vw, 8.5rem); width: auto; display: block; filter: drop-shadow(0 4px 8px rgb(0 0 0 / 18%)); }
+.nf-eyebrow { margin: 18px 0 4px; font-size: .78rem; font-weight: 700; letter-spacing: .12em; color: var(--c-accent); }
+.nf h1 { margin: 0 0 10px; font-size: clamp(1.4rem, 4vw, 1.9rem); color: var(--c-text); }
+.nf-text { margin: 0 auto 22px; max-width: 46ch; color: var(--c-muted); }
+.nf-text code { overflow-wrap: anywhere; background: var(--c-primary-soft); padding: 1px 6px; border-radius: 5px; color: var(--c-primary-dark); }
+.nf-actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; }
