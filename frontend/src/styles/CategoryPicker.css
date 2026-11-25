@@ -31,3 +31,21 @@
 .catpick-group.catpick-division-purple { color: #704099; background: #f7efff; }
 .catpick-group.catpick-division-green { color: #24633e; background: #edf8f0; }
 .catpick-group.catpick-division-slate { color: #4d5b70; background: #f0f3f7; }
+
+/* Keep the category list readable inside narrow form columns and phone dialogs. */
+.catpick-button { min-height: 46px; font-size: .875rem; line-height: 1.5; }
+.catpick-button > span { min-width: 0; overflow-wrap: anywhere; }
+.catpick-panel { display: block; width: 100%; box-sizing: border-box; margin-top: 10px; box-shadow: 0 4px 16px rgb(70 43 18 / 8%); }
+.catpick-list { max-height: min(380px, 50dvh); padding: 8px; -webkit-overflow-scrolling: touch; }
+.catpick-group { font-size: .65rem; letter-spacing: .025em; line-height: 1.5; text-transform: none; padding: 10px; margin-top: 4px; }
+.catpick-option { min-height: 48px; box-sizing: border-box; align-items: flex-start; padding: 12px; margin: 3px 0; border: 1px solid transparent; line-height: 1.5; }
+.catpick-option-copy { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.catpick-option-copy > span { display: block; font-size: .85rem; font-weight: 600; }
+.catpick-option-copy small { display: block; margin-top: 4px; color: var(--c-muted); font-size: .75rem; font-weight: 400; line-height: 1.6; }
+.catpick-option > svg { flex-shrink: 0; margin-top: 2px; color: var(--c-primary); }
+.catpick-option.chosen { background: var(--c-primary-soft); border-color: var(--c-primary); }
+@media (max-width: 700px) {
+  .catpick-list { max-height: min(340px, 48dvh); padding: 6px; }
+  .catpick-option { padding: 12px 10px; }
+  .catpick-button { font-size: 1rem; }
+}

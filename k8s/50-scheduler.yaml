@@ -14,7 +14,7 @@ spec:
       imagePullSecrets: [{ name: harbor-secret }]
       containers:
         - name: scheduler
-          image: dev-harbor.systems.gov.bt/bcs/cms-backend:v11
+          image: dev-harbor.systems.gov.bt/bcs/cms-backend:v12
           command: [python, manage.py, run_scheduler]
           envFrom: [{ configMapRef: { name: cms-config } }, { secretRef: { name: cms-secrets } }]
           env: [{ name: HOME, value: /tmp }]

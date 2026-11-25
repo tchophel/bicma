@@ -10,6 +10,7 @@ import type { Page } from "../../types";
 import { useList } from "../../useList";
 import "../../styles/Users.css";
 import "../../styles/CableTv.css";
+import "../../styles/MasterTheme.css";
 
 const CABLE = "Cable TV operator";
 type Named = { id: string; name: string };
@@ -59,7 +60,7 @@ export function CableTv() {
 
   const countFor = (id: string) => cable.filter((p) => p.dzongkhags.includes(id)).length;
   return (
-    <div className="users-page">
+    <div className="users-page master-page">
       <PageHeader icon="map" title="Cable TV by Dzongkhag" subtitle="Each Dzongkhag has its own cable TV operators. Choose a Dzongkhag, then add or remove the names people can pick on the complaint form." />
       {!typeId && <p className="error" role="alert">The provider type “{CABLE}” is missing. Add it under Provider types first.</p>}
       <div className="cable-layout">

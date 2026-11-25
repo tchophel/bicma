@@ -5,6 +5,7 @@ import { Icon } from "../../components/Icon";
 import { PageHeader } from "../../components/ui";
 import { useList } from "../../useList";
 import "../../styles/Permissions.css";
+import "../../styles/MasterTheme.css";
 
 interface Data {
   roles: { value: string; label: string }[];
@@ -35,7 +36,7 @@ export function Permissions() {
   }
   const groups = [...new Set(data?.permissions.map((p) => p.group))];
   return (
-    <div className="permissions-page">
+    <div className="permissions-page master-page">
       <PageHeader icon="lock" title="Roles & permissions" subtitle="Choose what each role may do. Changes apply immediately and are recorded in the audit log." />
       {err && <p className="error" role="alert">{err}</p>}
       {msg && <p className="error" role="alert">{msg}</p>}

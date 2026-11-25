@@ -4,7 +4,7 @@ import { Loader } from "../../components/Loader";
 import { arc, sliceColor } from "../../components/Charts";
 import { Link, useSearchParams } from "react-router-dom";
 import { useAuth } from "../../auth";
-import { EmptyState, PageHeader, PanelTitle, StatusBadge, fmtDate } from "../../components/ui";
+import { EmptyState, PanelTitle, StatusBadge, fmtDate } from "../../components/ui";
 import { type Dashboard, type Meta, type StatItem } from "../../types";
 import { useList } from "../../useList";
 import "../../styles/Dashboard.css";
@@ -110,9 +110,14 @@ export function DashboardPage() {
   const set = (k: string) => (e: { target: { value: string } }) => { const n = new URLSearchParams(sp); if (e.target.value) n.set(k, e.target.value); else n.delete(k); setSp(n, { replace: true }); };
   return (
     <div className="dashboard-page">
-      <PageHeader icon="dashboard" title="Dashboard" subtitle={`Complaints you are permitted to see as ${user?.role_display}. Select any figure to open the matching list.`}>
-        <button type="submit" className="btn secondary" onClick={reload}><Icon name="refresh" />Refresh</button>
-      </PageHeader>
+      <header className="dash-hero">
+        <div className="dash-hero-copy">
+          <span className="dash-hero-eyebrow"><Icon name="dashboard" size={15} />WELCOME BACK{user?.first_name ? `, ${user.first_name.toUpperCase()}` : ""}</span>
+          <h1>Dashboard</h1>
+          <p>{`Complaints you are permitted to see as ${user?.role_display}. Select any figure to open the matching list.`}</p>
+        </div>
+        <button type="submit" className="dash-hero-refresh" onClick={reload}><Icon name="refresh" />Refresh</button>
+      </header>
       <div className="card filter-bar" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))" }}>
         <label><span>From</span><input type="date" value={sp.get("date_from") ?? ""} onChange={set("date_from")} /></label>
         <label><span>To</span><input type="date" value={sp.get("date_to") ?? ""} onChange={set("date_to")} /></label>

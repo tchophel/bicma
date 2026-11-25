@@ -768,6 +768,43 @@ class UploadLimitSettingsTests(Base):
 
 
 class AdminUploadsPageTests(WorkflowBase):
+    def test_saved_file_scan_results_and_permissions(self):
+        from unittest.mock import patch
+        from core.filescan import Unsafe
+        from .models import Attachment
+        attachment = Attachment.objects.create(complaint=self.c, file=SimpleUploadedFile("scan.pdf", b"%PDF-1.4 abc"), original_name="scan.pdf", size=12)
+        url = f"/api/admin/uploads/{attachment.pk}/scan/"
+        self.assertEqual(self.login(self.inv1).post(url).status_code, 403)
+        for result, expected in ((False, "basic"), (True, "clean")):
+            with patch("core.filescan.scan", return_value=result):
+                response = self.login(self.admin).post(url)
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data["scan_status"], expected)
+        with patch("core.filescan.scan", side_effect=Unsafe("a virus was found in it")):
+            self.assertEqual(self.login(self.admin).post(url).data["scan_status"], "blocked")
+        row = self.login(self.admin).get("/api/admin/uploads/").data["results"][0]
+        self.assertEqual(row["scan_status"], "blocked")
+        self.assertIsNotNone(row["scanned_at"])
+        with patch("core.filescan.scan", side_effect=OSError("unavailable")):
+            self.assertEqual(self.login(self.admin).post(url).data["scan_status"], "error")
+
+    def test_only_admin_can_delete_flagged_documents(self):
+        from .models import Attachment
+        from core.models import AuditLog
+        attachment = Attachment.objects.create(complaint=self.c, file=SimpleUploadedFile("unsafe.txt", b"test"), original_name="unsafe.txt", size=4)
+        url = f"/api/admin/uploads/{attachment.pk}/"
+        self.assertEqual(self.login(self.inv1).delete(url).status_code, 403)
+        self.assertEqual(self.login(self.admin).delete(url).status_code, 400)
+        attachment.scan_status = "blocked"
+        attachment.scan_detail = "a virus was found in it"
+        attachment.save()
+        storage, name = attachment.file.storage, attachment.file.name
+        with self.captureOnCommitCallbacks(execute=True):
+            self.assertEqual(self.login(self.admin).delete(url).status_code, 204)
+        self.assertFalse(Attachment.objects.filter(pk=attachment.pk).exists())
+        self.assertFalse(storage.exists(name))
+        self.assertTrue(AuditLog.objects.filter(action="attachment.delete_unsafe", entity_id=str(attachment.pk)).exists())
+
     def test_admin_sees_totals_and_files_others_blocked(self):
         f = SimpleUploadedFile("evidence.pdf", b"%PDF-1.4 abc", content_type="application/pdf")
         self.to_investigating()
@@ -984,7 +1021,7 @@ class SchedulerTests(WorkflowBase):
         with mock.patch.object(run_scheduler, "call_command", side_effect=fake):
             last = {}
             ran = run_scheduler.run_due(last, T)
-            self.assertEqual(ran, ["check_apis", "retry_failed_emails", "sla_alerts", "security_scans", "purge_logs"])
+            self.assertEqual(ran, ["check_apis", "retry_failed_emails", "sla_alerts", "security_scans", "compress_resolved_files", "purge_logs"])
             self.assertEqual(run_scheduler.run_due(last, T + 100), [])          # nothing due yet
             self.assertEqual(run_scheduler.run_due(last, T + 300), ["check_apis", "retry_failed_emails"])
             self.assertEqual(run_scheduler.run_due(last, T + 3600), ["check_apis", "retry_failed_emails", "sla_alerts"])

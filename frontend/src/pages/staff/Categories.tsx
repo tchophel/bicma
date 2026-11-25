@@ -1,5 +1,6 @@
 import { useConfirm } from "../../components/Confirm";
 import "../../styles/Categories.css";
+import "../../styles/MasterTheme.css";
 import { IconBtn } from "../../components/IconBtn";
 import { Icon } from "../../components/Icon";
 import { useToast } from "../../components/Toast";
@@ -31,7 +32,7 @@ export function Categories() {
   const sel = (c: Category, key: "default_division" | "urban_division" | "rural_division" | "default_priority", label: string, options: Named[]) => (
     <Field label={label}><select value={c[key] ?? ""} onChange={(e) => patch(c, { [key]: e.target.value || null })}><option value="">None</option>{options.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></Field>
   );
-  return (<>
+  return (<div className="master-page categories-page">
     <PageHeader icon="category" title="Complaint categories" subtitle="Each category maps to a division and a default priority. Changes are audited with before and after values.">
       <button type="button" className="btn" onClick={() => setAddCat(true)}><Icon name="plus" />Add category</button>
     </PageHeader>{err && <p className="error">{err}</p>}
@@ -65,7 +66,7 @@ export function Categories() {
         <Field label="Subcategory name" required><input required value={sub} onChange={(e) => setSub(e.target.value)} /></Field>
         <button type="submit" className="btn"><Icon name="plus" />Add subcategory</button>
       </form>
-    </Modal></>);
+    </Modal></div>);
 }
 
 /** "What this category is for": the text complainants see when they point at the category on the complaint form. */

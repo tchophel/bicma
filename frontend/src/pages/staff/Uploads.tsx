@@ -1,4 +1,5 @@
-import { useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
+import { Modal } from "../../components/Modal";
 import { Loader } from "../../components/Loader";
 import { useToast } from "../../components/Toast";
 import { Link } from "react-router-dom";
@@ -7,11 +8,13 @@ import { Icon } from "../../components/Icon";
 import { EmptyState, Field, PageHeader, PanelTitle, fmt, humanKb } from "../../components/ui";
 import type { Limits } from "../../types";
 import { useList } from "../../useList";
+import "../../styles/MasterTheme.css";
+import "../../styles/Uploads.css";
 
 interface Data {
   count: number; total_bytes: number; matches: number; page: number; pages: number;
   limits: Limits;
-  results: { id: string; name: string; size: number; visibility: string; created_at: string; complaint: string; reference: string; uploaded_by: string }[];
+  results: { id: string; name: string; size: number; visibility: string; created_at: string; complaint: string; reference: string; uploaded_by: string; scan_status?: string; scan_detail?: string; scanned_at?: string }[];
 }
 const size = (b: number) => (b >= 1024 * 1024 ? `${(b / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
 
@@ -33,10 +36,33 @@ function SizeField({ label, hint, kb, onChange, minKb, maxKb }: { label: string;
 /** Administration > Uploads: the upload limits, how much is stored, and every uploaded document. */
 export function Uploads() {
   const toast = useToast();
+  const [scanning, setScanning] = useState<string[]>([]);
   const [q, setQ] = useState("");
   const [vis, setVis] = useState("");
   const [page, setPage] = useState(1);
   const { data, err, loading, reload } = useList<Data>(`/admin/uploads/?page=${page}${q ? `&q=${encodeURIComponent(q)}` : ""}${vis ? `&visibility=${vis}` : ""}`);
+  const asked = useRef(new Set<string>());
+  const scanDocument = useCallback(async (id: string) => {
+    setScanning((current) => [...current, id]);
+    try { await api(`/admin/uploads/${id}/scan/`, { method: "POST" }); reload(); }
+    catch (error) { toast.error((error as ApiError).message); }
+    finally { setScanning((current) => current.filter((item) => item !== id)); }
+  }, [reload, toast]);
+  useEffect(() => {
+    const pending = (data?.results ?? []).filter((item) => (!item.scan_status || item.scan_status === "unknown") && !asked.current.has(item.id));
+    for (const item of pending) asked.current.add(item.id);
+    // Sequential scans avoid overwhelming the antivirus service.
+    void (async () => { for (const item of pending) await scanDocument(item.id); })();
+  }, [data, scanDocument]);
+  const [deleting, setDeleting] = useState<Data["results"][number] | null>(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  async function deleteUnsafe() {
+    if (!deleting || deleteBusy) return;
+    setDeleteBusy(true);
+    try { await api(`/admin/uploads/${deleting.id}/`, { method: "DELETE" }); setDeleting(null); reload(); toast.success("Unsafe document deleted."); }
+    catch (error) { toast.error((error as ApiError).message); }
+    finally { setDeleteBusy(false); }
+  }
   const [lim, setLim] = useState<Partial<Limits>>({});
   const [msg, setMsg] = useState<{ ok?: string; err?: string }>({});
   const cur = (data ? { ...data.limits, ...lim } : null) as Limits | null;
@@ -51,7 +77,7 @@ export function Uploads() {
   }
   const toggleType = (key: string, on: boolean) => cur && setLim({ ...lim, upload_types: on ? [...cur.upload_types, key] : cur.upload_types.filter((k) => k !== key) });
   return (
-    <>
+    <div className="master-page uploads-page">
       <PageHeader icon="complaint" title="Uploads" subtitle="Upload limits, storage used and every document attached to a complaint." />
       {err && <p className="error" role="alert">{err}</p>}
       <div className="stat-grid">
@@ -85,19 +111,28 @@ export function Uploads() {
       )}
       <section className="card">
         <PanelTitle icon="search">All documents</PanelTitle>
+        <p className="muted" style={{ fontSize: ".8rem" }}>Documents are scanned automatically when this list opens. Green means the scan passed; basic checks are shown separately from antivirus results.</p>
         <div className="filter-bar" style={{ gridTemplateColumns: "2fr 1fr", padding: 0, boxShadow: "none", border: 0 }}>
           <label><span>Search</span><div className="search-wrap"><Icon name="search" /><input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="File name or complaint reference" /></div></label>
           <label><span>Visibility</span><select value={vis} onChange={(e) => { setVis(e.target.value); setPage(1); }}><option value="">All</option><option value="public">Shared with complainant</option><option value="internal">Internal</option></select></label>
         </div>
-        <div className="table-wrap"><table>
-          <thead><tr><th>File</th><th>Size</th><th>Complaint</th><th>Uploaded by</th><th>Visibility</th><th>Date</th></tr></thead>
+        <div className="table-wrap uploads-table-scroll" role="region" aria-label="All documents, scroll left and right to see all columns" tabIndex={0}><table>
+          <thead><tr><th>File</th><th>Size</th><th>Complaint</th><th>Uploaded by</th><th>Visibility</th><th>File safety</th><th>Date</th><th>Actions</th></tr></thead>
           <tbody>
             {data?.results.map((a) => (
-              <tr key={a.id}><td><a href={`/api/complaints/${a.complaint}/attachments/${a.id}/`}>{a.name}</a></td><td>{size(a.size)}</td>
+              <tr key={a.id}><td>{a.scan_status === "blocked" ? <span>{a.name}</span> : <a href={`/api/complaints/${a.complaint}/attachments/${a.id}/`}>{a.name}</a>}</td><td>{size(a.size)}</td>
                 <td><Link className="ref-link" to={`/staff/complaints/${a.complaint}`}>{a.reference}</Link></td><td>{a.uploaded_by}</td>
-                <td><span className={`badge ${a.visibility === "public" ? "" : "warn"}`}>{a.visibility === "public" ? "Shared" : "Internal"}</span></td><td>{fmt(a.created_at)}</td></tr>
+                <td><span className={`badge ${a.visibility === "public" ? "" : "warn"}`}>{a.visibility === "public" ? "Shared" : "Internal"}</span></td><td>
+                  <span className={`badge ${a.scan_status === "blocked" ? "bad" : (a.scan_status === "clean" || a.scan_status === "basic") ? "ok" : a.scan_status === "error" ? "warn" : "plain"}`} aria-label={a.scan_status === "basic" ? "No harmful content found in basic checks; antivirus unavailable" : undefined} title={`${a.scan_detail || "No saved scan result"}${a.scanned_at ? ` · Checked ${fmt(a.scanned_at)}` : ""}`}>
+                    <Icon name={scanning.includes(a.id) ? "refresh" : a.scan_status === "blocked" || a.scan_status === "error" ? "alert" : a.scan_status === "clean" || a.scan_status === "basic" ? "check" : "help"} size={14} />
+                    {scanning.includes(a.id) ? "Scanning…" : a.scan_status === "blocked" ? "Unsafe file detected" : a.scan_status === "clean" ? "No virus found" : a.scan_status === "basic" ? "" : a.scan_status === "error" ? "Scan failed" : "Not scanned"}
+                  </span>
+                </td><td>{fmt(a.created_at)}</td><td>
+                  <button type="button" className="btn secondary" style={{ whiteSpace: "nowrap" }} disabled={scanning.includes(a.id)} onClick={() => void scanDocument(a.id)}><Icon name="refresh" size={15} />{scanning.includes(a.id) ? "Scanning…" : a.scanned_at ? "Scan again" : "Scan now"}</button>
+                  {a.scan_status === "blocked" && <button type="button" className="btn danger" style={{ marginTop: 8 }} onClick={() => setDeleting(a)}><Icon name="trash" size={15} />Delete document</button>}
+                </td></tr>
             ))}
-            {loading && <tr><td colSpan={6}><Loader size={40} /></td></tr>}
+            {loading && <tr><td colSpan={8}><Loader size={40} /></td></tr>}
           </tbody>
         </table>
         {!loading && data?.results.length === 0 && <EmptyState icon="search">No documents match.</EmptyState>}</div>
@@ -105,6 +140,11 @@ export function Uploads() {
           <div><button type="submit" className="btn secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}><Icon name="left" size={16} />Previous</button>
             <button type="submit" className="btn secondary" disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next<Icon name="right" size={16} /></button></div></div>}
       </section>
-    </>
+      <Modal open={!!deleting} onClose={() => setDeleting(null)} busy={deleteBusy} title="Delete unsafe document?" icon="trash">
+        <p>Permanently delete <strong>{deleting?.name}</strong> from this complaint?</p>
+        <p className="error">{deleting?.scan_detail}</p>
+        <div className="modal-actions"><button type="button" className="btn secondary" disabled={deleteBusy} onClick={() => setDeleting(null)}>Cancel</button><button type="button" className="btn danger" disabled={deleteBusy} onClick={() => void deleteUnsafe()}>{deleteBusy ? "Deleting…" : "Delete document"}</button></div>
+      </Modal>
+    </div>
   );
 }

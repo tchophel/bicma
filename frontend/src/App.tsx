@@ -1,3 +1,4 @@
+import { FormBuilderPage } from "./pages/staff/FormBuilder";
 import { ConfirmProvider } from "./components/Confirm";
 import { PasswordRecovery } from "./pages/staff/PasswordRecovery";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
@@ -69,6 +70,7 @@ export default function App() {
             <Route path="dzongkhags" element={<AdminOnly><Dzongkhags /></AdminOnly>} />
             <Route path="divisions" element={<AdminOnly><Divisions /></AdminOnly>} />
             <Route path="categories" element={<AdminOnly><Categories /></AdminOnly>} />
+            <Route path="form-builder" element={<AdminOnly><FormBuilderPage /></AdminOnly>} />
             <Route path="roles" element={<AdminOnly><Roles /></AdminOnly>} />
             <Route path="uploads" element={<AdminOnly><Uploads /></AdminOnly>} />
             <Route path="permissions" element={<AdminOnly><Permissions /></AdminOnly>} />

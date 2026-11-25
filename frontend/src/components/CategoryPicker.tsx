@@ -13,7 +13,7 @@ function divisionTone(label: string) {
   return "slate";
 }
 
-/** Category dropdown that shows what each category is for. Point at (or arrow to) a category to read its description. */
+/** Category dropdown with readable descriptions and keyboard navigation. */
 export function CategoryPicker({ groups, value, onChange, required, autoFocus, invalid }: {
   groups: Group[]; value: string; onChange: (id: string) => void; required?: boolean; autoFocus?: boolean; invalid?: boolean;
 }) {
@@ -24,7 +24,6 @@ export function CategoryPicker({ groups, value, onChange, required, autoFocus, i
   const list = useRef<HTMLDivElement>(null);
   const all = groups.flatMap((g) => g.cats);
   const selected = all.find((c) => c.id === value);
-  const shown = all.find((c) => c.id === (open ? active : value)) ?? (open ? undefined : selected);
 
   useEffect(() => {
     if (!open) return;
@@ -32,7 +31,15 @@ export function CategoryPicker({ groups, value, onChange, required, autoFocus, i
     document.addEventListener("mousedown", away);
     return () => document.removeEventListener("mousedown", away);
   }, [open]);
-  useEffect(() => { if (open) list.current?.querySelector(`[data-id="${CSS.escape(active)}"]`)?.scrollIntoView({ block: "nearest" }); }, [active, open]);
+  useEffect(() => {
+    const container = list.current;
+    const option = container?.querySelector<HTMLElement>(`[data-id="${CSS.escape(active)}"]`);
+    if (!open || !container || !option) return;
+    const bounds = container.getBoundingClientRect();
+    const item = option.getBoundingClientRect();
+    if (item.top < bounds.top) container.scrollTop -= bounds.top - item.top;
+    else if (item.bottom > bounds.bottom) container.scrollTop += item.bottom - bounds.bottom;
+  }, [active, open]);
 
   const openList = () => { setActive(value || all[0]?.id || ""); setOpen(true); };
   const choose = (id: string) => { onChange(id); setOpen(false); };
@@ -71,15 +78,12 @@ export function CategoryPicker({ groups, value, onChange, required, autoFocus, i
                 {g.cats.map((c) => (
                   <div key={c.id} id={`${uid}-${c.id}`} data-id={c.id} role="option" aria-selected={c.id === value} className={`catpick-option${c.id === active ? " active" : ""}${c.id === value ? " chosen" : ""}`}
                     onMouseEnter={() => setActive(c.id)} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(c.id)}>
-                    <span>{c.name}</span>{c.id === value && <Icon name="check" size={15} />}
+                    <span className="catpick-option-copy"><span>{c.name}</span>{c.description && <small>{c.description}</small>}</span>{c.id === value && <Icon name="check" size={18} />}
                   </div>
                 ))}
               </div>
             ))}
           </div>
-          <aside className="catpick-info" aria-live="polite">
-            {shown ? <><strong>{shown.name}</strong><p>{shown.description || "No description has been written for this category yet."}</p></> : <p className="muted">Point at a category to see what it is for.</p>}
-          </aside>
         </div>
       )}
       {!open && selected?.description && <p className="catpick-about"><Icon name="help" size={16} /><span><strong>About this category:</strong> {selected.description}</span></p>}

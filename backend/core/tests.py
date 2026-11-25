@@ -1,43 +1,7 @@
 from rest_framework.test import APIClient, APITestCase
 
 from accounts.models import Role, User
-from .models import FAQ, AuditLog, Category
-
-
-class FAQAdminTests(APITestCase):
-    def setUp(self):
-        self.admin = User.objects.create_user("faq-admin@example.org", "Secure-admin-pass-243!", role=Role.SUPER_ADMIN)
-        self.staff = User.objects.create_user("faq-staff@example.org", "Secure-staff-pass-243!", role=Role.SUPERVISOR)
-
-    def test_admin_can_add_edit_reorder_and_deactivate(self):
-        self.client.force_authenticate(self.admin)
-        response = self.client.post("/api/admin/faqs/", {"question": "How do I track?", "answer": "Enter your reference number.", "position": 0}, format="json")
-        self.assertEqual(response.status_code, 201, response.data)
-        pk = response.data["id"]
-        response = self.client.patch(f"/api/admin/faqs/{pk}/", {"answer": "Use Track a complaint.", "position": 50, "is_active": False}, format="json")
-        self.assertEqual(response.status_code, 200, response.data)
-        faq = FAQ.objects.get(pk=pk)
-        self.assertEqual(faq.answer, "Use Track a complaint.")
-        self.assertEqual(faq.position, 50)
-        self.assertFalse(faq.is_active)
-        self.assertTrue(AuditLog.objects.filter(action="faq.create", entity_id=str(pk)).exists())
-        self.assertTrue(AuditLog.objects.filter(action="faq.update", entity_id=str(pk)).exists())
-
-    def test_only_admin_can_access_faq_management(self):
-        faq = FAQ.objects.first()
-        for user in (None, self.staff):
-            self.client.force_authenticate(user)
-            self.assertIn(self.client.get("/api/admin/faqs/").status_code, (401, 403))
-            self.assertIn(self.client.post("/api/admin/faqs/", {"question": "Q", "answer": "A"}).status_code, (401, 403))
-            self.assertIn(self.client.patch(f"/api/admin/faqs/{faq.pk}/", {"answer": "Changed"}).status_code, (401, 403))
-
-    def test_validation_and_ordering(self):
-        self.client.force_authenticate(self.admin)
-        for data in ({"question": " ", "answer": "A"}, {"question": "Q", "answer": " "}, {"question": "Q", "answer": "A", "position": -1}):
-            self.assertEqual(self.client.post("/api/admin/faqs/", data).status_code, 400)
-        response = self.client.get("/api/admin/faqs/")
-        positions = [item["position"] for item in response.data["results"]]
-        self.assertEqual(positions, sorted(positions))
+from .models import AuditLog, Category
 
 
 class CategoryDeletionTests(APITestCase):
@@ -209,7 +173,7 @@ class SecurityChecksTests(APITestCase):
         self.client.force_login(self.admin)
         r = self.client.get("/api/admin/security-checks/")
         self.assertEqual(r.status_code, 200)
-        self.assertEqual([c["key"] for c in r.data["checks"]], ["dependencies", "ci", "sonarqube", "zap"])
+        self.assertEqual([c["key"] for c in r.data["checks"]], ["dependencies", "ci", "sonarqube", "zap", "django", "headers", "github"])
 
 
 class SecurityCheckSettingsTests(APITestCase):
@@ -273,3 +237,33 @@ class SecuritySolveTests(APITestCase):
         self.assertEqual(r.status_code, 200, r.content)
         self.assertTrue(r.json()["started"])
         self.assertIn("auto-fix.yml/dispatches", op.call_args[0][0].full_url)
+
+
+class StorageTests(APITestCase):
+    def test_only_the_administrator_sees_storage_and_the_pdf(self):
+        from accounts.models import Role, User
+        from rest_framework.test import APIClient
+        admin = User.objects.create_user("sa@example.org", "pw-Strong-123", role=Role.SUPER_ADMIN)
+        other = User.objects.create_user("inv@example.org", "pw-Strong-123", role=Role.INVESTIGATOR)
+        c = APIClient()
+        c.force_authenticate(other)
+        self.assertEqual(c.get("/api/admin/storage/").status_code, 403)
+        self.assertEqual(c.get("/api/admin/storage-report/").status_code, 403)
+        c.force_authenticate(admin)
+        r = c.get("/api/admin/storage/")
+        self.assertEqual(r.status_code, 200)
+        self.assertIn("disk", r.data)
+        self.assertGreater(r.data["database"]["bytes"], 0)
+        pdf = c.get("/api/admin/storage-report/")
+        self.assertEqual(pdf.status_code, 200)
+        self.assertTrue(pdf.content.startswith(b"%PDF"))
+
+
+class StorageCompressSettingTests(APITestCase):
+    def test_administrator_can_switch_shrinking_off_and_run_it(self):
+        admin = User.objects.create_user("sa2@example.org", "pw-Strong-123", role=Role.SUPER_ADMIN)
+        self.client.force_authenticate(admin)
+        r = self.client.post("/api/admin/storage/", {"enabled": False, "run": True}, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertFalse(r.data["compress"]["enabled"])
+        self.assertEqual(r.data["result"]["checked"], 0)

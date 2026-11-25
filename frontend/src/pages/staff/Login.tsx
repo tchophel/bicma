@@ -8,34 +8,54 @@ import { ApiError } from "../../api";
 import { useAuth } from "../../auth";
 import "../../styles/Login.css";
 
+const REMEMBERED_EMAIL_KEY = "bicma-remembered-email";
+
+function rememberedEmail() {
+  try { return localStorage.getItem(REMEMBERED_EMAIL_KEY) ?? ""; }
+  catch { return ""; }
+}
+
 export function Login() {
   const { user, login } = useAuth();
   const toast = useToast();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(rememberedEmail);
   const [p, setP] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [rememberMe, setRememberMe] = useState(false);
+  const [rememberMe, setRememberMe] = useState(() => !!rememberedEmail());
+  function changeRememberMe(checked: boolean) {
+    setRememberMe(checked);
+    if (!checked) {
+      try { localStorage.removeItem(REMEMBERED_EMAIL_KEY); } catch { /* storage unavailable */ }
+    }
+  }
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   if (user) return <Navigate to="/staff/dashboard" replace />;
   async function go(e: FormEvent) {
     e.preventDefault();
     setBusy(true); setErr("");
-    try { await login(email, p, rememberMe); } catch (x) { setErr((x as ApiError).message); toast.error((x as ApiError).message); } finally { setBusy(false); }
+    try {
+      await login(email, p, rememberMe);
+      try {
+        if (rememberMe) localStorage.setItem(REMEMBERED_EMAIL_KEY, email.trim().toLowerCase());
+        else localStorage.removeItem(REMEMBERED_EMAIL_KEY);
+      } catch { /* sign-in still works when browser storage is unavailable */ }
+    } catch (x) { setErr((x as ApiError).message); toast.error((x as ApiError).message); } finally { setBusy(false); }
   }
   return (
+    <div className="staff-login-stage">
     <div className="container staff-login">
-      <div style={{ textAlign: "center", marginBottom: 20 }}>
+      <div className="staff-login-heading">
         <img src="/bicma-logo.png" alt="Bhutan InfoComm and Media Authority logo" className="staff-login-logo" />
-        <h1 style={{ margin: 0 }}>Staff sign in</h1>
-        <p className="muted" style={{ margin: "4px 0 0" }}>Bhutan InfoComm and Media Authority</p>
+        <h1>Staff sign in</h1>
+        <p className="muted">Bhutan InfoComm and Media Authority</p>
       </div>
       <form className="card staff-login-card" onSubmit={go}>
         <div className="field">
-          <label className="login-label" htmlFor="login-email">CID or email <span className="req" aria-hidden="true">*</span></label>
+          <label className="login-label" htmlFor="login-email">Email <span className="req" aria-hidden="true">*</span></label>
           <div className="input-icon-wrap">
             <Icon name="mail" />
-            <input id="login-email" placeholder="CID or email address" required type="text" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <input id="login-email" placeholder="Email address" required type="email" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} />
           </div>
         </div>
         <div className="field">
@@ -48,13 +68,15 @@ export function Login() {
             </button>
           </div>
         </div>
-        <div className="login-options"><label><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />Remember me</label><Link to="/staff/forgot-password">Forgot password?</Link></div>
+        <div className="login-options"><label><input type="checkbox" checked={rememberMe} onChange={(e) => changeRememberMe(e.target.checked)} aria-describedby="remember-me-help" />Remember me</label><Link to="/staff/forgot-password">Forgot password?</Link></div>
+        <p id="remember-me-help" className="muted" style={{ fontSize: ".75rem", marginTop: -6 }}>Remember your email and stay signed in for 30 days on this device.</p>
         {err && <p className="error" role="alert">{err}</p>}
         <button type="submit" className="btn" disabled={busy} style={{ width: "100%" }}><Icon name="login" />{busy ? "Signing in…" : "Sign in"}</button>
         <div className="login-or" aria-hidden="true"><span>or</span></div>
-        <GoogleLogin onError={(m) => { setErr(m); toast.error(m); }} />
-        <NdiLogin onError={(m) => { setErr(m); toast.error(m); }} />
+        <GoogleLogin rememberMe={rememberMe} onError={(m) => { setErr(m); toast.error(m); }} />
+        <NdiLogin rememberMe={rememberMe} onError={(m) => { setErr(m); toast.error(m); }} />
       </form>
+    </div>
     </div>
   );
 }

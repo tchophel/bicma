@@ -3,6 +3,7 @@ import { useAuth } from "../../auth";
 import { ComplaintForm } from "../../components/ComplaintForm";
 import { PageHeader } from "../../components/ui";
 import { useToast } from "../../components/Toast";
+import "../../styles/Register.css";
 
 export function Register() {
   const { user } = useAuth();

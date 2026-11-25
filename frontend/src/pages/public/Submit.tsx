@@ -1,6 +1,8 @@
+import { useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { ComplaintForm, type FormResult } from "../../components/ComplaintForm";
 import { Icon } from "../../components/Icon";
+import { SimilarNotice } from "../../components/SimilarNotice";
 import "../../styles/Submit.css";
 
 export function Submit() {
@@ -37,6 +39,10 @@ export function Submit() {
 
 export function Submitted() {
   const r = useLocation().state as FormResult | null;
+  const [copied, setCopied] = useState(false);
+  async function copy(text: string) {
+    try { await navigator.clipboard.writeText(text); setCopied(true); setTimeout(() => setCopied(false), 2000); } catch { /* the reference is also shown as text to select */ }
+  }
   if (!r) return <div className="container"><p>Nothing to show. <Link to="/submit"><Icon name="plus" />Submit a complaint</Link>.</p></div>;
   return (
     <div className="container submitted-page">
@@ -49,7 +55,15 @@ export function Submitted() {
         <p className="submission-thanks">Thank you!</p>
         <h1 style={{ marginBottom: 6 }}>Complaint received</h1>
         <p className="muted" style={{ marginTop: 0 }}>Your complaint has been registered. Your reference number is:</p>
-        <div className="ref-big">{r.reference}</div>
+        <div className="ref-ticket">
+          <span className="ref-ticket-label">YOUR COMPLAINT NUMBER</span>
+          <strong className="ref-ticket-number" aria-label={`Complaint number ${r.reference.split("-").pop()}`}>{r.reference.split("-").pop()}</strong>
+          <div className="ref-ticket-full">
+            <span>Full reference for tracking: <b>{r.reference}</b></span>
+            <button type="button" onClick={() => void copy(r.reference)}><Icon name={copied ? "check" : "expand"} size={15} />{copied ? "Copied" : "Copy"}</button>
+          </div>
+        </div>
+        {!!r.similar && <SimilarNotice info={{ ...r, similar: r.similar }} submitted />}
         <p className="notice" style={{ textAlign: "left" }}><strong>Keep your reference number.</strong> Use it on the Track page to check progress at any time.</p>
         <Link className="btn" to="/track" state={{ reference: r.reference }}><Icon name="search" />Track this complaint</Link>
       </div>

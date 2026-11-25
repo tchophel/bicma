@@ -111,8 +111,8 @@ export function Complaints() {
         <table>
           <thead><tr><th>Reference</th><th>Subject</th><th>Assigned to</th><th>Status</th><th>Days open</th><th className="row-actions-head">Actions</th></tr></thead>
           <tbody>
-            {data?.results.map((c) => (
-              <tr key={c.id} className={`clickable ${String(c.id) === openId ? "row-active" : ""}`} onClick={() => update({ open: String(c.id) })}>
+            {data?.results.map((c, i) => (
+              <tr key={c.id} style={{ "--i": Math.min(i, 14) } as React.CSSProperties} className={`clickable ${String(c.id) === openId ? "row-active" : ""}`} onClick={() => update({ open: String(c.id) })}>
                 <td><button type="button" className="ref-link linklike" aria-label={`Open ${c.reference}`} onClick={(e) => { e.stopPropagation(); update({ open: String(c.id) }); }}>{c.reference}</button></td>
                 <td className="complaint-subject">{c.subject}
                   <small className="muted cell-sub">{c.category_name}{c.priority_name ? ` · ${c.priority_name}` : ""}</small></td>

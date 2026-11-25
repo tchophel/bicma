@@ -54,3 +54,60 @@
 .awaiting { display: block; text-align: left; margin: 0 0 6px; max-width: 190px; white-space: normal; line-height: 1.3; }
 .awaiting small { display: block; color: #836854; font-size: .74rem; }
 .awaiting strong { display: block; font-size: .82rem; color: #5c3d27; }
+
+
+/* ===== Complaints list, brand look with motion ===== */
+@keyframes cl-down { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+@keyframes cl-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes cl-row { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+@keyframes cl-pop { 0% { opacity: 0; transform: scale(.6); } 70% { transform: scale(1.08); } 100% { opacity: 1; transform: none; } }
+@keyframes cl-shine { from { transform: translateX(-120%) skewX(-18deg); } to { transform: translateX(260%) skewX(-18deg); } }
+@keyframes cl-glow { 0%, 100% { box-shadow: 0 10px 22px rgba(201,90,18,.32); } 50% { box-shadow: 0 10px 30px rgba(245,130,32,.6); } }
+
+/* banner */
+.complaints-page > .page-head { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 24px 28px; margin-bottom: 18px; border-radius: 22px; color: #fff;
+  background: linear-gradient(100deg, #5c160d 0%, #8a2a10 45%, #c95a12 100%); box-shadow: 0 16px 38px rgba(92,22,13,.25); animation: cl-down .55s ease both; }
+.complaints-page > .page-head::after { content: ""; position: absolute; right: -60px; top: -80px; width: 260px; height: 260px; border-radius: 50%; z-index: -1; background: radial-gradient(circle, rgba(255,229,0,.28), transparent 70%); }
+.complaints-page > .page-head .icon-tile { background: rgba(255,255,255,.16); color: var(--c-yellow); border: 1px solid rgba(255,255,255,.3); backdrop-filter: blur(6px); }
+.complaints-page > .page-head h1 { color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,.25); }
+.complaints-page > .page-head p { color: rgba(255,255,255,.9); }
+.complaints-page > .page-head .chip { background: var(--c-yellow); color: #4a3500; border: 0; font-weight: 800; animation: cl-pop .6s .3s ease both; }
+.complaints-page > .page-head .btn { position: relative; overflow: hidden; border: 0; border-radius: 12px; background: linear-gradient(180deg, #ffec3d, #ffd400); color: #3a2a12; font-weight: 800; animation: cl-glow 3s 1s ease-in-out infinite; }
+.complaints-page > .page-head .btn::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; background: rgba(255,255,255,.55); transform: translateX(-120%) skewX(-18deg); }
+.complaints-page > .page-head .btn:hover::after { animation: cl-shine .8s ease; }
+.complaints-page > .page-head .btn:hover { transform: translateY(-2px); }
+
+/* cards enter in turn */
+.complaints-filters { border: 1px solid #f0dfcf; border-radius: 20px; box-shadow: 0 10px 28px rgba(120,60,20,.08); animation: cl-up .6s .1s ease both; }
+.complaints-filter-heading { background: linear-gradient(90deg, #fff6ec, #fff); border-bottom-color: #f3e6da; }
+.complaints-filter-heading .icon { color: #d9601a; }
+.complaints-page .filter-bar label > span { color: #8a6a52; letter-spacing: .05em; }
+.complaints-page .filter-bar input, .complaints-page .filter-bar select { border: 1.5px solid #e6d6c7; border-radius: 11px; transition: border-color .15s ease, box-shadow .15s ease; }
+.complaints-page .filter-bar input:hover, .complaints-page .filter-bar select:hover { border-color: #f0b27a; }
+.complaints-page .filter-bar input:focus, .complaints-page .filter-bar select:focus { border-color: #f58220; box-shadow: 0 0 0 4px #ffe9d2; outline: none; }
+.complaints-page .chips { animation: cl-up .4s ease both; }
+.complaints-results { border: 1px solid #f0dfcf; border-radius: 20px; background: #fff; box-shadow: 0 10px 28px rgba(120,60,20,.08); overflow: hidden; animation: cl-up .6s .2s ease both; }
+.complaints-results-heading h2 { color: #2d1e13; }
+.complaints-count { padding: 3px 12px; border-radius: 999px; background: #fff0e1; color: #b05717; font-weight: 700; }
+
+/* table */
+.complaints-results .table-wrap { border: 0; border-radius: 0; box-shadow: none; }
+.complaints-results thead th { background: #fff6ec; color: #8a6a52; font-size: .72rem; letter-spacing: .08em; border-bottom: 1px solid #f3e6da; }
+.complaints-results tbody tr { position: relative; opacity: 0; animation: cl-row .5s calc(var(--i, 0) * 70ms + 300ms) ease both; transition: background .15s ease, box-shadow .15s ease; }
+.complaints-results tbody tr:hover { background: #fffaf4; box-shadow: inset 4px 0 0 #f58220; }
+.complaints-results tbody tr.row-active { background: #fff3e6; box-shadow: inset 4px 0 0 #d9601a; }
+.complaints-results .ref-link { display: inline-block; padding: 4px 12px; border-radius: 999px; background: #fff0e1; color: #b05717; font-weight: 700; text-decoration: none; transition: background .15s ease, transform .15s ease; }
+.complaints-results tr:hover .ref-link { background: #ffe0c2; transform: translateX(3px); }
+.complaints-results .status-badge, .complaints-results td .badge { animation: cl-pop .45s calc(var(--i, 0) * 70ms + 500ms) ease both; }
+.complaints-results .awaiting { display: block; margin-bottom: 6px; padding: 6px 10px; border-radius: 10px; background: #fff8e1; border: 1px solid #f3dc8a; }
+.complaints-results .awaiting small { display: block; color: #7a6657; font-size: .7rem; }
+.complaints-results .pager { background: #fffaf4; border-top: 1px solid #f3e6da; }
+.complaints-results .pager .btn { border-radius: 10px; transition: transform .15s ease; }
+.complaints-results .pager .btn:hover:not(:disabled) { transform: translateY(-2px); }
+
+@media (prefers-reduced-motion: reduce) {
+  .complaints-page > .page-head, .complaints-page > .page-head .chip, .complaints-page > .page-head .btn, .complaints-filters, .complaints-page .chips, .complaints-results,
+  .complaints-results tbody tr, .complaints-results .status-badge, .complaints-results td .badge { animation: none; opacity: 1; }
+  .complaints-results tbody tr, .complaints-results .ref-link { transition: none; }
+}
+@media (max-width: 700px) { .complaints-page > .page-head { padding: 20px 18px; border-radius: 18px; } .complaints-page > .page-head .btn { width: 100%; justify-content: center; } }

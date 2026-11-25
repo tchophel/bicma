@@ -10,6 +10,7 @@ import { Modal } from "../../components/Modal";
 import type { Page } from "../../types";
 import { useList } from "../../useList";
 import "../../styles/Users.css";
+import "../../styles/MasterTheme.css";
 
 export interface FieldDef {
   key: string; label: string; type?: "text" | "number" | "date" | "email" | "textarea" | "select" | "multi";
@@ -60,7 +61,7 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
   }
   const rows = (data?.results ?? []).filter((r) => !status || (status === "active") === r.is_active);
   return (
-    <div className="users-page">
+    <div className="users-page master-page">
       <PageHeader icon={icon} title={title} subtitle={subtitle}>
         <button type="button" className="btn" onClick={() => { setEditing(null); setForm(blank); setReason(""); setMsg(null); setOpen(true); }}><Icon name="plus" />Add</button>
       </PageHeader>

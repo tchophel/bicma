@@ -4,6 +4,7 @@ from django.core.exceptions import ValidationError
 from django.db import models
 
 from core.base import UUIDModel
+from core.fields import EncryptedCharField, EncryptedEmailField
 
 
 class Role(models.TextChoices):
@@ -54,17 +55,17 @@ class UserManager(BaseUserManager):
 
 class User(UUIDModel, AbstractUser):
     username = None
-    email = models.EmailField("email address", unique=True)
+    email = EncryptedEmailField("email address", unique=True, purpose="email")
     role = models.CharField(max_length=40, default=Role.INVESTIGATOR, help_text="Code of a RoleDef (master data)")
     division = models.ForeignKey(
         Division, null=True, blank=True, on_delete=models.PROTECT, related_name="users"
     )
     profile_photo = models.ImageField(upload_to="profile_photos/%Y/%m/", blank=True)
-    phone = models.CharField(max_length=30, blank=True)
-    employee_id = models.CharField(max_length=30, unique=True, null=True, blank=True)
+    phone = EncryptedCharField(max_length=30, blank=True, purpose="phone")
+    employee_id = EncryptedCharField(max_length=30, unique=True, null=True, blank=True, purpose="eid")
     designation = models.CharField(max_length=120, blank=True)
     bio = models.TextField(max_length=500, blank=True, help_text="Short note about the user, edited by the user on their own profile")
-    cid = models.CharField(max_length=11, unique=True, null=True, blank=True)
+    cid = EncryptedCharField(max_length=11, unique=True, null=True, blank=True, purpose="cid")
     THEMES = ["orange", "blue", "green", "purple", "teal", "red", "slate"]
     theme = models.CharField(max_length=12, default="orange", choices=[(t, t.title()) for t in THEMES],
                              help_text="Colour of the user's own dashboard, chosen by the user on their profile")
@@ -74,10 +75,12 @@ class User(UUIDModel, AbstractUser):
     objects = UserManager()
 
     class Meta:
-        ordering = ["email"]
+        ordering = ["last_name", "first_name", "pk"]
         indexes = [models.Index(fields=["role", "division"])]
 
     def save(self, *args, **kwargs):
+        from core.utils import proper_name
+        self.first_name, self.last_name = proper_name(self.first_name), proper_name(self.last_name)
         self.email = (self.email or "").strip().lower()
         self.employee_id = (self.employee_id or "").strip() or None
         self.cid = (self.cid or "").strip() or None

@@ -2,6 +2,7 @@ from django.conf import settings
 from django.db import models
 
 from .base import UUIDModel
+from .fields import EncryptedCharField
 
 
 class Priority(UUIDModel):
@@ -38,6 +39,44 @@ class Category(UUIDModel):
 
     def __str__(self):
         return self.name
+
+
+class FormQuestion(UUIDModel):
+    """A question an Administrator adds to the complaint form of a division (or of one category in it). The answers are stored with
+    the complaint (details) under `key`. Questions are switched off, never deleted, so old answers keep their label."""
+
+    class Kind(models.TextChoices):
+        TEXT = "text", "Short text"
+        TEXTAREA = "textarea", "Long text"
+        SELECT = "select", "Dropdown"
+        CHECKS = "checks", "Tick boxes"
+        YESNO = "yesno", "Yes / No"
+        DATE = "date", "Date"
+
+    division = models.ForeignKey("accounts.Division", on_delete=models.PROTECT, related_name="form_questions")
+    category = models.ForeignKey(Category, null=True, blank=True, on_delete=models.PROTECT, related_name="form_questions",
+                                 help_text="Empty: the question is asked for every category of the division")
+    key = models.CharField(max_length=20, unique=True, editable=False)
+    label = models.CharField(max_length=200)
+    kind = models.CharField(max_length=10, choices=Kind.choices, default=Kind.TEXT)
+    options = models.JSONField(default=list, blank=True, help_text="Choices for a dropdown or tick boxes")
+    required = models.BooleanField(default=False)
+    hint = models.CharField(max_length=200, blank=True)
+    position = models.PositiveIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ["division__name", "position", "created_at"]
+
+    def save(self, *args, **kwargs):
+        if not self.key:
+            import uuid
+            self.key = "x_" + uuid.uuid4().hex[:10]
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return self.label
 
 
 class Subcategory(UUIDModel):
@@ -125,19 +164,6 @@ class AuditLog(UUIDModel):
 
     def delete(self, *args, **kwargs):
         raise PermissionError("Audit records are immutable.")
-
-
-class FAQ(UUIDModel):
-    question = models.CharField(max_length=300)
-    answer = models.TextField(max_length=10000)
-    position = models.PositiveIntegerField(default=0)
-    is_active = models.BooleanField(default=True)
-
-    class Meta:
-        ordering = ["position", "question", "id"]
-
-    def __str__(self):
-        return self.question
 
 
 class ProviderType(UUIDModel):
@@ -236,7 +262,7 @@ class EmailLog(UUIDModel):
     subject = models.CharField(max_length=300)
     status = models.CharField(max_length=10)  # sent | failed
     error = models.CharField(max_length=300, blank=True)
-    reference = models.CharField(max_length=40, blank=True, help_text="Complaint reference, when the email is about a case")
+    reference = EncryptedCharField(max_length=40, blank=True, purpose="ref", help_text="Complaint reference, when the email is about a case")
     notification = models.ForeignKey("core.NotificationLog", null=True, blank=True, on_delete=models.SET_NULL, related_name="log_entries",
                                      help_text="The case email this attempt belongs to. Only these can be resent (other emails hold one-time codes)")
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
@@ -253,7 +279,7 @@ class SmsLog(UUIDModel):
     message = models.CharField(max_length=500, blank=True)
     status = models.CharField(max_length=10)  # sent | failed
     error = models.CharField(max_length=300, blank=True)
-    reference = models.CharField(max_length=40, blank=True)
+    reference = EncryptedCharField(max_length=40, blank=True, purpose="ref")
     created_at = models.DateTimeField(auto_now_add=True, db_index=True)
 
     class Meta:
@@ -283,7 +309,7 @@ class NdiVerification(models.Model):
     status = models.CharField(max_length=10, default="pending")  # pending | verified | failed
     deep_link_url = models.TextField(blank=True)
     proof_url = models.TextField(blank=True)
-    cid = models.CharField(max_length=64, blank=True, help_text="Disclosed 'ID Number'")
+    cid = EncryptedCharField(max_length=64, blank=True, purpose="cid", help_text="Disclosed 'ID Number'")
     full_name = models.CharField(max_length=200, blank=True)
     holder_did = models.CharField(max_length=200, blank=True)
     consumed = models.BooleanField(default=False)

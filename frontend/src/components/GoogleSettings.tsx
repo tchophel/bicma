@@ -26,8 +26,8 @@ export function GoogleSettings() {
   return (
     <section className="card settings-section" aria-labelledby="settings-google">
       <header className="settings-section-header"><span className="icon-tile"><Icon name="login" size={22} /></span><div><span className="settings-eyebrow">STAFF SIGN IN</span><h2 id="settings-google">Sign in with Google</h2><p>Staff can sign in with the Google account that has the same email as their BICMA account.</p></div></header>
-      <p><span className={`badge ${cfg?.enabled ? "ok" : "plain"}`}>{cfg?.enabled ? "On" : "Off"}</span>{" "}
-        <button type="button" className="btn secondary" onClick={() => setOpen(!open)}>{open ? "Cancel" : cfg?.enabled ? "Edit settings" : "Set up"}</button></p>
+      <div className="settings-connection"><span className={`badge ${cfg?.enabled ? "ok" : "plain"}`}>{cfg?.enabled ? "On" : "Off"}</span>{" "}
+        <button type="button" className="btn secondary" onClick={() => setOpen(!open)}>{open ? "Cancel" : cfg?.enabled ? "Edit settings" : "Set up"}</button></div>
       {open && (
         <div className="field-stack">
           <p className="muted">In Google Cloud Console (APIs &amp; Services, Credentials) create an <strong>OAuth client ID</strong> of type <em>Web application</em> and add this as an <strong>Authorized redirect URI</strong>: <code>{redirect}</code></p>

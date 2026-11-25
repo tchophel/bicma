@@ -160,10 +160,10 @@ class NdiLoginTests(APITestCase):
         cache.clear()
         self.staff = User.objects.create_user("officer@example.org", "Strong-pass-182!", role=Role.INVESTIGATOR, cid="10101010101")
 
-    def start(self, thread="thr-1"):
+    def start(self, thread="thr-1", remember=False):
         pr = {"thread_id": thread, "deep_link_url": "ndi://x", "proof_url": "https://ndi.example/p/1"}
         with patch("core.ndi.create_proof_request", return_value=pr), patch("core.ndi_nats.watch", return_value=True):
-            return self.client.post("/api/auth/ndi/start/", {}, format="json")
+            return self.client.post("/api/auth/ndi/start/", {"remember_me": remember}, format="json")
 
     def present(self, thread="thr-1", payload=NDI_RESULT):
         from core import ndi_nats
@@ -171,6 +171,19 @@ class NdiLoginTests(APITestCase):
 
     def status(self, thread="thr-1"):
         return self.client.get(f"/api/auth/ndi/status/?threadId={thread}")
+
+    def test_remember_me_persists_ndi_session(self):
+        for remember in (False, True):
+            self.client = APIClient()
+            thread = f"remember-{remember}"
+            self.assertEqual(self.start(thread, remember).status_code, 201)
+            self.present(thread)
+            response = self.status(thread)
+            self.assertEqual(response.data["status"], "verified")
+            self.assertEqual(self.client.session.get_expire_at_browser_close(), not remember)
+            self.assertEqual(bool(response.cookies["sessionid"]["max-age"]), remember)
+            if remember:
+                self.assertEqual(self.client.session.get_expiry_age(), 30 * 24 * 3600)
 
     def test_start_returns_qr_and_deep_link(self):
         r = self.start()
@@ -244,16 +257,19 @@ class NdiLoginTests(APITestCase):
         self.assertEqual(NdiVerification.objects.get(pk="thr-1").cid, "10101010101")
 
 
-class CidLoginTests(APITestCase):
-    def test_staff_sign_in_with_cid_or_email_not_employee_id(self):
+class EmailLoginTests(APITestCase):
+    def test_password_sign_in_accepts_email_only(self):
         cache.clear()
         User.objects.create_user("o@example.org", "Strong-pass-182!", role=Role.INVESTIGATOR, cid="10101010101", employee_id="E1")
-        self.assertEqual(APIClient().post("/api/auth/login/", {"email": "E1", "password": "Strong-pass-182!"}, format="json").status_code, 400)
-        for name in ("10101010101", "o@example.org"):
-            r = APIClient().post("/api/auth/login/", {"email": name, "password": "Strong-pass-182!"}, format="json")
-            self.assertEqual(r.status_code, 200, name)
-        bad = APIClient().post("/api/auth/login/", {"email": "10101010101", "password": "wrong"}, format="json")
-        self.assertEqual(bad.status_code, 400)
+        for identifier in ("E1", "10101010101"):
+            client = APIClient()
+            response = client.post("/api/auth/login/", {"email": identifier, "password": "Strong-pass-182!"}, format="json")
+            self.assertEqual(response.status_code, 400)
+            self.assertIn(client.get("/api/auth/me/").status_code, (401, 403))
+        for email in ("o@example.org", " O@EXAMPLE.ORG "):
+            response = APIClient().post("/api/auth/login/", {"email": email, "password": "Strong-pass-182!"}, format="json")
+            self.assertEqual(response.status_code, 200)
+
 
 
 class AdminSetPasswordTests(APITestCase):
@@ -274,8 +290,8 @@ class AdminSetPasswordTests(APITestCase):
         r = self.as_(self.admin).post(self.url, {"new_password": "Brand-new-pass-731!", "confirm_password": "Brand-new-pass-731!"}, format="json")
         self.assertEqual(r.status_code, 200, r.content)
         self.assertEqual(len(mail.outbox), 0)  # no email is involved
-        self.assertEqual(APIClient().post("/api/auth/login/", {"email": "10101010101", "password": "Brand-new-pass-731!"}, format="json").status_code, 200)
-        self.assertEqual(APIClient().post("/api/auth/login/", {"email": "10101010101", "password": "Staff-pass-182!"}, format="json").status_code, 400)
+        self.assertEqual(APIClient().post("/api/auth/login/", {"email": self.staff.email, "password": "Brand-new-pass-731!"}, format="json").status_code, 200)
+        self.assertEqual(APIClient().post("/api/auth/login/", {"email": self.staff.email, "password": "Staff-pass-182!"}, format="json").status_code, 400)
         self.assertEqual(old.get("/api/auth/me/").status_code, 403)  # the old session ended
         from core.models import AuditLog
         log = AuditLog.objects.get(action="user.password_set")
@@ -411,6 +427,20 @@ class GoogleLoginTests(APITestCase):
         self.assertEqual(c.get("/api/auth/me/").json()["email"], "staff@example.org")
         with patch("accounts.google.email_for_code", return_value="nobody@example.org"):
             self.assertEqual(APIClient().post("/api/auth/google/callback/", {"code": "x", "state": "y"}, format="json").status_code, 400)
+
+    def test_remember_me_persists_google_session(self):
+        self.enable()
+        for remember in (False, True):
+            c = APIClient()
+            start = c.post("/api/auth/google/start/", {"redirect_uri": "http://localhost:5173/staff/login/google", "remember_me": remember}, format="json", HTTP_ORIGIN="http://localhost:5173")
+            self.assertEqual(start.status_code, 200)
+            with patch("accounts.google.email_for_code", return_value="staff@example.org"):
+                response = c.post("/api/auth/google/callback/", {"code": "x", "state": c.session["google_state"]}, format="json")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(c.session.get_expire_at_browser_close(), not remember)
+            self.assertEqual(bool(response.cookies["sessionid"]["max-age"]), remember)
+            if remember:
+                self.assertEqual(c.session.get_expiry_age(), 30 * 24 * 3600)
 
     def test_wrong_state_is_refused(self):
         self.enable()

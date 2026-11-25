@@ -62,3 +62,6 @@ h1 > .icon, h2 > .icon { color: var(--c-primary); margin-right: 10px; }
 /* smaller type scale: every rem-based size shrinks with this one value (browser default is 16px) */
 html { font-size: 14px; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+
+/* Long option names (e.g. complaint categories) must not stretch a select past a narrow screen. */
+select { max-width: 100%; text-overflow: ellipsis; white-space: nowrap; overflow: hidden; }

@@ -1,0 +1,70 @@
+/* Master data pages (Categories, Divisions, Service providers, Cable TV, Provider types, Priorities, Outcomes, Closure reasons,
+   Dzongkhags, Roles): one brand look with motion. Everything is scoped to .master-page. */
+@keyframes mt-down { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+@keyframes mt-up { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: none; } }
+@keyframes mt-row { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@keyframes mt-pop { 0% { opacity: 0; transform: scale(.85); } 100% { opacity: 1; transform: none; } }
+@keyframes mt-glow { 0%, 100% { box-shadow: 0 10px 22px rgba(0,0,0,.18); } 50% { box-shadow: 0 10px 30px rgba(255,214,0,.55); } }
+@keyframes mt-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+
+/* banner */
+.master-page > .page-head { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 22px 26px; margin-bottom: 18px; border-radius: 22px; color: #fff;
+  background: linear-gradient(100deg, #5c160d 0%, #8a2a10 45%, #c95a12 100%); box-shadow: 0 16px 38px rgba(92,22,13,.25); animation: mt-down .55s ease both; }
+.master-page > .page-head::after { content: ""; position: absolute; right: -60px; top: -80px; width: 260px; height: 260px; border-radius: 50%; z-index: -1; background: radial-gradient(circle, rgba(255,229,0,.28), transparent 70%); }
+.master-page > .page-head .icon-tile { background: rgba(255,255,255,.16); color: var(--c-yellow); border: 1px solid rgba(255,255,255,.3); backdrop-filter: blur(6px); animation: mt-float 3.4s ease-in-out infinite; }
+.master-page > .page-head h1 { color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,.25); }
+.master-page > .page-head p { color: rgba(255,255,255,.9); }
+.master-page > .page-head .btn { border: 0; border-radius: 12px; background: linear-gradient(180deg, #ffec3d, #ffd400); color: #3a2a12; font-weight: 800; animation: mt-glow 3s 1s ease-in-out infinite; transition: transform .18s ease; }
+.master-page > .page-head .btn:hover { transform: translateY(-2px); }
+.master-page > .page-head .btn:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+
+/* cards come in one after another */
+.master-page .card { border: 1px solid #f0dfcf; border-radius: 20px; background: #fff; box-shadow: 0 10px 28px rgba(120,60,20,.08); animation: mt-up .55s ease both; }
+.master-page > .card:nth-of-type(1), .master-page > div:nth-child(2) .card:nth-child(1) { animation-delay: .1s; }
+.master-page > .card:nth-of-type(2), .master-page > div:nth-child(2) .card:nth-child(2) { animation-delay: .2s; }
+.master-page > .card:nth-of-type(3) { animation-delay: .3s; }
+.master-page .card h2 .icon-tile, .master-page .card h3 .icon-tile, .master-page .icon-tile { background: linear-gradient(135deg, #fff0e1, #ffd9b3); color: #b05717; border-radius: 12px; }
+
+/* fields */
+.master-page label > span, .master-page .field > span { color: #8a6a52; font-weight: 700; letter-spacing: .04em; }
+.master-page input:not([type=checkbox]):not([type=radio]), .master-page select, .master-page textarea { border: 1.5px solid #e6d6c7; border-radius: 12px; transition: border-color .15s ease, box-shadow .15s ease; }
+.master-page input:hover, .master-page select:hover, .master-page textarea:hover { border-color: #f0b27a; }
+.master-page input:focus, .master-page select:focus, .master-page textarea:focus { border-color: #f58220; box-shadow: 0 0 0 4px #ffe9d2; outline: none; }
+.master-page .btn:not(.secondary) { border: 0; border-radius: 12px; background: linear-gradient(135deg, #f58220, #c95a12); box-shadow: 0 8px 18px rgba(201,90,18,.28); transition: transform .18s ease, box-shadow .18s ease; }
+.master-page .btn:not(.secondary):hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 12px 24px rgba(201,90,18,.38); }
+.master-page .btn.secondary { border-radius: 12px; transition: transform .18s ease; }
+.master-page .btn.secondary:hover:not(:disabled) { transform: translateY(-2px); }
+
+/* tables: peach head, rows slide in, hover bar */
+.master-page .table-wrap { border: 1px solid #f3e6da; border-radius: 18px; background: #fff; overflow: hidden; }
+.master-page thead th { background: #fff6ec; color: #8a6a52; font-size: .72rem; letter-spacing: .08em; border-bottom: 1px solid #f3e6da; }
+.master-page tbody tr { opacity: 0; animation: mt-row .45s ease both; transition: background .15s ease, box-shadow .15s ease; }
+.master-page tbody tr:nth-child(1) { animation-delay: .25s; } .master-page tbody tr:nth-child(2) { animation-delay: .32s; } .master-page tbody tr:nth-child(3) { animation-delay: .39s; }
+.master-page tbody tr:nth-child(4) { animation-delay: .46s; } .master-page tbody tr:nth-child(5) { animation-delay: .53s; } .master-page tbody tr:nth-child(6) { animation-delay: .6s; }
+.master-page tbody tr:nth-child(n+7) { animation-delay: .65s; }
+.master-page tbody tr:hover { background: #fffaf4; box-shadow: inset 4px 0 0 #f58220; }
+.master-page .badge { animation: mt-pop .4s .5s ease both; }
+.master-page .iconbtn, .master-page td .btn.secondary { transition: transform .15s ease, background .15s ease; }
+.master-page .iconbtn:hover, .master-page td .btn.secondary:hover { transform: translateY(-2px); background: #fff3e6; }
+
+/* divisions / dzongkhags: the side note and the directory */
+.master-page .locations-note, .master-page aside { animation: mt-up .6s .35s ease both; }
+
+/* categories */
+.master-page .category-card { margin-bottom: 14px; padding: 20px 22px; border-left: 5px solid #f58220; }
+.master-page .category-card:nth-of-type(odd) { border-left-color: #f58220; } .master-page .category-card:nth-of-type(even) { border-left-color: #2f9e5f; }
+.master-page .category-card:hover { transform: translateY(-3px); box-shadow: 0 16px 32px rgba(120,60,20,.14); }
+.master-page .category-card { transition: transform .18s ease, box-shadow .18s ease; }
+.categories-page .category-card:nth-of-type(1) { animation-delay: .1s; } .categories-page .category-card:nth-of-type(2) { animation-delay: .17s; } .categories-page .category-card:nth-of-type(3) { animation-delay: .24s; }
+.categories-page .category-card:nth-of-type(4) { animation-delay: .31s; } .categories-page .category-card:nth-of-type(5) { animation-delay: .38s; } .categories-page .category-card:nth-of-type(n+6) { animation-delay: .45s; }
+
+/* cable TV: list of Dzongkhags with the selected one in the brand colour */
+.master-page .cable-list button, .master-page [class*="cable"] li button { transition: background .15s ease, transform .15s ease; }
+.master-page .cable-list button:hover:not([aria-current]), .master-page [class*="cable"] li button:hover { transform: translateX(3px); }
+.master-page .cable-list [aria-current=true], .master-page [class*="cable"] [aria-current=true], .master-page [class*="cable"] .active { background: linear-gradient(135deg, #f58220, #c95a12) !important; color: #fff !important; box-shadow: 0 8px 18px rgba(201,90,18,.3); }
+
+@media (prefers-reduced-motion: reduce) {
+  .master-page > .page-head, .master-page > .page-head .icon-tile, .master-page > .page-head .btn, .master-page .card, .master-page tbody tr, .master-page .badge, .master-page aside { animation: none; opacity: 1; }
+  .master-page tbody tr, .master-page .btn, .master-page input, .master-page .category-card { transition: none; }
+}
+@media (max-width: 700px) { .master-page > .page-head { padding: 18px; border-radius: 18px; } .master-page > .page-head .btn { width: 100%; justify-content: center; } }

@@ -136,6 +136,9 @@ def _clamav(data):
     text = reply.rstrip(b"\0").decode("utf-8", "replace")
     if "FOUND" in text:
         raise Unsafe("a virus was found in it")
+    if not text.endswith(": OK"):
+        raise OSError("Antivirus did not return a valid scan result")
+    return True
 
 
 def scan(f, ext):
@@ -154,4 +157,4 @@ def scan(f, ext):
         _check_ooxml(data)
     elif ext in OLE_EXT:
         _check_ole(data)
-    _clamav(data)
+    return bool(_clamav(data))

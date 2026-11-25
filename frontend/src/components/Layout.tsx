@@ -11,6 +11,14 @@ import { NotificationBell, UserMenu } from "./Menus";
 
 export function PublicLayout() {
   const [open, setOpen] = useState(false);
+  const location = useLocation();
+  useEffect(() => { setOpen(false); }, [location.pathname]);
+  useEffect(() => {
+    if (!open) return;
+    const close = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    document.addEventListener("keydown", close);
+    return () => document.removeEventListener("keydown", close);
+  }, [open]);
   return (
     <div className={`${pub.shell} ${open ? pub.open : ""}`}>
       <a className="skip" href="#main">Skip to content</a>
@@ -21,13 +29,13 @@ export function PublicLayout() {
             <img src="/bicma-logo.png" alt="BICMA logo" />
             <span><strong>BICMA Complaint Portal</strong><small>Bhutan InfoComm and Media Authority</small></span>
           </Link>
-          <button type="submit" className={pub.menuBtn} aria-label="Toggle menu" aria-expanded={open} aria-controls="public-nav" onClick={() => setOpen(!open)}><Icon name={open ? "close" : "menu"} /></button>
+          <button type="button" className={pub.menuBtn} aria-label={open ? "Close navigation" : "Open navigation"} aria-expanded={open} aria-controls="public-nav" onClick={() => setOpen(!open)}><Icon name={open ? "close" : "menu"} /></button>
           <nav id="public-nav" className={pub.nav} aria-label="Public" onClick={() => setOpen(false)}>
             <NavLink to="/" end><Icon name="home" />Home</NavLink>
             <NavLink to="/submit"><Icon name="plus" />Submit a Complaint</NavLink>
             <NavLink to="/track"><Icon name="search" />Track a Complaint</NavLink>
           </nav>
-          <Link to="/staff" className={pub.staff}><Icon name="login" />Staff Sign In</Link>
+          <Link to="/staff" className={pub.staff} onClick={() => setOpen(false)}><Icon name="login" />Staff Sign In</Link>
         </div>
       </header>
       <main id="main" className={pub.main}><Outlet /></main>
@@ -59,6 +67,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
     heading: "Master data",
     items: [
       { to: "/staff/categories", label: "Categories", icon: "category", roles: ["super_admin"] },
+      { to: "/staff/form-builder", label: "Form builder", icon: "edit", roles: ["super_admin"] },
       { to: "/staff/roles", label: "Roles", icon: "lock", roles: ["super_admin"] },
       { to: "/staff/divisions", label: "Divisions", icon: "division", roles: ["super_admin"] },
       { to: "/staff/providers", label: "Service providers", icon: "users", roles: ["super_admin"] },
@@ -88,6 +97,18 @@ export function StaffLayout() {
   const { user, loading } = useAuth();
   const [open, setOpen] = useState(false);
   const { pathname, search } = useLocation();
+  useEffect(() => { setOpen(false); }, [pathname, search]);
+  useEffect(() => {
+    if (!open) return;
+    const media = window.matchMedia("(max-width: 800px)");
+    const previous = document.body.style.overflow;
+    const sync = () => { document.body.style.overflow = media.matches ? "hidden" : previous; };
+    const escape = (event: KeyboardEvent) => { if (event.key === "Escape") setOpen(false); };
+    sync();
+    media.addEventListener("change", sync);
+    document.addEventListener("keydown", escape);
+    return () => { document.body.style.overflow = previous; media.removeEventListener("change", sync); document.removeEventListener("keydown", escape); };
+  }, [open]);
   // Sidebar groups fold away; the one holding the current page is open, and so is "Complaints".
   const [folded, setFolded] = useState<Record<string, boolean>>(() => {
     try { return JSON.parse(localStorage.getItem("nav-folded") ?? "{}"); } catch { return {}; }
@@ -113,13 +134,18 @@ export function StaffLayout() {
     <div className={css.shell}>
       <a className="skip" href="#main">Skip to content</a>
       <header className={css.top}>
-        <button type="submit" className={css.menuBtn} aria-label="Toggle navigation" aria-expanded={open} aria-controls="sidebar" onClick={() => setOpen(!open)}><Icon name={open ? "close" : "menu"} /></button>
+        <button type="button" className={css.menuBtn} aria-label="Toggle navigation" aria-expanded={open} aria-controls="sidebar" onClick={() => setOpen(!open)}><Icon name={open ? "close" : "menu"} /></button>
         <Link to="/staff/dashboard" className={css.brand}><img src="/bicma-logo.png" alt="" className={css.logo} />BICMA Complaint Management System</Link>
         <div className={css.actions}><NotificationBell /><UserMenu /></div>
       </header>
       <div className={css.body}>
         {open && <button type="button" className={css.sideBackdrop} aria-label="Close navigation" onClick={() => setOpen(false)} />}
         <nav id="sidebar" aria-label="Staff" className={`${css.side} ${open ? css.sideOpen : ""}`} onClick={(e) => { if ((e.target as HTMLElement).closest("a")) setOpen(false); }}>
+          <div className={css.mobileNavHead}>
+            <span className={css.workspaceIcon}><Icon name="complaint" size={20} /></span>
+            <div><strong>BICMA workspace</strong><small>Complaint management</small></div>
+            <button type="button" aria-label="Close navigation" onClick={() => setOpen(false)}><Icon name="close" size={20} /></button>
+          </div>
           {groups.map((g, i) => {
             const hasCurrent = g.items.some((n) => pathname === n.to.split("?")[0] || pathname.startsWith(n.to.split("?")[0] + "/"));
             const isOpen = !g.heading || hasCurrent || (folded[g.heading] ?? g.heading === "Complaints");

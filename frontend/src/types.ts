@@ -25,11 +25,11 @@ export interface User {
 export interface Division { id: string; name: string; code: string; reference_code?: string; is_active: boolean; focal?: { id: string; email: string; name: string } | null }
 export interface Subcategory { id: string; name: string; is_active?: boolean; category?: string }
 export interface Category {
-  id: string; name: string; is_active: boolean; subcategories: Subcategory[];
+  id: string; name: string; is_active: boolean; subcategories: Subcategory[]; extra_fields?: FormField[];
   default_division: string | null; urban_division: string | null; rural_division: string | null; default_priority: string | null; description?: string; form?: CategoryForm | null;
 }
 export interface FormWhen { key?: string; equals?: string; includes?: string; all?: FormWhen[] }  // `all`: every listed condition must hold
-export interface FormField { key: string; label: string; type: "text" | "textarea" | "date" | "select" | "yesno" | "checks" | "provider" | "provider_checks"; required: boolean; options?: string[]; when?: FormWhen; past?: boolean; provider_type?: string }
+export interface FormField { key: string; label: string; type: "text" | "textarea" | "date" | "select" | "yesno" | "checks" | "provider" | "provider_checks"; required: boolean; options?: string[]; when?: FormWhen; past?: boolean; provider_type?: string; hint?: string }
 export interface FormDoc { key: string; label: string; required: boolean | "when"; when?: FormWhen; image?: boolean; hint?: string; required_hint?: string; optional_hint?: string }
 /** A category's own form, defined on the server (backend/core/formspecs.py). */
 export interface CategoryForm {

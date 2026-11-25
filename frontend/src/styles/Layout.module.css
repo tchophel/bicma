@@ -173,3 +173,26 @@
 .notificationEmpty strong { color: var(--c-text); font-size: .9rem; }
 .notificationEmpty p { margin: 0; font-size: .8rem; }
 .notificationActions button:focus-visible, .note:focus-visible { outline: 2px solid var(--c-primary); outline-offset: -3px; }
+
+/* Phone navigation drawer */
+.mobileNavHead { display: none; }
+@media (max-width: 800px) {
+  .top { gap: 10px; padding-inline: 12px; }
+  .top .brand { min-width: 0; gap: 8px; font-size: .75rem; line-height: 1.35; }
+  .top .logo { width: 32px; height: 32px; }
+  .actions { gap: 6px; flex-shrink: 0; }
+  .menuBtn { flex-shrink: 0; align-items: center; justify-content: center; width: 40px; height: 40px; padding: 0; border-radius: 10px; background: #faf8f5; }
+  .side { top: 84px; bottom: 8px; left: 8px; width: min(320px, calc(100vw - 40px)); height: auto; padding: 0 12px calc(16px + env(safe-area-inset-bottom)); border: 1px solid #ebe5de; border-radius: 16px; background: #fff; box-shadow: 0 16px 48px rgb(30 24 18 / 22%); }
+  .mobileNavHead { position: sticky; top: 0; z-index: 1; display: flex; align-items: center; gap: 10px; margin: 0 -12px 12px; padding: 16px 14px; background: #fff; border-bottom: 1px solid #eee8e1; }
+  .mobileNavHead > div { flex: 1; min-width: 0; }
+  .mobileNavHead strong { display: block; font-size: .85rem; color: var(--c-text); }
+  .mobileNavHead small { display: block; margin-top: 4px; font-size: .7rem; color: var(--c-muted); }
+  .mobileNavHead > button { display: grid; place-items: center; flex-shrink: 0; width: 36px; height: 36px; padding: 0; border: 1px solid var(--c-border); border-radius: 10px; background: #faf8f5; color: var(--c-muted); cursor: pointer; }
+  .side a { min-height: 46px; padding: 11px 12px; margin-bottom: 5px; gap: 12px; font-size: .87rem; border-radius: 10px; }
+  .side a > svg { width: 19px; height: 19px; }
+  .headingBtn { min-height: 44px; padding: 10px 12px; font-size: .66rem; letter-spacing: .08em; }
+  .navSection { margin-top: 12px; padding-top: 8px; }
+  .sideBackdrop { background: rgb(24 22 20 / 42%); backdrop-filter: blur(3px); }
+  .mobileNavHead button:focus-visible, .menuBtn:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 2px; }
+}
+@media (max-width: 360px) { .top .brand { font-size: .68rem; } .top .logo { display: none; } }

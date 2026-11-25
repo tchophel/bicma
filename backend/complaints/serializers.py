@@ -143,6 +143,7 @@ class ComplaintCreateSerializer(serializers.ModelSerializer):
                     errors["provider"] = "Select the service provider, or choose Other / Not listed and type its name."
             if attrs.get("already_complained") and not attrs.get("provider_reference"):
                 errors["provider_reference"] = "Enter the provider's reference number."
+        errors.update(formspecs.validate_custom(attrs.get("category"), attrs.get("details")))  # questions added in the form builder
         if errors:
             raise serializers.ValidationError(errors)
         return self._tidy(attrs)
@@ -367,7 +368,7 @@ class ComplaintDetailSerializer(ComplaintListSerializer):
 
     def get_details_display(self, obj):
         spec = formspecs.spec_for(obj.category)
-        return formspecs.label_details(spec, obj.details) if spec else []
+        return (formspecs.label_details(spec, obj.details) if spec else []) + formspecs.label_custom(obj.category, obj.details)
 
     def get_form_division(self, obj):
         spec = formspecs.spec_for(obj.category)

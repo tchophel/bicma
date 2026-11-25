@@ -4,14 +4,14 @@ import { api, ApiError } from "../api";
 const REDIRECT = () => `${window.location.origin}/staff/login/google`;
 
 /** "Continue with Google" on the staff sign-in page. Hidden until an Administrator turns it on in Settings. */
-export function GoogleLogin({ onError }: { onError: (message: string) => void }) {
+export function GoogleLogin({ onError, rememberMe = false }: { onError: (message: string) => void; rememberMe?: boolean }) {
   const [on, setOn] = useState(false);
   const [busy, setBusy] = useState(false);
   useEffect(() => { api<{ enabled: boolean }>("/auth/google/").then((r) => setOn(r.enabled)).catch(() => undefined); }, []);
   if (!on) return null;
   async function go() {
     setBusy(true);
-    try { window.location.href = (await api<{ url: string }>("/auth/google/start/", { json: { redirect_uri: REDIRECT() } })).url; }
+    try { window.location.href = (await api<{ url: string }>("/auth/google/start/", { json: { redirect_uri: REDIRECT(), remember_me: rememberMe } })).url; }
     catch (x) { onError((x as ApiError).message); setBusy(false); }
   }
   return (

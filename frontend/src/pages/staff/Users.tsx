@@ -11,6 +11,7 @@ import { type Division, type Page, type User } from "../../types";
 import { useList } from "../../useList";
 import "../../styles/Directory.css";
 import "../../styles/Users.css";
+import "../../styles/MasterTheme.css";
 
 
 export function Users() {
@@ -87,7 +88,7 @@ export function Users() {
   const users = data?.results ?? [];
   const visible = users.filter((u) => `${u.email} ${u.first_name} ${u.last_name} ${u.role_display} ${u.division_name ?? ""}`.toLowerCase().includes(query.toLowerCase()));
   return (
-    <div className="users-page">
+    <div className="users-page master-page">
       <PageHeader icon="users" title="Users" subtitle="Create and manage officials who can sign in.">
         <button type="button" className="btn" onClick={openDialog}><Icon name="plus" />Create user</button>
       </PageHeader>
@@ -127,7 +128,7 @@ export function Users() {
               <Field label="CID" hint="11 digits. Needed to sign in with Bhutan NDI; must match the CID in their NDI wallet.">
                 <div style={{ display: "flex", gap: 8 }}><input inputMode="numeric" pattern="\d{11}" maxLength={11} placeholder="11-digit CID" autoComplete="off" value={form.cid} onChange={set("cid")} /><button type="button" className="btn secondary" disabled={looking || !/^\d{11}$/.test(form.cid.trim())} onClick={lookup}>{looking ? "Looking…" : "Look up"}</button></div>
               </Field>
-              <Field label="Employee ID" hint="Not used to sign in. Staff sign in with their CID or email."><input placeholder="e.g. EMP001" autoComplete="off" value={form.employee_id} onChange={set("employee_id")} /></Field>
+              <Field label="Employee ID" hint="Not used to sign in. Staff sign in with their email and password, or Bhutan NDI."><input placeholder="e.g. EMP001" autoComplete="off" value={form.employee_id} onChange={set("employee_id")} /></Field>
               <Field label="Designation"><input placeholder="e.g. Senior Officer" value={form.designation} onChange={set("designation")} /></Field>
               <Field label="First name"><input placeholder="Enter first name" autoComplete="given-name" value={form.first_name} onChange={set("first_name")} /></Field>
               <Field label="Last name"><input placeholder="Enter last name" autoComplete="family-name" value={form.last_name} onChange={set("last_name")} /></Field>

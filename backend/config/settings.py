@@ -6,6 +6,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 SECRET_KEY = os.environ.get("DJANGO_SECRET_KEY", "dev-insecure-change-me")
 DEBUG = os.environ.get("DJANGO_DEBUG", "1") == "1"
+# Key for the encrypted personal data (email, phone, CID, employee ID). See docs/ENCRYPTION.md. Required when DEBUG is off.
+FIELD_ENCRYPTION_KEY = os.environ.get("FIELD_ENCRYPTION_KEY", "")
+if "test" in sys.argv and not FIELD_ENCRYPTION_KEY:
+    FIELD_ENCRYPTION_KEY = "dGVzdC1vbmx5LWtleS0zMi1ieXRlcy1sb25nLTEyMzQ="  # tests only, never a real key
 ALLOWED_HOSTS = os.environ.get("DJANGO_ALLOWED_HOSTS", "localhost,127.0.0.1").split(",")
 
 INSTALLED_APPS = [
@@ -101,7 +105,7 @@ REST_FRAMEWORK = {
     "DEFAULT_PAGINATION_CLASS": "core.pagination.StandardPagination",
     "PAGE_SIZE": 25,
     "DEFAULT_THROTTLE_CLASSES": ["rest_framework.throttling.ScopedRateThrottle"],
-    "DEFAULT_THROTTLE_RATES": {"public_submit": "10/hour", "track": "30/hour", "track_otp": "10/hour", "track_otp_verify": "40/hour", "login": "10/minute", "captcha": "60/hour", "password_reset": "10/hour", "password_reset_verify": "40/hour", "cid_lookup": "20/hour", "upload_scan": "200/hour"},  # NOSONAR: throttle scope names, not credentials
+    "DEFAULT_THROTTLE_RATES": {"public_submit": "10/hour", "track": "30/hour", "track_otp": "10/hour", "track_otp_verify": "40/hour", "login": "10/minute", "captcha": "60/hour", "pw_reset": "10/hour", "pw_reset_verify": "40/hour", "cid_lookup": "20/hour", "upload_scan": "200/hour", "similar": "240/hour"},
 }
 # Local development only: do not hit "Too many requests" while testing. Never on a deployed server (DJANGO_DEBUG=0) and never while
 # the test suite runs, because the tests check the real limits.

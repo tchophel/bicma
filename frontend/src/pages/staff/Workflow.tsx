@@ -4,6 +4,7 @@ import { Icon } from "../../components/Icon";
 import { useToast } from "../../components/Toast";
 import { PageHeader, PanelTitle } from "../../components/ui";
 import { useList } from "../../useList";
+import "../../styles/MasterTheme.css";
 
 interface Step { key: string; label: string; detail: string; enabled: boolean; locked: boolean }
 /** Why an arrangement cannot work ("" when it can). Mirrors the server rule in backend/core/workflowconfig.py. */
@@ -116,7 +117,7 @@ export function WorkflowPage() {
   const now = steps.length ? summary(steps) : {}, saved = data ? summary(data.steps) : {};
   const changes = Object.keys(now).filter((k) => now[k] !== saved[k]);
 
-  return (<>
+  return (<div className="master-page">
     <PageHeader icon="refresh" title="Workflow" subtitle="Switch steps on or off and drag them to set how a complaint moves." />
     {err && <p className="error">{err}</p>}
     <div style={{ display: "grid", gap: 16, maxWidth: 1100 }}>
@@ -167,5 +168,5 @@ export function WorkflowPage() {
     </aside>
     </div>
     <p className="muted">Cases already in progress keep going from where they are. Only new complaints and the options offered to staff change.</p>
-  </>);
+  </div>);
 }

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { api, ApiError } from "../api";
 import { Icon } from "./Icon";
+import { Modal } from "./Modal";
 import { useList } from "../useList";
 import { useToast } from "./Toast";
 import { fmt } from "./ui";
@@ -25,8 +26,10 @@ export function SecurityScan() {
     catch (e) { setErr((e as ApiError).message); }
     finally { setRunning(""); }
   }
-  async function solve(check = "") {
-    if (!window.confirm("Solve starts an automatic fix on GitHub. It fixes this problem in a copy of the code and opens a pull request for you to review. Nothing changes on the live system until you merge it and redeploy. Start now?")) return;
+  const [pendingSolve, setPendingSolve] = useState<string | null>(null);
+  async function solve(check: string) {
+    if (running) return;
+    setPendingSolve(null);
     setRunning(check ? `solve-${check}` : "solve"); setErr("");
     try { const r = await api<{ message: string; link: string }>("/admin/security-solve/", { method: "POST", json: { check } }); toast.success(r.message); setSolveLink(r.link); }
     catch (e) { setErr((e as ApiError).message); }
@@ -61,7 +64,7 @@ export function SecurityScan() {
   }
 
   return (
-    <section className="card settings-section" aria-labelledby="settings-scan">
+    <section className="card settings-section settings-security" aria-labelledby="settings-scan">
       <header className="settings-section-header"><span className="icon-tile"><Icon name="lock" size={22} /></span>
         <div><span className="settings-eyebrow">SECURITY</span><h2 id="settings-scan">Security scan</h2>
           <p>Checks the packages this system runs on against the public vulnerability database (OSV) and shows how to fix each finding. Only package names and versions are sent.</p></div></header>
@@ -69,15 +72,17 @@ export function SecurityScan() {
         <div className="scan-checks-head"><h3>Automated checks</h3>
           <button type="button" className="btn secondary" disabled={!!running} onClick={() => runCheck("")}><Icon name="refresh" />{running === "all" ? "Checking…" : "Check all now"}</button>
           {(findings.length > 0 || (checks.data?.checks ?? []).some((c) => c.state === "issues" || c.state === "error")) &&
-            <button type="button" className="btn" disabled={!!running} onClick={() => void solve()}><Icon name="check" />{running === "solve" ? "Starting…" : "Solve"}</button>}
+            <button type="button" className="btn" disabled={!!running} onClick={() => setPendingSolve("")}><Icon name="check" />{running === "solve" ? "Starting…" : "Solve"}</button>}
           {(findings.length > 0 || (checks.data?.checks ?? []).some((c) => c.state === "issues" || c.state === "error")) &&
             <a className="btn secondary" href="/api/admin/security-report/" download><Icon name="send" />Download PDF: what to fix</a>}</div>
+        {(() => { const bad = (checks.data?.checks ?? []).filter((c) => c.state === "issues" || c.state === "error");
+          return (findings.length > 0 || bad.length > 0) && <p role="alert" className="error"><Icon name="lock" size={16} /> Problems found{bad.length ? `: ${bad.map((c) => c.label).join(", ")}` : ""}{findings.length ? `. ${findings.length} vulnerable packages` : ""}. Press Solve to start an automatic fix. Packages and simple code issues are fixed without AI; the rest are listed under each check for you to decide.</p>; })()}
         {solveLink && <p role="status" className="notice"><Icon name="check" size={16} /> Fix started. <a href={solveLink} target="_blank" rel="noreferrer">Watch it on GitHub</a>, then open the pull request it creates.</p>}
         <p className="muted">Checked automatically every day. The Administrators get a notification when a check newly finds issues.</p>
         <div className="scan-cards">{checks.data?.checks.map((c) => {
           const [tone, label] = STATE[c.state] ?? STATE.never;
           return (
-            <div key={c.key} className="scan-card">
+            <div key={c.key} className={`scan-card scan-state-${c.state}`}>
               <div className="scan-card-title"><strong>{c.label}</strong><span className={`badge ${tone}`}>{label}</span></div>
               <p className="muted">{c.about}</p>
               <p>{c.summary}</p>
@@ -86,7 +91,7 @@ export function SecurityScan() {
                 <details className="scan-items"><summary>Show the {c.items.length} issues to fix</summary>
                   <ul>{c.items.map((i, n) => (
                     <li key={n}><span className={`badge ${i.severity === "BLOCKER" || i.severity === "CRITICAL" ? "bad" : i.severity === "MAJOR" ? "warn" : "plain"}`}>{i.severity.toLowerCase()}</span>{" "}
-                      <a href={i.link} target="_blank" rel="noreferrer"><code>{i.file}{i.line ? `:${i.line}` : ""}</code></a><br /><small>{i.message}</small><br />
+                      {i.link ? <a href={i.link} target="_blank" rel="noreferrer"><code>{i.file}{i.line ? `:${i.line}` : ""}</code></a> : <code>{i.file}{i.line ? `:${i.line}` : ""}</code>}<br /><small>{i.message}</small><br />
                       <small className="scan-how"><strong>{i.verdict === "auto" ? "Solve can fix this." : i.verdict === "safe" ? "Safe to accept." : "Needs your decision."}</strong> {i.how}</small></li>))}</ul>
                 </details>)}
               {editing === c.key && (
@@ -100,7 +105,7 @@ export function SecurityScan() {
                     <button type="button" className="linklike" onClick={() => setEditing("")}>Cancel</button></div>
                 </form>)}
               <div className="scan-card-actions">
-                {c.state === "issues" && (c.key === "dependencies" || c.key === "sonarqube") && <button type="button" className="btn" disabled={!!running} onClick={() => void solve(c.key)}>{running === `solve-${c.key}` ? "Starting…" : "Solve"}</button>}
+                {c.state === "issues" && (c.key === "dependencies" || (c.key === "sonarqube" && !!c.items?.some((i) => i.verdict === "auto"))) && <button type="button" className="btn" disabled={!!running} onClick={() => setPendingSolve(c.key)}>{running === `solve-${c.key}` ? "Starting…" : "Solve"}</button>}
                 {c.configured && <button type="button" className="btn secondary" disabled={!!running} onClick={() => runCheck(c.key)}>{running === c.key ? "Checking…" : "Check now"}</button>}
                 {c.fields.length > 0 && editing !== c.key && <button type="button" className={c.configured ? "linklike" : "btn"} onClick={() => { setEditing(editing === c.key ? "" : c.key); setVals(Object.fromEntries(c.fields.map((f) => [f.key, f.value]))); }}>{c.configured ? "Edit settings" : "Set up"}</button>}
                 {c.link && <a href={c.link} target="_blank" rel="noreferrer">Open report</a>}
@@ -108,7 +113,7 @@ export function SecurityScan() {
             </div>);
         })}</div>
       </div>
-      <h3>Dependency details</h3>
+      <h3 className="scan-details-heading">Dependency details</h3>
       <div className="scan-bar">
         <button type="button" className="btn" disabled={busy} onClick={run}><Icon name="refresh" />{busy ? "Scanning…" : "Scan now"}</button>
         {cur?.scanned_at && <span className="muted">Last scan {fmt(cur.scanned_at)} · {cur.packages} packages{cur.frontend_included ? "" : " (backend only: the frontend package list is not available to this server)"}</span>}
@@ -135,6 +140,14 @@ export function SecurityScan() {
             <button type="button" className="btn secondary" onClick={() => copy(fixes.join("\n"))}><Icon name="check" />Copy all fix commands</button>
           </div>}
         </>)}
+      <Modal open={pendingSolve !== null} onClose={() => setPendingSolve(null)} title="Start automatic fix?" icon="gear">
+        <p>Solve starts an automatic fix on GitHub. It fixes this problem in a copy of the code and opens a pull request for you to review.</p>
+        <p className="notice"><Icon name="lock" size={16} />Nothing changes on the live system until you merge it and redeploy.</p>
+        <div className="modal-actions">
+          <button type="button" className="btn secondary" onClick={() => setPendingSolve(null)} autoFocus>Cancel</button>
+          <button type="button" className="btn" disabled={!!running} onClick={() => { if (pendingSolve !== null) void solve(pendingSolve); }}><Icon name="check" size={16} />Start fix</button>
+        </div>
+      </Modal>
     </section>
   );
 }

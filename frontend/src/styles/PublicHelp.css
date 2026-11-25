@@ -1,7 +1,0 @@
-.faq { padding: 0; overflow: hidden; margin-bottom: 10px; }
-.faq summary { display: flex; align-items: center; gap: 12px; padding: 16px 18px; font-weight: 700; list-style: none; }
-.faq summary::-webkit-details-marker { display: none; }
-.faq summary .chev { margin-left: auto; transition: transform .2s ease; color: var(--c-muted); }
-.faq[open] summary .chev { transform: rotate(90deg); }
-.faq[open] summary { background: var(--c-primary-soft); }
-.faq p { margin: 0; padding: 14px 18px 18px 64px; color: var(--c-muted); }

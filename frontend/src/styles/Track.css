@@ -266,3 +266,97 @@
 .tracking-additional-form .tracking-compact-upload input[type=file] { padding: 8px 10px; min-height: 36px; font-size: .75rem; border-radius: 7px; width: 100%; box-sizing: border-box; }
 .tracking-additional-form .tracking-compact-upload input[type=file]::file-selector-button { padding: 5px 8px; margin-right: 8px; font-size: .72rem; }
 .tracking-compact-upload .field small { font-size: .7rem; line-height: 1.6; }
+
+/* Track entry (find your complaint, then the emailed code): photo banner with the card resting on its lower edge. */
+.track-page:has(.track-entry-hero) { max-width: 1000px; padding-top: 16px; }
+.track-page .track-entry-hero { position: relative; isolation: isolate; overflow: hidden; max-width: none; margin: 0 0 -64px; padding: 34px 28px 92px; border-radius: 26px; text-align: center; color: #fff; background: #5c160d; box-shadow: 0 18px 44px rgba(92,22,13,.28); }
+.track-entry-hero::before { content: ""; position: absolute; inset: 0; z-index: -2; background: url(/hero.jpg) 58% 60% / cover no-repeat; }
+.track-entry-hero::after { content: ""; position: absolute; inset: 0; z-index: -1; background: linear-gradient(100deg, rgba(76,16,9,.95) 0%, rgba(122,32,14,.86) 45%, rgba(190,88,22,.5) 75%, rgba(30,100,58,.3) 100%); }
+.track-page .track-entry-hero .track-eyebrow { padding: 6px 14px; border-radius: 999px; background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.3); backdrop-filter: blur(8px); color: #fff; font-size: .66rem; letter-spacing: .13em; }
+.track-entry-hero .track-eyebrow .icon { color: var(--c-yellow); }
+.track-page .track-entry-hero h1 { color: #fff; font-size: clamp(1.9rem, 4vw, 2.7rem); line-height: 1.1; letter-spacing: -.03em; margin: 14px 0 10px; text-shadow: 0 2px 22px rgba(0,0,0,.25); }
+.track-page .track-entry-hero > p { max-width: 560px; margin: 0 auto; color: rgba(255,255,255,.93); font-size: 1rem; line-height: 1.6; }
+
+.track-page .track-search-card.track-lookup-card, .track-page .track-search-card.track-code-card { position: relative; max-width: 580px; padding: 32px; border: 1px solid #f0dfcf; border-top: 0; border-radius: 24px; background: #fff; box-shadow: 0 24px 60px rgba(92,40,10,.2); }
+.track-lookup-card::before, .track-code-card::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 6px; border-radius: 24px 24px 0 0; background: linear-gradient(90deg, #f58220, #ffe500 55%, #2f9e5f); }
+.track-page .track-lookup-icon, .track-page .track-code-icon { width: 60px; height: 60px; margin-bottom: 14px; border: 0; border-radius: 18px; color: #fff; background: linear-gradient(135deg, #f58220, #c95a12); box-shadow: 0 10px 22px rgba(201,90,18,.34); }
+.track-page .track-code-icon { background: linear-gradient(135deg, #2f9e5f, #1b7a48); box-shadow: 0 10px 22px rgba(27,122,72,.32); }
+.track-lookup-heading .tracking-eyebrow, .track-code-heading .tracking-eyebrow { display: inline-block; padding: 5px 12px; border-radius: 999px; background: #ffeedd; color: #b05717; font-size: .64rem; letter-spacing: .12em; }
+.track-page .track-lookup-heading h2, .track-page .track-code-heading h2 { margin: 12px 0 8px; font-size: 1.6rem; color: #2d1e13; }
+.track-page .track-lookup-heading p { font-size: .92rem; line-height: 1.6; }
+.track-page .track-lookup-card input { min-height: 56px; border: 1.5px solid #e2d2c4; border-radius: 14px; font-size: 1.02rem; }
+.track-page .track-lookup-card input:focus, .track-page .track-code-card input:focus { border-color: var(--c-primary); outline: 3px solid #fcebe0; outline-offset: 1px; }
+.track-page .track-lookup-card .field small { font-size: .8rem; line-height: 1.55; }
+.track-page .btn.track-lookup-submit, .track-page .btn.track-code-confirm { min-height: 54px; border: 0; border-radius: 14px; font-size: 1rem; font-weight: 700; color: #fff; background: linear-gradient(135deg, #f58220, #c95a12); box-shadow: 0 12px 26px rgba(201,90,18,.32); transition: transform .18s ease, box-shadow .18s ease; }
+.track-page .btn.track-code-confirm { background: linear-gradient(135deg, #2f9e5f, #1b7a48); box-shadow: 0 12px 26px rgba(27,122,72,.3); }
+.track-page .btn.track-lookup-submit:hover:not(:disabled), .track-page .btn.track-code-confirm:hover:not(:disabled) { transform: translateY(-2px); }
+.track-page .btn.track-lookup-submit:disabled, .track-page .btn.track-code-confirm:disabled { background: #d9c8b8; box-shadow: none; color: #fff; }
+.track-page .btn.track-lookup-submit:focus-visible, .track-page .btn.track-code-confirm:focus-visible { outline: 3px solid #fcd3ad; outline-offset: 3px; }
+.track-page .track-lookup-email { align-items: center; padding: 14px 16px; border: 0; border-radius: 14px; background: #e9f7ef; }
+.track-page .track-lookup-email > .icon { margin-top: 0; color: #1b7a48; }
+.track-page .track-lookup-email p { color: #24533a; font-size: .84rem; line-height: 1.5; }
+.track-page .track-lookup-new { padding-top: 16px; font-size: .9rem; }
+.track-page .track-lookup-new a { padding: 7px 14px; border-radius: 10px; background: #fff3e6; color: #b05717; }
+.track-page .track-lookup-new a:hover { text-decoration: none; background: #ffe6cc; }
+.track-page .track-code-reference { border-radius: 14px; background: #fff8ef; border-color: #f3e0c8; }
+.track-page .track-code-notice { border-radius: 14px; background: #fff3e6; }
+.track-page .track-code-card input.track-code-input { border-radius: 14px; border: 1.5px solid #e2d2c4; }
+@media (prefers-reduced-motion: reduce) { .track-page .btn.track-lookup-submit, .track-page .btn.track-code-confirm { transition: none; } }
+@media (max-width: 600px) {
+  .track-page:has(.track-entry-hero) { padding-top: 10px; }
+  .track-page .track-entry-hero { padding: 22px 18px 76px; border-radius: 20px; margin-bottom: -52px; }
+  .track-page .track-entry-hero > p { font-size: .9rem; }
+  .track-page .track-search-card.track-lookup-card, .track-page .track-search-card.track-code-card { padding: 24px 18px; border-radius: 20px; gap: 18px; }
+  .track-page .track-lookup-icon, .track-page .track-code-icon { width: 52px; height: 52px; margin-bottom: 10px; }
+  .track-page .track-lookup-heading h2, .track-page .track-code-heading h2 { font-size: 1.35rem; }
+}
+
+/* How to track: three steps, the current one highlighted */
+.track-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; list-style: none; margin: 4px 0 2px; padding: 0; position: relative; }
+.track-steps::before { content: ""; position: absolute; left: 16%; right: 16%; top: 17px; height: 2px; background: repeating-linear-gradient(to right, #e0a36d 0 6px, transparent 6px 12px); }
+.track-steps li { position: relative; display: flex; flex-direction: column; align-items: center; gap: 8px; text-align: center; }
+.track-steps li > span { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #fff; border: 2px solid #ecd9c6; color: #9a7a62; font-weight: 700; font-size: .9rem; z-index: 1; }
+.track-steps li > b { font-size: .76rem; font-weight: 600; line-height: 1.35; color: #8a7565; }
+.track-steps li.current > span { border-color: transparent; color: #fff; background: linear-gradient(135deg, #f58220, #c95a12); box-shadow: 0 0 0 5px #fff1e1, 0 8px 18px rgba(201,90,18,.34); }
+.track-steps li.current > b { color: #2d1e13; font-weight: 700; }
+.track-steps li.done > span { border-color: transparent; color: #fff; background: linear-gradient(135deg, #2f9e5f, #1b7a48); }
+.track-steps li.done > b { color: #1b6a3f; }
+@media (max-width: 440px) { .track-steps li > b { font-size: .68rem; } }
+/* The step guide above replaces the old "STEP 1 OF 2" tag (it counted two steps, the guide counts three). */
+.track-page .track-lookup-heading .tracking-eyebrow, .track-page .track-code-heading .tracking-eyebrow { display: none; }
+
+/* Match the complaint introduction with gentle, finite entrance animations. */
+@keyframes track-entry-reveal {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@keyframes track-entry-glow {
+  0%, 100% { box-shadow: 0 0 0 5px rgb(245 130 32 / 8%); }
+  50% { box-shadow: 0 0 0 10px rgb(245 130 32 / 18%); }
+}
+@keyframes track-entry-arrow {
+  0%, 65%, 100% { transform: translateX(0); }
+  80% { transform: translateX(4px); }
+}
+@keyframes track-entry-invite {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(245 130 32 / 0%); }
+  50% { box-shadow: 0 0 0 5px rgb(245 130 32 / 15%); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .track-entry-hero > .track-eyebrow { animation: track-entry-reveal .5s ease-out both; }
+  .track-entry-hero > h1 { animation: track-entry-reveal .6s .08s ease-out both; }
+  .track-entry-hero > p { animation: track-entry-reveal .6s .16s ease-out both; }
+  .track-search-card .track-steps li { animation: track-entry-reveal .55s .24s ease-out both; }
+  .track-search-card .track-steps li:nth-child(2) { animation-delay: .36s; }
+  .track-search-card .track-steps li:nth-child(3) { animation-delay: .48s; }
+  .track-search-card .track-steps li.current > span { animation: track-entry-glow 2s 1s ease-in-out 2; }
+  .track-lookup-heading, .track-code-heading { animation: track-entry-reveal .6s .4s ease-out both; }
+  .track-search-card > .field { animation: track-entry-reveal .6s .5s ease-out both; }
+  .track-lookup-submit, .track-code-confirm { animation: track-entry-invite 2s 1.4s ease-in-out 2; transition: transform .2s ease; }
+  .track-lookup-submit:not(:disabled) > .icon:last-child { animation: track-entry-arrow 2.5s 1.4s ease-in-out 2; }
+  .track-lookup-submit:not(:disabled):hover, .track-code-confirm:not(:disabled):hover { transform: translateY(-2px); }
+  .track-lookup-email { animation: track-entry-reveal .6s .65s ease-out both; }
+  .track-lookup-new { animation: track-entry-reveal .6s .75s ease-out both; }
+  .track-lookup-new a > .icon { transition: transform .2s ease; }
+  .track-lookup-new a:hover > .icon { transform: translateX(3px); }
+}

@@ -62,5 +62,5 @@ def apply_filters(qs, params, user=None):
         qs = qs.filter(created_at__date__lte=end)
     if p.get("q"):
         q = p["q"].strip()
-        qs = qs.filter(Q(reference__icontains=q) | Q(subject__icontains=q) | (Q(complainant_name__icontains=q) & Q(confidential=False)) | Q(platform__icontains=q))
+        qs = qs.filter(Q(reference__iexact=q) | Q(subject__icontains=q) | (Q(complainant_name__icontains=q) & Q(confidential=False)) | Q(platform__icontains=q))
     return qs

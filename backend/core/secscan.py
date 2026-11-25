@@ -25,12 +25,18 @@ CHECKS = [
     ("ci", "CI pipeline", "Result of the latest build and test run on GitHub Actions."),
     ("sonarqube", "SonarQube", "Code quality gate, bugs and security hotspots."),
     ("zap", "OWASP ZAP", "Alerts from the latest ZAP scan of the running site."),
+    ("django", "Server settings", "Django's own deployment security check: debug mode, secret key, HTTPS and cookie settings."),
+    ("headers", "Website security headers", "Whether the live site sends the headers that protect browsers (HTTPS, HSTS, CSP, frame and sniffing protection)."),
+    ("github", "GitHub alerts", "Open secret-scanning, Dependabot and code-scanning alerts on the repository."),
 ]
 SETUP = {
     "dependencies": "",
     "ci": "Enter the GitHub repository (and a token if it is private) to turn this check on.",
     "sonarqube": "Enter the SonarQube address, project key and token to turn this check on.",
     "zap": "Enter the ZAP address, the site it scans and the ZAP API key to turn this check on.",
+    "django": "",
+    "headers": "Enter the public address of the site to turn this check on.",
+    "github": "Enter the GitHub repository and an access token (with read access to security alerts) in the CI pipeline settings to turn this check on.",
 }
 
 
@@ -39,6 +45,7 @@ FIELDS = {
     "ci": [("GITHUB_REPO", "GitHub repository (owner/name)", False, "tchophel/bicma"), ("GITHUB_TOKEN", "Access token (only for a private repository)", True, "")],
     "sonarqube": [("SONARQUBE_URL", "SonarQube address", False, "https://sonar.example.bt"), ("SONARQUBE_PROJECT", "Project key", False, ""), ("SONARQUBE_TOKEN", "Access token", True, "")],
     "zap": [("ZAP_URL", "ZAP address", False, "http://zap:8080"), ("ZAP_TARGET", "Address ZAP scans (the site)", False, "https://cms.example.bt"), ("ZAP_API_KEY", "ZAP API key", True, "")],
+    "headers": [("SITE_URL", "Public address of the site", False, "https://cms.example.bt")],
 }
 
 
@@ -76,7 +83,8 @@ def fields_for(check):
 
 def configured(key):
     return {"dependencies": True, "ci": bool(_env("GITHUB_REPO")), "sonarqube": bool(_env("SONARQUBE_URL") and _env("SONARQUBE_PROJECT")),
-            "zap": bool(_env("ZAP_URL") and _env("ZAP_TARGET"))}[key]
+            "zap": bool(_env("ZAP_URL") and _env("ZAP_TARGET")), "django": True,
+            "headers": bool(_env("SITE_URL")), "github": bool(_env("GITHUB_REPO") and _env("GITHUB_TOKEN"))}[key]
 
 
 def _json(url, headers=None):
@@ -166,7 +174,65 @@ def _zap():
             "summary": f"{counts.get('High', 0)} high, {counts.get('Medium', 0)} medium, {counts.get('Low', 0)} low alerts"}
 
 
-RUN = {"dependencies": _dependencies, "ci": _ci, "sonarqube": _sonarqube, "zap": _zap}
+def _django():
+    """Run Django's `check --deploy` against the live settings. Warnings here are real configuration weaknesses."""
+    from django.core.checks import run_checks
+    msgs = run_checks(include_deployment_checks=True)
+    msgs = [m for m in msgs if m.level >= 30 and not m.is_silenced()]  # warnings and errors only
+    counts = {"errors": sum(m.level >= 40 for m in msgs), "warnings": sum(m.level < 40 for m in msgs)}
+    items = [{"verdict": "decide", "how": (m.hint or "See the Django deployment checklist."), "severity": "CRITICAL" if m.level >= 40 else "MAJOR", "type": "SETTING",
+              "file": "config/settings.py", "line": 0, "message": m.msg, "rule": m.id, "link": ""} for m in msgs]
+    n = len(msgs)
+    return {"state": "issues" if n else "ok", "counts": counts, "link": "", "items": items,
+            "summary": f"{n} server setting{'s' if n != 1 else ''} to fix" if n else "Server settings pass Django's deployment check"}
+
+
+def _headers():
+    """Fetch the public site and look for the standard protective headers."""
+    url = _env("SITE_URL")
+    if not url.startswith(("http://", "https://")):
+        url = "https://" + url
+    req = urllib.request.Request(url, headers={"User-Agent": "security-check"})
+    try:
+        resp = urllib.request.urlopen(req, timeout=20)
+    except urllib.error.HTTPError as exc:  # a 4xx page still carries headers
+        resp = exc
+    h = {k.lower(): v for k, v in resp.headers.items()}
+    problems = []
+
+    def need(ok, message, how, sev="MAJOR"):
+        if not ok:
+            problems.append({"verdict": "decide", "how": how, "severity": sev, "type": "HEADER", "file": url, "line": 0, "message": message, "rule": "header", "link": ""})
+    need(url.startswith("https://"), "The site is not served over HTTPS", "Serve the site over HTTPS only and redirect plain http to https.", "CRITICAL")
+    need("strict-transport-security" in h, "Strict-Transport-Security (HSTS) header is missing", "Add Strict-Transport-Security: max-age=31536000; includeSubDomains to the web server.")
+    need(h.get("x-content-type-options", "").lower() == "nosniff", "X-Content-Type-Options: nosniff is missing", "Add the header X-Content-Type-Options: nosniff.", "MINOR")
+    need("x-frame-options" in h or "frame-ancestors" in h.get("content-security-policy", ""), "Clickjacking protection is missing", "Add X-Frame-Options: DENY or a CSP frame-ancestors rule.")
+    need("content-security-policy" in h, "Content-Security-Policy header is missing", "Add a Content-Security-Policy that limits where scripts and other content may load from.")
+    need("referrer-policy" in h, "Referrer-Policy header is missing", "Add Referrer-Policy: strict-origin-when-cross-origin.", "MINOR")
+    need("server" not in h or not any(c.isdigit() for c in h["server"]), "The Server header shows the software version", "Hide the version (nginx: server_tokens off).", "MINOR")
+    n = len(problems)
+    return {"state": "issues" if n else "ok", "counts": {"missing": n}, "link": "", "items": problems,
+            "summary": f"{n} security header problem{'s' if n != 1 else ''} on {url}" if n else f"All the standard security headers are present on {url}"}
+
+
+def _github():
+    h = {"Accept": "application/vnd.github+json", "Authorization": f"Bearer {_env('GITHUB_TOKEN')}", "X-GitHub-Api-Version": "2022-11-28"}
+    repo = _env("GITHUB_REPO")
+    counts, notes = {}, []
+    for label, path in (("secrets", "secret-scanning"), ("dependabot", "dependabot"), ("code", "code-scanning")):
+        try:
+            counts[label] = len(_json(f"https://api.github.com/repos/{repo}/{path}/alerts?state=open&per_page=100", h))
+        except urllib.error.HTTPError as exc:  # 404/403 = feature off or token lacks permission
+            notes.append(f"{label} alerts unavailable (GitHub answered {exc.code})")
+    if not counts:
+        return {"state": "error", "counts": {}, "link": "", "summary": "; ".join(notes)}
+    total = sum(counts.values())
+    text = f"{counts.get('secrets', 0)} exposed secrets, {counts.get('dependabot', 0)} dependency alerts, {counts.get('code', 0)} code alerts"
+    return {"state": "issues" if total else "ok", "counts": counts, "link": f"https://github.com/{repo}/security",
+            "summary": text + (f" ({'; '.join(notes)})" if notes else "")}
+
+
+RUN = {"dependencies": _dependencies, "ci": _ci, "sonarqube": _sonarqube, "zap": _zap, "django": _django, "headers": _headers, "github": _github}
 
 
 def last(key):
@@ -234,6 +300,9 @@ TODO = {
     "ci": "Open the failing run on GitHub (link below), read the red step, fix the code or the test, and push again. The check turns green when the next run passes.",
     "sonarqube": "Open the project in SonarQube (link below), look at the failed conditions of the quality gate (bugs, vulnerabilities, security hotspots), fix those lines in the code and run the analysis again.",
     "zap": "Open the ZAP report (link below), start with the High and Medium alerts, fix each one in the code or the web server settings, and run the ZAP scan again.",
+    "django": "Open the list of server settings (Settings > Security scan) and set each one in the server environment or config/settings.py, then redeploy.",
+    "headers": "Add the missing headers in the web server (nginx) or the app settings, redeploy, then run the check again.",
+    "github": "Open the GitHub security page (link below). Rotate any exposed secret first, then update the vulnerable packages and fix the code alerts.",
     "dependencies": "Update the packages listed below to the shown version, run the tests, then rebuild and redeploy the images.",
 }
 ERROR_TODO = "The check could not run. In Settings > Security scan, open Edit settings and check the address, project and token, and make sure the tool is running and reachable from the server."

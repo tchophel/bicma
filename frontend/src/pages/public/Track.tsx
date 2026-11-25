@@ -28,6 +28,20 @@ function stageOf(status: string): { index: number; end: "" | "ok" | "bad" } {  /
   return { index: 1, end: "" };
 }
 
+/** The three steps to find a complaint, with the current one highlighted. */
+function TrackSteps({ at }: { at: 1 | 2 }) {
+  const steps = [{ icon: "search", text: "Enter your reference number or CID" }, { icon: "mail", text: "Enter the 6-digit code from your email" }, { icon: "check", text: "See your complaint's progress" }] as const;
+  return (
+    <ol className="track-steps" aria-label="How to track a complaint">
+      {steps.map((st, i) => (
+        <li key={st.text} className={i + 1 < at ? "done" : i + 1 === at ? "current" : ""} aria-current={i + 1 === at ? "step" : undefined}>
+          <span>{i + 1 < at ? <Icon name="check" size={16} /> : i + 1}</span><b>{st.text}</b>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
 export function Track() {
   const toast = useToast();
   const [preview, setPreview] = useState<TrackDocument | null>(null);
@@ -63,6 +77,11 @@ export function Track() {
     finally { setBusy(false); }
   }
   useEffect(() => { if (pre && token) void lookup(pre, token); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Coming from the home page with ?send=1: go straight to the code step. Done once, even when React runs effects twice in development.
+  const autoSent = useRef(false);
+  useEffect(() => {
+    if (sp.get("send") === "1" && pre && !token && !autoSent.current) { autoSent.current = true; void sendCode(); }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function sendCode(e?: FormEvent) {
     e?.preventDefault();
@@ -171,6 +190,7 @@ export function Track() {
       </header>
       {step === "id" ? (
         <form className="card track-search-card track-lookup-card" onSubmit={sendCode} aria-busy={busy} aria-labelledby="track-lookup-title">
+          <TrackSteps at={1} />
           <div className="track-lookup-heading"><span className="track-lookup-icon"><Icon name="search" size={25} /></span><span className="tracking-eyebrow">STEP 1 OF 2 · FIND YOUR COMPLAINT</span><h2 id="track-lookup-title">Let’s find your complaint</h2><p>Use your complaint reference or the CID provided when you submitted it.</p></div>
           <Field label="Reference number or CID" required hint="Find your reference in your confirmation email, or enter your 11-digit CID."><input required value={ref} onChange={(e) => setRef(e.target.value)} placeholder="e.g. 0009 or your 11-digit CID" autoComplete="off" spellCheck={false} aria-invalid={!!err} aria-describedby={err ? "track-error" : undefined} /></Field>
           {err && <p id="track-error" className="error" role="alert">{err}</p>}
@@ -180,6 +200,7 @@ export function Track() {
         </form>
       ) : (
         <form className="card track-search-card track-code-card" onSubmit={confirmCode} aria-labelledby="track-code-title" aria-busy={busy}>
+          <TrackSteps at={2} />
           <div className="track-code-heading">
             <span className="track-code-icon"><Icon name="mail" size={26} /></span>
             <span className="tracking-eyebrow">STEP 2 OF 2 · EMAIL VERIFICATION</span>

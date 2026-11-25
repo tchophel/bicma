@@ -297,3 +297,46 @@
 
 /* red required star on every label, including the declaration */
 .req { color: var(--c-accent); }
+
+/* Category names and descriptions need the full editor width on desktop. */
+.complaint-category-section > .row { grid-template-columns: minmax(0, 1fr); }
+.complaint-category-section > .row > .field { min-width: 0; }
+.complaint-category-section .catpick { width: 100%; }
+@media (min-width: 701px) {
+  .complaint-category-section .catpick-list { max-height: 400px; }
+  .complaint-category-section .catpick-option { padding: 14px 16px; }
+  .complaint-category-section .catpick-option-copy > span { font-size: .9rem; }
+  .complaint-category-section .catpick-option-copy small { max-width: 75ch; }
+}
+
+/* Same-issue notice in the form and on the "Complaint received" page */
+.similar-notice { display: flex; align-items: flex-start; gap: 14px; margin: 4px 0 16px; padding: 16px 18px; text-align: left; border-radius: 16px; background: #fff8e1; border: 1px solid #f3dc8a; color: #5c4600; }
+.similar-notice > span { display: grid; place-items: center; flex-shrink: 0; width: 42px; height: 42px; border-radius: 13px; background: linear-gradient(135deg, #f2b705, #cf9200); color: #fff; }
+.similar-notice strong { display: block; font-size: 1rem; color: #3f3000; }
+.similar-notice p { margin: 4px 0 0; font-size: .9rem; line-height: 1.55; }
+.similar-notice.many { background: #fff0e6; border-color: #f5c19a; color: #6b2f0a; }
+.similar-notice.many > span { background: linear-gradient(135deg, #f58220, #c95a12); }
+.similar-notice.many strong { color: #4a1f05; }
+.complaint-details .similar-notice { grid-column: 1 / -1; margin: 0 0 4px; }
+
+.similar-facts { list-style: none; display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 8px 0 4px; padding: 0; }
+.similar-facts li { padding: 3px 10px; border-radius: 999px; background: rgba(255,255,255,.75); border: 1px solid rgba(0,0,0,.08); font-size: .8rem; font-weight: 600; }
+.similar-about { margin: 8px 0 0 !important; font-size: .9rem !important; }
+.similar-topics li { background: #fff; border-color: rgba(0,0,0,.12); }
+
+.similar-result-label { display: block; margin-bottom: 6px; font-size: .75rem; font-weight: 700; }
+.similar-notice.no-matches { background: #f0f8f3; border-color: #cce3d3; color: #345a40; }
+.similar-notice.no-matches > span { background: #35754c; }
+.similar-notice.no-matches strong { color: #234b30; }
+
+.similar-complaint-summary { margin: 14px 0; padding: 14px 16px; border: 1px solid rgb(120 90 20 / 16%); border-radius: 10px; background: rgb(255 255 255 / 75%); }
+.similar-complaint-summary h4 { display: flex; align-items: center; gap: 7px; margin: 0 0 8px; font-size: .85rem; color: #564018; }
+.similar-complaint-summary h4 svg { flex-shrink: 0; }
+.similar-complaint-summary ul { margin: 10px 0; padding-left: 20px; font-size: .85rem; line-height: 1.7; }
+.similar-complaint-summary > small { display: block; margin-top: 10px; font-size: .72rem; line-height: 1.6; color: #776b51; }
+.similar-complaint-summary .similar-summary-note { font-size: .8rem; }
+
+/* Category and Division sit side by side in the category dialog (one column on phones) */
+.complaint-category-section .row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 4px 24px; align-items: start; }
+.complaint-category-section .row > .field { min-width: 0; margin-bottom: 8px; }
+@media (max-width: 640px) { .complaint-category-section .row { grid-template-columns: minmax(0, 1fr); } }

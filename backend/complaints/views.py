@@ -1,6 +1,7 @@
 import re
 
 from django.db import transaction
+from django.db.models import Count
 from django.http import FileResponse, Http404
 from django.utils import timezone
 from rest_framework import mixins, serializers, status, viewsets
@@ -86,7 +87,7 @@ class PublicSubmitView(APIView):
         if not captcha.verify(data.get("captcha_token"), data.get("captcha_answer")):
             return Response({"captcha_answer": ["The characters do not match. Please try again."]}, status=status.HTTP_400_BAD_REQUEST)
         complaint = services.create_complaint(ser.validated_data, channel=Channel.PORTAL, request=request, attachments=files)
-        return Response({"reference": complaint.reference}, status=status.HTTP_201_CREATED)
+        return Response({"reference": complaint.reference, **services.similar_summary_for(complaint)}, status=status.HTTP_201_CREATED)
 
 
 class PublicCidLookupView(APIView):
@@ -136,6 +137,42 @@ class PublicScanView(APIView):
                 msg = msg.strip().rstrip(".")
                 out.append({"name": f.name, "ok": False, "reason": msg[:1].upper() + msg[1:]})
         return Response({"results": out})
+
+
+class PublicSimilarView(APIView):
+    """Shown while the form is being filled in: how many people recently reported the same issue. A number only."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+    throttle_scope = "similar"
+
+    def get(self, request):
+        q = request.query_params
+        category, provider, sub = parse_uuid(q.get("category")), parse_uuid(q.get("provider")), parse_uuid(q.get("subcategory"))
+        response = Response(services.similar_summary(category, provider, (q.get("platform") or "").strip()[:150], sub, dzongkhag_id=parse_uuid(q.get("dzongkhag"))))
+        response["Cache-Control"] = "no-store"
+        return response
+
+
+class PublicStatsView(APIView):
+    """Home page numbers: how many complaints BICMA has received, resolved and still has pending. Counts only, no personal data."""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from django.core.cache import cache
+        data = cache.get("public_stats")
+        if data is None:
+            counts = {r["internal_status"]: r["n"] for r in Complaint.objects.exclude(internal_status=S.DRAFT).values("internal_status").annotate(n=Count("id"))}
+            total = sum(counts.values())
+            resolved = counts.get(S.RESOLVED, 0) + counts.get(S.CLOSED, 0)
+            outside = counts.get(S.NOT_WITHIN_MANDATE, 0)
+            data = {"total": total, "resolved": resolved, "pending": total - resolved - outside, "not_within_mandate": outside}
+            cache.set("public_stats", data, 300)
+        response = Response(data)
+        response["Cache-Control"] = "public, max-age=300"
+        return response
 
 
 class PublicCaptchaView(APIView):
@@ -719,7 +756,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
         """Similar open cases in this division, and which of them this case is already linked with."""
         c = self.get_object()
         if not (allowed_actions(request.user, c).get("save_findings") or allowed_actions(request.user, c).get("assign")):
-            return Response({"items": []})
+            return Response({"items": [], "total": 0})
         linked = set(CaseMessage.objects.filter(complaint=c, body__startswith="Linked with ").values_list("body", flat=True))
         items = []
         for score, o, why in services.similar_in_division(c, request.user):
@@ -729,7 +766,7 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
                 "why": why, "linked": any(b.startswith(f"Linked with {o.reference}") for b in linked),
                 "has_resolution": bool(o.investigation_findings and o.action_taken),
             })
-        return Response({"items": items})
+        return Response({"items": items, "total": services.similar_total(c), "days": services.SIMILAR_DAYS})
 
     @action(detail=True, methods=["post"], url_path="link-similar")
     def link_similar(self, request, pk=None):
@@ -1022,7 +1059,7 @@ class AdminUploadsView(APIView):
         qs = Attachment.objects.select_related("complaint", "uploaded_by").order_by("-created_at")
         q = request.query_params.get("q", "").strip()
         if q:
-            qs = qs.filter(Q(original_name__icontains=q) | Q(complaint__reference__icontains=q))
+            qs = qs.filter(Q(original_name__icontains=q) | Q(complaint__reference__iexact=q))
         if request.query_params.get("visibility") in ("public", "internal"):
             qs = qs.filter(visibility=request.query_params["visibility"])
         totals = Attachment.objects.aggregate(count=Count("id"), bytes=Sum("size"))
@@ -1039,6 +1076,55 @@ class AdminUploadsView(APIView):
             "results": [{
                 "id": str(a.pk), "name": a.original_name, "size": a.size, "visibility": a.visibility, "created_at": a.created_at,
                 "complaint": str(a.complaint_id), "reference": a.complaint.reference,
+                "scan_status": a.scan_status, "scan_detail": a.scan_detail, "scanned_at": a.scanned_at,
                 "uploaded_by": (a.uploaded_by.get_full_name() or a.uploaded_by.email) if a.uploaded_by else "Complainant",
             } for a in rows],
         })
+
+
+class AdminDocumentScanView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request, pk):
+        from pathlib import Path
+        from django.shortcuts import get_object_or_404
+        from accounts.permissions import has_role
+        from core import filescan
+        if not has_role(request.user, Role.SUPER_ADMIN):
+            return Response({"detail": "Not permitted."}, status=403)
+        attachment = get_object_or_404(Attachment, pk=pk)
+        try:
+            with attachment.file.open("rb") as file:
+                antivirus = filescan.scan(file, Path(attachment.original_name).suffix.lstrip(".").lower())
+            state = "clean" if antivirus else "basic"
+            detail = "No threats found by antivirus." if antivirus else "Basic file checks passed; antivirus was not available."
+        except filescan.Unsafe as reason:
+            state, detail = ("error" if "could not be checked" in str(reason) else "blocked"), str(reason)
+        except Exception:
+            state, detail = "error", "Could not complete the scan. Please try again."
+        attachment.scan_status = state
+        attachment.scan_detail = detail[:300]
+        attachment.scanned_at = timezone.now()
+        attachment.save(update_fields=["scan_status", "scan_detail", "scanned_at"])
+        audit.log(request, "attachment.scan", entity_type="attachment", entity_id=attachment.pk, detail={"status": state})
+        return Response({"scan_status": state, "scan_detail": detail, "scanned_at": attachment.scanned_at})
+
+
+class AdminUnsafeDocumentDeleteView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, pk):
+        from django.shortcuts import get_object_or_404
+        from accounts.permissions import has_role
+        if not has_role(request.user, Role.SUPER_ADMIN):
+            return Response({"detail": "Not permitted."}, status=403)
+        with transaction.atomic():
+            attachment = get_object_or_404(Attachment.objects.select_for_update(), pk=pk)
+            if attachment.scan_status != "blocked":
+                return Response({"detail": "Only documents flagged as unsafe can be deleted here."}, status=400)
+            storage, name = attachment.file.storage, attachment.file.name
+            audit.log(request, "attachment.delete_unsafe", entity_type="attachment", entity_id=attachment.pk,
+                      detail={"complaint": str(attachment.complaint_id), "name": attachment.original_name, "reason": attachment.scan_detail})
+            attachment.delete()
+            transaction.on_commit(lambda: storage.delete(name))
+        return Response(status=204)

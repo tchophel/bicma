@@ -12,7 +12,7 @@ spec:
       imagePullSecrets: [{ name: harbor-secret }]
       containers:
         - name: web
-          image: dev-harbor.systems.gov.bt/bcs/cms-frontend:v13
+          image: dev-harbor.systems.gov.bt/bcs/cms-frontend:v14
           ports: [{ containerPort: 8080 }]
           resources: { requests: { cpu: 10m, memory: 32Mi }, limits: { memory: 256Mi, ephemeral-storage: 512Mi } }
 ---

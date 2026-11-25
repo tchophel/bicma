@@ -9,6 +9,7 @@ import { Field } from "../../components/ui";
 import { useToast } from "../../components/Toast";
 import { AuditLogs } from "./AuditLogs";
 import { ApiStatus } from "../../components/ApiStatus";
+import "../../styles/MasterTheme.css";
 
 type Kind = "audit" | "api" | "email" | "sms";
 const TABS: { key: Kind; label: string }[] = [
@@ -25,7 +26,7 @@ export function Logs() {
   const [sp, setSp] = useSearchParams();
   const tab = (TABS.find((t) => t.key === sp.get("tab"))?.key ?? "audit") as Kind;
   return (
-    <>
+    <div className="master-page">
       <PageHeader icon="history" title="Logs" subtitle="Audit trail, calls to the external APIs (DCRC and ZESt) with their up and down status, emails sent through SMTP, and SMS. Message bodies, tokens and query values are never stored." />
       <div role="tablist" aria-label="Log type" style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "0 0 16px" }}>
         {TABS.map((t) => (
@@ -33,7 +34,7 @@ export function Logs() {
         ))}
       </div>
       {tab === "audit" ? <AuditLogs embedded /> : tab === "api" ? <><ApiStatus /><LogTable key={tab} kind={tab} /></> : <LogTable key={tab} kind={tab} />}
-    </>
+    </div>
   );
 }
 

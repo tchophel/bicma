@@ -376,6 +376,88 @@ def find_duplicates(data, exclude=None):
     return out[:5]
 
 
+SIMILAR_DAYS = 90
+
+
+def _similar_qs(category_id, provider_id=None, platform="", subcategory_id=None, exclude=None, days=SIMILAR_DAYS, dzongkhag_id=None):
+    from datetime import timedelta
+    from django.utils import timezone
+    if not category_id:
+        return Complaint.objects.none()
+    qs = (Complaint.objects.filter(category_id=category_id, created_at__gte=timezone.now() - timedelta(days=days))
+          .exclude(internal_status__in=[S.DRAFT, S.NOT_WITHIN_MANDATE]))
+    if exclude is not None:
+        qs = qs.exclude(pk=exclude)
+    if dzongkhag_id:
+        qs = qs.filter(dzongkhag_id=dzongkhag_id)  # only people in the same Dzongkhag
+    if provider_id:
+        return qs.filter(provider_id=provider_id)
+    if platform:
+        return qs.filter(platform__iexact=platform)
+    if subcategory_id:
+        return qs.filter(subcategory_id=subcategory_id)
+    return Complaint.objects.none()
+
+
+def similar_count(category_id, provider_id=None, platform="", subcategory_id=None, exclude=None, days=SIMILAR_DAYS):
+    """How many people recently complained about the same issue: same category and the same provider (or platform;
+    without either, the same sub-category), in the last `days` days, anywhere in BICMA."""
+    return _similar_qs(category_id, provider_id, platform, subcategory_id, exclude, days).count()
+
+
+NOT_A_TOPIC = {"remedy", "language", "voting_method", "show"}
+
+
+def _topics(category_id, qs, limit=3):
+    """What the others complained about, from the ticked options and chosen answers of the category's questions (fixed lists,
+    never the text people typed, which could identify them)."""
+    from collections import Counter
+    from core.formspecs import spec_for
+    from core.models import Category
+    cat = Category.objects.filter(pk=category_id).select_related("default_division").first()
+    from core.formspecs import custom_fields_for
+    spec = spec_for(cat) if cat else None
+    fields = (spec["fields"] if spec else []) + (custom_fields_for(cat) if cat else [])
+    keys = {f["key"]: set(f.get("options") or []) for f in fields if f.get("type") in ("select", "checks") and f["key"] not in NOT_A_TOPIC}
+    if not keys:
+        return []
+    seen = Counter()
+    for details in qs.values_list("details", flat=True)[:300]:
+        for key, options in keys.items():
+            val = (details or {}).get(key)
+            for item in (val if isinstance(val, list) else [val]):
+                if isinstance(item, str) and item in options and not item.lower().startswith("other"):
+                    seen[item] += 1
+    return [{"label": k, "count": n} for k, n in seen.most_common(limit)]
+
+
+def similar_summary(category_id, provider_id=None, platform="", subcategory_id=None, exclude=None, days=SIMILAR_DAYS, dzongkhag_id=None):
+    """A short, non-identifying summary shown to the public about people in the SAME Dzongkhag with the same issue: how many, what
+    they complained about (from fixed answer lists), how long ago the latest was and how many are resolved. Never subjects, names
+    or contact details, because those are free text written by people."""
+    from django.utils import timezone
+    qs = _similar_qs(category_id, provider_id, platform, subcategory_id, exclude, days, dzongkhag_id)
+    n = qs.count()
+    if not n:
+        return {"similar": 0, "days": days}
+    latest = qs.order_by("-created_at").values_list("created_at", flat=True).first()
+    resolved = qs.filter(internal_status__in=[S.RESOLVED, S.CLOSED]).count()
+    first = qs.select_related("category", "provider", "dzongkhag").first()
+    return {"similar": n, "days": days, "latest_days_ago": max(0, (timezone.now() - latest).days), "resolved": resolved, "in_progress": n - resolved,
+            "about": first.category.name if first and first.category else "", "provider": (first.provider.name if first and first.provider_id else (platform or "")),
+            "dzongkhag": first.dzongkhag.name if dzongkhag_id and first and first.dzongkhag else "", "topics": _topics(category_id, qs)}
+
+
+def similar_total(complaint, days=SIMILAR_DAYS):
+    """The same count for a complaint that already exists (it is not counted against itself)."""
+    return similar_count(complaint.category_id, complaint.provider_id, complaint.platform, complaint.subcategory_id, exclude=complaint.pk, days=days)
+
+
+def similar_summary_for(complaint, days=SIMILAR_DAYS):
+    return similar_summary(complaint.category_id, complaint.provider_id, complaint.platform, complaint.subcategory_id, exclude=complaint.pk, days=days,
+                           dzongkhag_id=complaint.dzongkhag_id)
+
+
 def similar_in_division(complaint, user):
     """Other open cases in the same division that look like this one: same category, then the same
     provider (or platform) and sub-category rank higher. Anyone in the division is told a similar case exists

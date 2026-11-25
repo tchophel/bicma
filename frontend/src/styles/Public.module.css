@@ -45,3 +45,34 @@
 .footCopy { text-align: center; }
 .footCredit { justify-self: end; text-align: right; }
 @media (max-width: 900px) { .footInner { grid-template-columns: 1fr; justify-items: center; text-align: center; } .footCredit { justify-self: center; text-align: center; } .footBrand { justify-content: center; } }
+
+/* Compact public header with a full-width menu on phones and tablets. */
+@media (max-width: 1100px) {
+  .strip { height: 5px; }
+  .bar { display: grid; grid-template-columns: minmax(0, 1fr) 44px; padding: 12px 20px; gap: 12px; }
+  .brand { min-width: 0; flex-shrink: 1; gap: 10px; padding-right: 0; border: 0; }
+  .brand img { width: 44px; height: 44px; flex-shrink: 0; }
+  .brand span { min-width: 0; white-space: normal; }
+  .brand strong { font-size: 1.05rem; line-height: 1.35; }
+  .brand small { margin-top: 3px; font-size: .7rem; line-height: 1.5; }
+  .menuBtn { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; margin: 0; padding: 0; border: 1px solid #e6d5c7; border-radius: 11px; background: #fff8f1; }
+  .menuBtn[aria-expanded="true"] { background: var(--c-primary-soft); border-color: var(--c-primary); }
+  .nav, .staff { display: none; }
+  .open .nav { grid-column: 1 / -1; display: flex; flex-direction: column; align-items: stretch; gap: 5px; padding-top: 12px; border-top: 1px solid var(--c-border); order: initial; }
+  .nav a { display: flex; gap: 12px; min-height: 46px; box-sizing: border-box; padding: 12px 14px; border-radius: 10px; font-size: .9rem; white-space: normal; }
+  .nav a svg { flex-shrink: 0; }
+  .open .staff { grid-column: 1 / -1; display: flex; align-items: center; justify-content: center; width: 100%; box-sizing: border-box; min-height: 46px; margin: 0 0 2px; padding: 12px 14px; font-size: .9rem; border-radius: 10px; order: initial; }
+}
+@media (max-width: 480px) {
+  .bar { padding: 12px; gap: 10px; }
+  .brand img { width: 40px; height: 40px; }
+  .brand strong { font-size: .9rem; }
+  .brand small { font-size: .64rem; max-width: 29ch; }
+}
+@media (max-width: 360px) {
+  .brand { gap: 8px; }
+  .brand img { width: 36px; height: 36px; }
+  .brand strong { font-size: .82rem; }
+  .brand small { font-size: .6rem; }
+}
+.menuBtn:focus-visible, .nav a:focus-visible, .staff:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 3px; }

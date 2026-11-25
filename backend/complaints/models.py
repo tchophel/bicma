@@ -3,6 +3,7 @@ from django.db import models, transaction
 from django.db.models import Q
 
 from core.base import UUIDModel
+from core.fields import EncryptedCharField, EncryptedEmailField
 from core.models import (
     Category, Dzongkhag, ImmutableQuerySet, Outcome, Priority, Provider, ProviderType, Subcategory, SystemConfiguration,
 )
@@ -90,7 +91,7 @@ class ComplaintQuerySet(models.QuerySet):
 
 
 class Complaint(UUIDModel):
-    reference = models.CharField(max_length=40, unique=True, editable=False)
+    reference = EncryptedCharField(max_length=40, unique=True, editable=False, purpose="ref")
     channel = models.CharField(max_length=20, choices=Channel.choices, default=Channel.PORTAL)
 
     # complainant
@@ -98,7 +99,7 @@ class Complaint(UUIDModel):
     complainant_type = models.CharField(
         max_length=12, default="individual",
         choices=[("individual", "Individual"), ("firm", "Firm"), ("institute", "Institute"), ("agency", "Agency")])
-    cid = models.CharField(max_length=20, blank=True, help_text="CID for an individual; registration or licence number otherwise")
+    cid = EncryptedCharField(max_length=20, blank=True, purpose="cid", help_text="CID for an individual; registration or licence number otherwise")
     complaining_for = models.CharField(max_length=20, default="self", help_text="self, or who the complaint is made for")
     other_party_name = models.CharField(max_length=200, blank=True, help_text="Name of the other concerned party when not complaining for self")
     authorised_to_act = models.CharField(max_length=3, blank=True, choices=[("yes", "Yes"), ("no", "No")],
@@ -107,8 +108,8 @@ class Complaint(UUIDModel):
     agency_name = models.CharField(max_length=150, blank=True, help_text="Name of the agency when the complainant is an agency")
     present_address = models.TextField(blank=True, help_text="Present address (media content complaints)")
     confidential = models.BooleanField(default=False, help_text="Complainant asked to keep their identity confidential")
-    phone = models.CharField(max_length=30, blank=True)
-    email = models.EmailField(blank=True)
+    phone = EncryptedCharField(max_length=30, blank=True, purpose="phone")
+    email = EncryptedEmailField(blank=True, purpose="email")
     dzongkhag = models.ForeignKey(Dzongkhag, null=True, blank=True, on_delete=models.PROTECT, related_name="complaints")
     preferred_contact = models.CharField(
         max_length=10, choices=[("email", "Email"), ("sms", "SMS"), ("phone", "Phone")], default="email"
@@ -182,6 +183,13 @@ class Complaint(UUIDModel):
             models.Index(fields=["assigned_to", "internal_status"]),
             models.Index(fields=["category"]),
         ]
+
+    def save(self, *args, **kwargs):
+        from core.utils import proper_name
+        if self.complainant_type == "individual":  # a firm or agency keeps its own spelling (acronyms)
+            self.complainant_name = proper_name(self.complainant_name)
+        self.affected_name = proper_name(self.affected_name)
+        super().save(*args, **kwargs)
 
     def __str__(self):
         return self.reference
@@ -332,6 +340,9 @@ def attachment_path(instance, filename):
 
 
 class Attachment(UUIDModel):
+    scan_status = models.CharField(max_length=16, default="unknown")
+    scan_detail = models.CharField(max_length=300, blank=True)
+    scanned_at = models.DateTimeField(null=True, blank=True)
     complaint = models.ForeignKey(Complaint, on_delete=models.PROTECT, related_name="attachments")
     message = models.ForeignKey(CaseMessage, null=True, blank=True, on_delete=models.PROTECT, related_name="attachments")
     file = models.FileField(upload_to=attachment_path)
@@ -342,6 +353,8 @@ class Attachment(UUIDModel):
     visibility = models.CharField(max_length=10, choices=CaseMessage.Visibility.choices, default=CaseMessage.Visibility.INTERNAL)
     uploaded_by = models.ForeignKey(settings.AUTH_USER_MODEL, null=True, blank=True, on_delete=models.PROTECT, related_name="+")
     created_at = models.DateTimeField(auto_now_add=True)
+    compressed_at = models.DateTimeField(null=True, blank=True, help_text="When the picture was optimised after the case was resolved")
+    original_size = models.PositiveIntegerField(null=True, blank=True, help_text="Size in bytes before it was optimised")
 
     class Meta:
         ordering = ["created_at", "id"]
@@ -386,6 +399,8 @@ class FollowUpFile(UUIDModel):
     original_name = models.CharField(max_length=255)
     size = models.PositiveIntegerField(default=0)
     content_type = models.CharField(max_length=100, blank=True)
+    compressed_at = models.DateTimeField(null=True, blank=True)
+    original_size = models.PositiveIntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ["original_name", "id"]

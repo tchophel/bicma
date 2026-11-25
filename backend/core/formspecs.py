@@ -325,3 +325,37 @@ def slot_label(spec, key):
             if old["key"] == key:
                 return old["label"]
     return key
+
+
+# ---- Questions an Administrator adds in the form builder (core.FormQuestion), on top of the fixed ones above ----
+
+def custom_fields_for(category):
+    """The active custom questions for a category: those of its division that apply to every category, plus its own."""
+    from django.db.models import Q
+    from core.models import FormQuestion
+    if category is None or not category.default_division_id:
+        return []
+    qs = (FormQuestion.objects.filter(is_active=True, division_id=category.default_division_id).filter(Q(category__isnull=True) | Q(category_id=category.pk))
+          .order_by("position", "created_at"))
+    out = []
+    for q in qs:
+        item = {"key": q.key, "label": q.label, "type": q.kind, "required": q.required}
+        if q.kind in ("select", "checks"):
+            item["options"] = list(q.options or [])
+        elif q.kind == "yesno":
+            item["options"] = YES_NO
+        if q.hint:
+            item["hint"] = q.hint
+        out.append(item)
+    return out
+
+
+def validate_custom(category, details):
+    """{field: message} for the custom questions (same rules as the fixed ones)."""
+    fields = custom_fields_for(category)
+    return validate({"fields": fields, "docs": []}, details, set()) if fields else {}
+
+
+def label_custom(category, details):
+    fields = custom_fields_for(category)
+    return label_details({"fields": fields}, details) if fields else []

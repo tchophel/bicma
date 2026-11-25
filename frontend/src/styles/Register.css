@@ -1,0 +1,64 @@
+/* Staff "Register a complaint": same brand look as the complaints list, with motion. */
+@keyframes rg-down { from { opacity: 0; transform: translateY(-14px); } to { opacity: 1; transform: none; } }
+@keyframes rg-up { from { opacity: 0; transform: translateY(18px); } to { opacity: 1; transform: none; } }
+@keyframes rg-pop { 0% { opacity: 0; transform: scale(.7); } 70% { transform: scale(1.05); } 100% { opacity: 1; transform: none; } }
+@keyframes rg-glow { 0%, 100% { box-shadow: 0 12px 26px rgba(201,90,18,.34); } 50% { box-shadow: 0 12px 34px rgba(245,130,32,.62); } }
+@keyframes rg-shine { from { transform: translateX(-120%) skewX(-18deg); } to { transform: translateX(260%) skewX(-18deg); } }
+@keyframes rg-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes rg-bar { from { background-position: 0 0; } to { background-position: 200% 0; } }
+
+.register-page > .page-head { position: relative; isolation: isolate; overflow: hidden; display: flex; align-items: center; gap: 16px; flex-wrap: wrap; padding: 24px 28px; margin-bottom: 18px; border-radius: 22px; color: #fff;
+  background: linear-gradient(100deg, #5c160d 0%, #8a2a10 45%, #c95a12 100%); box-shadow: 0 16px 38px rgba(92,22,13,.25); animation: rg-down .55s ease both; }
+.register-page > .page-head::after { content: ""; position: absolute; right: -60px; top: -80px; width: 260px; height: 260px; border-radius: 50%; z-index: -1; background: radial-gradient(circle, rgba(255,229,0,.28), transparent 70%); }
+.register-page > .page-head .icon-tile { background: rgba(255,255,255,.16); color: var(--c-yellow); border: 1px solid rgba(255,255,255,.3); backdrop-filter: blur(6px); animation: rg-float 3.4s ease-in-out infinite; }
+.register-page > .page-head h1 { color: #fff; text-shadow: 0 2px 16px rgba(0,0,0,.25); }
+.register-page > .page-head p { color: rgba(255,255,255,.9); }
+
+.register-page .complaint-form { border: 1px solid #f0dfcf; border-radius: 22px; background: #fff; box-shadow: 0 14px 38px rgba(120,60,20,.1); overflow: hidden; animation: rg-up .6s .1s ease both; }
+.register-page .complaint-form > .muted { padding: 10px 28px; background: #fff8f0; border-bottom: 1px solid #f6e8da; color: #8a6a52; font-size: .82rem; }
+
+/* Section 01 */
+.register-page .form-section { border-bottom: 1px solid #f6e8da; animation: rg-up .6s .25s ease both; }
+.register-page .form-section-icon { background: linear-gradient(135deg, #f58220, #c95a12); color: #fff; border: 0; border-radius: 14px; box-shadow: 0 8px 18px rgba(201,90,18,.3); }
+.register-page .form-section-step { display: inline-block; padding: 4px 11px; border-radius: 999px; background: #ffeedd; color: #b05717; font-size: .66rem; font-weight: 700; letter-spacing: .12em; }
+.register-page .form-section h2 { color: #2d1e13; }
+.register-page .complaint-form input, .register-page .complaint-form select, .register-page .complaint-form textarea { border: 1.5px solid #e6d6c7; border-radius: 12px; transition: border-color .15s ease, box-shadow .15s ease; }
+.register-page .complaint-form input:hover, .register-page .complaint-form select:hover, .register-page .complaint-form textarea:hover { border-color: #f0b27a; }
+.register-page .complaint-form input:focus, .register-page .complaint-form select:focus, .register-page .complaint-form textarea:focus { border-color: #f58220; box-shadow: 0 0 0 4px #ffe9d2; outline: none; }
+
+/* Start card */
+.register-page .category-summary { position: relative; display: flex; flex-wrap: wrap; align-items: center; gap: 16px 20px; margin: 0; padding: 30px 28px 32px; border: 0; border-radius: 0; box-shadow: none;
+  background: radial-gradient(110% 100% at 100% 0%, #fff0dc 0%, #fff 55%); animation: rg-up .6s .4s ease both; }
+.register-page .category-summary::before { content: ""; position: absolute; left: 0; right: 0; top: 0; height: 5px; background: linear-gradient(90deg, #f58220, #ffe500, #2f9e5f, #f58220); background-size: 200% 100%; animation: rg-bar 6s linear infinite; }
+.register-page .category-summary-icon { width: 60px; height: 60px; display: grid; place-items: center; flex-shrink: 0; border: 0; border-radius: 18px; color: #fff; background: linear-gradient(135deg, #2f9e5f, #1b7a48); box-shadow: 0 10px 22px rgba(27,122,72,.32); animation: rg-pop .6s .6s ease both, rg-float 3.4s 1.2s ease-in-out infinite; }
+.register-page .category-summary-copy { flex: 1; min-width: 220px; }
+.register-page .category-summary .form-section-step { display: inline-block; padding: 4px 11px; border-radius: 999px; background: #ffeedd; color: #b05717; font-size: .66rem; letter-spacing: .12em; margin-bottom: 8px; }
+.register-page .category-summary-copy h2 { margin: 0; font-size: clamp(1.5rem, 2.6vw, 2rem); line-height: 1.15; letter-spacing: -.03em; color: #2d1e13; }
+.register-page .category-summary-copy p { margin: 8px 0 0; color: var(--c-muted); font-size: .98rem; }
+.register-page .category-summary-intro { width: 100%; margin: 0; color: #5b4a3e; font-size: 1rem; line-height: 1.6; }
+.register-page .category-summary-journey { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; width: 100%; margin: 2px 0 0; padding: 0; border: 0; list-style: none; }
+.register-page .category-summary-journey li { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border: 1px solid #f0dfcf; border-radius: 14px; background: #fff; color: #3a2a1c; font-size: .9rem; font-weight: 600; opacity: 0; animation: rg-pop .5s ease both; transition: transform .18s ease, box-shadow .18s ease; }
+.register-page .category-summary-journey li:nth-child(1) { animation-delay: .7s; } .register-page .category-summary-journey li:nth-child(2) { animation-delay: .85s; } .register-page .category-summary-journey li:nth-child(3) { animation-delay: 1s; }
+.register-page .category-summary-journey li:hover { transform: translateY(-3px); box-shadow: 0 10px 20px rgba(120,60,20,.12); }
+.register-page .category-summary-journey li > span { display: grid; place-items: center; width: 28px; height: 28px; border: 0; border-radius: 50%; background: #ffeedd; color: #b05717; font-size: .8rem; }
+.register-page .category-summary-journey li:first-child { border-color: #f5b77a; background: #fff8ef; }
+.register-page .category-summary-journey li:first-child > span { background: linear-gradient(135deg, #f58220, #c95a12); color: #fff; }
+.register-page .category-summary-actions { width: 100%; }
+.register-page .category-summary-actions .btn { position: relative; overflow: hidden; display: inline-flex; align-items: center; gap: 10px; min-height: 52px; padding: 12px 28px; border: 0; border-radius: 14px; font-size: 1.02rem; font-weight: 700; color: #fff;
+  background: linear-gradient(135deg, #f58220, #c95a12); box-shadow: 0 12px 26px rgba(201,90,18,.34); animation: rg-glow 3s 1.4s ease-in-out infinite; transition: transform .18s ease; }
+.register-page .category-summary-actions .btn::after { content: ""; position: absolute; top: 0; bottom: 0; left: 0; width: 40%; background: rgba(255,255,255,.5); transform: translateX(-120%) skewX(-18deg); }
+.register-page .category-summary-actions .btn:hover { transform: translateY(-2px); }
+.register-page .category-summary-actions .btn:hover::after { animation: rg-shine .8s ease; }
+.register-page .category-summary-actions .btn:focus-visible { outline: 3px solid #fcd3ad; outline-offset: 3px; }
+
+@media (prefers-reduced-motion: reduce) {
+  .register-page > .page-head, .register-page > .page-head .icon-tile, .register-page .complaint-form, .register-page .form-section, .register-page .category-summary,
+  .register-page .category-summary::before, .register-page .category-summary-icon, .register-page .category-summary-journey li, .register-page .category-summary-actions .btn { animation: none; opacity: 1; }
+  .register-page .category-summary-journey li, .register-page .category-summary-actions .btn, .register-page .complaint-form input { transition: none; }
+}
+@media (max-width: 700px) {
+  .register-page > .page-head { padding: 20px 18px; border-radius: 18px; }
+  .register-page .category-summary { padding: 24px 18px 26px; }
+  .register-page .category-summary-journey { grid-template-columns: minmax(0, 1fr); }
+  .register-page .category-summary-actions .btn { width: 100%; justify-content: center; }
+}

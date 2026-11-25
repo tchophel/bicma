@@ -83,7 +83,7 @@ Internal: `GET /api/complaints/` (filters: scope, status, category, division, ch
 Super Admin: `/api/admin/{users,divisions,categories,subcategories}/` (create/read/update only), `GET /api/admin/audit-logs/`.
 
 ## 8. Frontend information architecture
-Public: Home, Submit, Submission confirmation, Track (+status), Help/FAQ. Internal: Login, Complaints list, Complaint detail, Register, Users, Divisions, Categories, Audit logs. Only pages that work are in the navigation.
+Public: Home, Submit, Submission confirmation, Track (+status). Internal: Login, Complaints list, Complaint detail, Register, Users, Divisions, Categories, Audit logs. Only pages that work are in the navigation.
 
 ## 9. Security & privacy risks and status
 | Risk | Control | Status |

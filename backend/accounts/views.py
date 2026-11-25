@@ -61,15 +61,10 @@ class LoginView(APIView):
         email = str(request.data.get("email", "")).strip().lower()
         password = str(request.data.get("password", ""))
         key = f"login_fail:{email}"
-        if email and "@" not in email:  # BRD: the username is the CID
-            match = User.objects.filter(cid=email).values_list("email", flat=True).first()
-            email_for_auth = match or email
-        else:
-            email_for_auth = email
         if cache.get(key, 0) >= MAX_FAILURES:
             audit.log(request, "auth.login_locked", detail={"email": email[:254]})
             return Response({"detail": f"Too many failed attempts. This account is locked for {LOCKOUT_SECONDS // 60} minutes. Try again later."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
-        user = authenticate(request, username=email_for_auth, password=password)
+        user = authenticate(request, username=email, password=password)
         if user is None or not user.is_active:
             fails = cache.get(key, 0) + 1
             cache.set(key, fails, LOCKOUT_SECONDS)
@@ -77,7 +72,7 @@ class LoginView(APIView):
             left = MAX_FAILURES - fails
             more = (f" {left} attempt{'s' if left != 1 else ''} left before the account is locked for {LOCKOUT_SECONDS // 60} minutes."
                     if left > 0 else f" The account is now locked for {LOCKOUT_SECONDS // 60} minutes.")
-            return Response({"detail": "Invalid username or password." + more}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"detail": "Invalid email or password." + more}, status=status.HTTP_400_BAD_REQUEST)
         cache.delete(key)
         login(request, user)
         request.session.set_expiry(settings.REMEMBER_ME_AGE if request.data.get("remember_me") is True else 0)
@@ -108,6 +103,7 @@ class GoogleStartView(APIView):
             return Response({"detail": "Sign in with Google is not turned on."}, status=status.HTTP_400_BAD_REQUEST)
         if not google.allowed_redirect(redirect_uri, request):
             return Response({"detail": "Unexpected sign-in address."}, status=status.HTTP_400_BAD_REQUEST)
+        request.session["google_remember_me"] = request.data.get("remember_me") is True
         return Response({"url": google.start_url(request, redirect_uri)})
 
 
@@ -127,7 +123,7 @@ class GoogleCallbackView(APIView):
             audit.log(request, "auth.login_failed", detail={"method": "google", "email": email[:254], "reason": "no active account for this email"})
             return Response({"detail": f"No active BICMA account uses {email}. Ask your Administrator to add it."}, status=status.HTTP_400_BAD_REQUEST)
         login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-        request.session.set_expiry(0)
+        request.session.set_expiry(settings.REMEMBER_ME_AGE if request.session.pop("google_remember_me", False) else 0)
         audit.log(request, "auth.login", actor=user, detail={"method": "google"})
         return Response(_with_perms(UserSerializer(user).data, user))
 
@@ -167,7 +163,7 @@ class PasswordResetRequestView(APIView):
 
     authentication_classes = [CsrfOnlyAuthentication]
     permission_classes = [AllowAny]
-    throttle_scope = "password_reset"
+    throttle_scope = "pw_reset"
 
     def post(self, request):
         ser = PasswordResetRequestSerializer(data=request.data)
@@ -204,7 +200,7 @@ class PasswordResetOtpConfirmView(APIView):
 
     authentication_classes = [CsrfOnlyAuthentication]
     permission_classes = [AllowAny]
-    throttle_scope = "password_reset_verify"  # typing the code has its own limit; each code also dies after 5 wrong tries
+    throttle_scope = "pw_reset_verify"  # typing the code has its own limit; each code also dies after 5 wrong tries
 
     def post(self, request):
         ser = PasswordResetOtpConfirmSerializer(data=request.data)
@@ -243,7 +239,7 @@ class PasswordResetOtpConfirmView(APIView):
 class PasswordResetConfirmView(APIView):
     authentication_classes = [CsrfOnlyAuthentication]
     permission_classes = [AllowAny]
-    throttle_scope = "password_reset"
+    throttle_scope = "pw_reset"
 
     def post(self, request):
         ser = PasswordResetConfirmSerializer(data=request.data)
@@ -499,14 +495,15 @@ class NdiStartView(APIView):
         try:
             pr = ndi.create_proof_request()
         except ndi.NotConfigured:
-            return Response({"detail": "Bhutan NDI sign-in is not set up yet. Sign in with your CID or email."}, status=status.HTTP_501_NOT_IMPLEMENTED)
+            return Response({"detail": "Bhutan NDI sign-in is not set up yet. Sign in with your email and password."}, status=status.HTTP_501_NOT_IMPLEMENTED)
         except ndi.AuthenticationRejected:
-            return Response({"detail": "Bhutan NDI rejected this portal’s authentication request. Please contact the administrator to check the NDI credentials and environment. You can sign in with your CID or email."}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({"detail": "Bhutan NDI rejected this portal’s authentication request. Please contact the administrator to check the NDI credentials and environment. You can sign in with your email and password."}, status=status.HTTP_502_BAD_GATEWAY)
         except ndi.NDIError:
-            return Response({"detail": "Bhutan NDI is temporarily unavailable. Sign in with your CID or email."}, status=status.HTTP_502_BAD_GATEWAY)
+            return Response({"detail": "Bhutan NDI is temporarily unavailable. Sign in with your email and password."}, status=status.HTTP_502_BAD_GATEWAY)
         rec = NdiVerification.objects.create(thread_id=pr["thread_id"], deep_link_url=pr["deep_link_url"], proof_url=pr["proof_url"])
         ndi_nats.watch(rec.thread_id)
         request.session["ndi_thread"] = rec.thread_id
+        request.session["ndi_remember_me"] = request.data.get("remember_me") is True
         qr = ""
         if rec.proof_url:
             try:
@@ -550,7 +547,7 @@ class NdiStatusView(APIView):
             audit.log(request, "auth.login_failed", detail={"method": "ndi", "reason": "no active account for this CID"})
             return Response({"status": "no_account", "detail": "No active BICMA account is registered with this NDI identity. Contact your Administrator."})
         login(request, user, backend="django.contrib.auth.backends.ModelBackend")
-        request.session.set_expiry(0)
+        request.session.set_expiry(settings.REMEMBER_ME_AGE if request.session.pop("ndi_remember_me", False) else 0)
         audit.log(request, "auth.login", actor=user, detail={"method": "ndi"})
         return Response({"status": "verified", "user": _with_perms(UserSerializer(user).data, user)})
 

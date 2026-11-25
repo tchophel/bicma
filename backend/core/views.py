@@ -12,11 +12,11 @@ from rest_framework.decorators import action
 
 from .models import (
     ApiLog, EmailLog, NotificationLog, SmsLog,
-    FAQ, AuditLog, Category, ClosureReason, Dzongkhag, Notification, Outcome, Priority,
-    Provider, ProviderType, Subcategory, SystemConfiguration,
+    AuditLog, Category, ClosureReason, Dzongkhag, Notification, Outcome, Priority,
+    FormQuestion, Provider, ProviderType, Subcategory, SystemConfiguration,
 )
 from .serializers import (
-    FAQSerializer, AuditLogSerializer, CategorySerializer, DzongkhagSerializer, SubcategorySerializer,
+    AuditLogSerializer, CategorySerializer, DzongkhagSerializer, FormQuestionSerializer, SubcategorySerializer,
 )
 from .utils import parse_uuid
 from . import audit
@@ -279,12 +279,6 @@ class SecurityChecksConfigView(APIView):
         return Response({"checks": secscan.overview()})
 
 
-class FAQAdminViewSet(AuditedModelViewSet):
-    queryset = FAQ.objects.all()
-    serializer_class = FAQSerializer
-    entity_type = "faq"
-
-
 def _master(model, fields, entity, search=("name",)):
     from rest_framework import serializers as drf
     from rest_framework.filters import SearchFilter
@@ -301,6 +295,25 @@ ProviderAdminViewSet = _master(Provider, ["name", "provider_type", "licence_numb
 PriorityAdminViewSet = _master(Priority, ["name", "rank", "response_days", "resolution_days"], "priority")
 OutcomeAdminViewSet = _master(Outcome, ["name"], "outcome")
 ClosureReasonAdminViewSet = _master(ClosureReason, ["name"], "closure_reason")
+
+
+class FormQuestionAdminViewSet(AuditedModelViewSet):
+    """Administrator: questions added to each division's complaint form. Switched off, never deleted."""
+
+    serializer_class = FormQuestionSerializer
+    entity_type = "form_question"
+
+    def get_queryset(self):
+        qs = FormQuestion.objects.select_related("division", "category")
+        p = self.request.query_params
+        if parse_uuid(p.get("division")):
+            qs = qs.filter(division_id=parse_uuid(p.get("division")))
+        return qs.order_by("division__name", "position", "created_at")
+
+    def perform_create(self, serializer):
+        last = FormQuestion.objects.filter(division=serializer.validated_data["division"]).order_by("-position").values_list("position", flat=True).first()
+        serializer.validated_data.setdefault("position", (last or 0) + 1)
+        super().perform_create(serializer)
 
 
 class LogListView(APIView):
@@ -330,7 +343,7 @@ class LogListView(APIView):
             if p.get("result") in ("sent", "failed"):
                 qs = qs.filter(status=p["result"])
             if p.get("q"):
-                f = Q(recipient__icontains=p["q"]) | Q(reference__icontains=p["q"])
+                f = Q(recipient__icontains=p["q"]) | Q(reference__iexact=p["q"])
                 qs = qs.filter(f | Q(subject__icontains=p["q"])) if kind == "email" else qs.filter(f)
         start, end = parse_date(p.get("date_from")), parse_date(p.get("date_to"))
         if start:
@@ -452,3 +465,41 @@ class SecuritySolveView(APIView):
         ok, message, link = secscan.solve(request.data.get("check"))
         audit.log(request, "security.solve", entity_type="settings", entity_id="security_solve", detail={"started": ok})
         return Response({"started": ok, "message": message, "link": link}, status=200 if ok else 400)
+
+
+class StorageView(APIView):
+    """Administrator: how much space the system uses and what takes the most."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        from . import storage
+        return Response(storage.overview())
+
+    def post(self, request):
+        """Switch the daily shrinking of resolved complaints' pictures on or off, and/or run it now."""
+        from complaints import compress
+        if "enabled" in request.data:
+            compress.set_enabled(bool(request.data["enabled"]))
+            audit.log(request, "storage.compress_setting", entity_type="settings", entity_id="compress_resolved_files", detail={"enabled": bool(request.data["enabled"])})
+        result = None
+        if request.data.get("run"):
+            result = compress.run()
+            audit.log(request, "storage.compress_run", entity_type="settings", entity_id="compress_resolved_files", detail=result)
+        from . import storage
+        return Response({**storage.overview(), "result": result})
+
+
+class StorageReportView(APIView):
+    """Administrator: the same figures as a PDF."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        from django.http import HttpResponse
+        from . import storage
+        pdf = storage.report_pdf(by=request.user.get_full_name() or request.user.email)
+        audit.log(request, "storage.report", entity_type="settings", entity_id="storage_report")
+        resp = HttpResponse(pdf, content_type="application/pdf")
+        resp["Content-Disposition"] = 'attachment; filename="storage-report.pdf"'
+        return resp

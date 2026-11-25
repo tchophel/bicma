@@ -1,0 +1,10 @@
+.uploads-page { min-width: 0; }
+.uploads-page > .card { min-width: 0; }
+.uploads-page .uploads-table-scroll { display: block; width: 100%; max-width: 100%; box-sizing: border-box; overflow-x: auto; overscroll-behavior-x: contain; -webkit-overflow-scrolling: touch; scrollbar-width: auto; scrollbar-color: #c5a68a #f8f1e9; }
+.uploads-table-scroll table { min-width: 1250px; }
+.uploads-table-scroll td:first-child { min-width: 240px; max-width: 360px; overflow-wrap: anywhere; }
+.uploads-table-scroll th, .uploads-table-scroll td:not(:first-child) { white-space: nowrap; }
+.uploads-table-scroll:focus-visible { outline: 2px solid var(--c-primary); outline-offset: 3px; }
+.uploads-table-scroll::-webkit-scrollbar { height: 12px; }
+.uploads-table-scroll::-webkit-scrollbar-track { background: #f8f1e9; border-radius: 8px; }
+.uploads-table-scroll::-webkit-scrollbar-thumb { background: #c5a68a; border: 3px solid #f8f1e9; border-radius: 8px; }

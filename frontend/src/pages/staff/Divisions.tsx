@@ -11,6 +11,7 @@ import { type Division, type Page } from "../../types";
 import { useList } from "../../useList";
 import "../../styles/Directory.css";
 import "../../styles/Locations.css";
+import "../../styles/MasterTheme.css";
 import { FocalRegistration } from "./FocalRegistration";
 
 export function Divisions() {
@@ -45,7 +46,7 @@ export function Divisions() {
     finally { setChanging(null); }
   }
   return (
-    <div className="locations-page divisions-page">
+    <div className="locations-page divisions-page master-page">
       <PageHeader icon="division" title="Divisions" subtitle="Organisational divisions that investigate complaints.">
         <button type="button" className="btn" onClick={() => { setMsg(""); setAdding(true); }}><Icon name="plus" />Add division</button>
       </PageHeader>

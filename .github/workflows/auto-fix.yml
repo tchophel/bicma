@@ -47,8 +47,13 @@ jobs:
       - name: Update vulnerable backend packages
         if: ${{ inputs.what != 'code' }}
         run: |
-          pip install pip-audit==2.9.0 -r backend/requirements.txt
+          pip install pip-audit==2.9.0
+          pip install --require-hashes -r backend/requirements.lock
           pip-audit -r backend/requirements.txt --fix || true
+
+      - name: Simple code fixes (no AI needed)
+        if: ${{ inputs.what != 'packages' }}
+        run: python3 .github/scripts/simple_fixes.py
 
       - name: Fix SonarQube code issues with Claude
         if: ${{ inputs.what != 'packages' && env.SONAR_TOKEN != '' && env.ANTHROPIC_API_KEY != '' && inputs.sonar_url != '' && inputs.sonar_project != '' }}
@@ -63,7 +68,7 @@ jobs:
         run: |
           cd frontend && npm ci && npm run build
 
-      - uses: peter-evans/create-pull-request@v7
+      - uses: peter-evans/create-pull-request@271a8d0340265f705b14b6d32b9829c1cb33d45e # v7.0.8
         with:
           branch: auto-fix/security
           title: "Security auto-fix"
@@ -74,4 +79,4 @@ jobs:
             Frontend build after the fixes: **${{ steps.build.outcome }}**
 
             Review the changes, run the tests, then merge. Packages were updated with `npm audit fix` and `pip-audit --fix`;
-            code issues were fixed with Claude only when the SONAR_TOKEN and ANTHROPIC_API_KEY secrets are set.
+            simple code issues (button types) are fixed by a script; other code issues are fixed with Claude only when the SONAR_TOKEN and ANTHROPIC_API_KEY secrets are set.

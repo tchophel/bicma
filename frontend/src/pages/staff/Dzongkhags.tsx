@@ -11,6 +11,7 @@ import { type DzongkhagRow, type Page } from "../../types";
 import { useList } from "../../useList";
 import "../../styles/Directory.css";
 import "../../styles/Locations.css";
+import "../../styles/MasterTheme.css";
 
 export function Dzongkhags() {
   const toast = useToast();
@@ -50,7 +51,7 @@ export function Dzongkhags() {
   const currentPage = Math.min(page, totalPages);
   const pageRows = visible.slice((currentPage - 1) * pageSize, currentPage * pageSize);
   return (
-    <div className="locations-page">
+    <div className="locations-page master-page">
       <PageHeader icon="map" title="Dzongkhags" subtitle="Manage the locations available on complaint forms.">
         <button type="button" className="btn" onClick={() => { setMsg(""); setAdding(true); }}><Icon name="plus" />Add Dzongkhag</button>
       </PageHeader>

@@ -5,7 +5,7 @@ import { EmptyState } from "./ui";
 import "../styles/Dashboard.css";
 
 /** Slice i of n in one hue: lighter as it goes round, so the legend (not colour alone) names each slice. */
-export const sliceColor = (i: number, n: number) => `color-mix(in srgb, var(--c-primary) ${Math.round(100 - (i * 62) / Math.max(1, n - 1))}%, white)`;
+export const sliceColor = (i: number, n: number) => `var(--chart-slice-${i}, color-mix(in srgb, var(--c-primary) ${Math.round(100 - (i * 62) / Math.max(1, n - 1))}%, white))`;
 
 export function arc(cx: number, cy: number, r: number, from: number, to: number) {
   const pt = (a: number) => [cx + r * Math.sin(a), cy - r * Math.cos(a)];
@@ -72,7 +72,7 @@ export function ComplaintMap({ items }: { items: StatItem[] }) {
   const missing = items.filter((i) => i.count > 0 && !known.has(mapKey(i.label)));
   const total = items.reduce((n, i) => n + i.count, 0);
   const max = Math.max(1, ...DZONGKHAG_SHAPES.map((d) => counts.get(d.key) ?? 0));
-  const fill = (n: number) => (n ? `color-mix(in srgb, #1f7a46 ${Math.round(22 + 78 * (n / max))}%, white)` : "#f3eee8");  // green, whatever dashboard colour the person chose
+  const fill = (n: number) => (n ? `color-mix(in srgb, var(--chart-map-color, #1f7a46) ${Math.round(22 + 78 * (n / max))}%, white)` : "var(--chart-map-empty, #f3eee8)");  // green, whatever dashboard colour the person chose
   const shown = DZONGKHAG_SHAPES.find((d) => d.key === hover);
   const shownN = shown ? counts.get(shown.key) ?? 0 : 0;
   const tip = (n: number) => `${n} complaint${n === 1 ? "" : "s"}${total ? ` (${Math.round((n / total) * 100)}%)` : ""}`;

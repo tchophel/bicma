@@ -4,7 +4,6 @@ from rest_framework.routers import DefaultRouter
 from . import views
 
 router = DefaultRouter()
-router.register("faqs", views.FAQAdminViewSet, basename="admin-faq")
 router.register("categories", views.CategoryAdminViewSet, basename="admin-category")
 router.register("subcategories", views.SubcategoryAdminViewSet, basename="admin-subcategory")
 router.register("dzongkhags", views.DzongkhagAdminViewSet, basename="admin-dzongkhag")
@@ -12,6 +11,7 @@ for _route, _vs in (("provider-types", views.ProviderTypeAdminViewSet), ("provid
                     ("priorities", views.PriorityAdminViewSet), ("outcomes", views.OutcomeAdminViewSet),
                     ("closure-reasons", views.ClosureReasonAdminViewSet)):
     router.register(_route, _vs, basename=f"admin-{_route}")
+router.register("form-questions", views.FormQuestionAdminViewSet, basename="admin-form-question")
 router.register("audit-logs", views.AuditLogViewSet, basename="admin-audit")
 
 urlpatterns = [
@@ -21,6 +21,8 @@ urlpatterns = [
     path("notifications/<uuid:pk>/read/", views.NotificationReadView.as_view()),
     path("admin/settings/", views.SettingsView.as_view()),
     path("admin/security-scan/", views.SecurityScanView.as_view()),
+    path("admin/storage/", views.StorageView.as_view()),
+    path("admin/storage-report/", views.StorageReportView.as_view()),
     path("admin/security-solve/", views.SecuritySolveView.as_view()),
     path("admin/security-report/", views.SecurityReportView.as_view()),
     path("admin/security-checks/", views.SecurityChecksView.as_view()),

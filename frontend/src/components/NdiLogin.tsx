@@ -17,7 +17,7 @@ const isMobile = () => typeof window !== "undefined" && window.matchMedia("(max-
 const Title = ({ children }: { children: ReactNode }) => <h2 className="ndi-title">{children}</h2>;
 
 /** Bhutan NDI sign-in (follows "Bhutan NDI UI Specifications v3"): shows a QR code (and a wallet deep link), then polls until the wallet result arrives. */
-export function NdiLogin({ onError }: { onError: (message: string) => void }) {
+export function NdiLogin({ onError, rememberMe = false }: { onError: (message: string) => void; rememberMe?: boolean }) {
   const { acceptUser } = useAuth();
   const [open, setOpen] = useState(false);
   const [start, setStart] = useState<Start | null>(null);
@@ -28,7 +28,7 @@ export function NdiLogin({ onError }: { onError: (message: string) => void }) {
 
   const begin = useCallback(async () => {
     stop(); setMessage(""); setStart(null); setStarting(true); setOpen(true);
-    try { setStart(await api<Start>("/auth/ndi/start/", { json: {} })); }
+    try { setStart(await api<Start>("/auth/ndi/start/", { json: { remember_me: rememberMe } })); }
     catch (x) { setOpen(false); onError((x as ApiError).message); }
     finally { setStarting(false); }
   }, [onError, stop]);

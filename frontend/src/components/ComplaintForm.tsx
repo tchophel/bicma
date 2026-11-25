@@ -7,11 +7,15 @@ import { Modal } from "./Modal";
 import { Loader } from "./Loader";
 import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { api, ApiError } from "../api";
+import { SimilarNotice, type SimilarInfo } from "./SimilarNotice";
 import type { FormDoc, FormField, FormWhen, Meta } from "../types";
 import { Field, humanKb } from "./ui";
 import "../styles/ComplaintForm.css";
 
-export interface FormResult { reference: string; id?: string; draft?: boolean }
+export interface FormResult extends Partial<SimilarInfo> { reference: string; id?: string; draft?: boolean }
+
+/** A person's name with a capital letter at the start of each word ("dechen LHAM" -> "Dechen Lham"); a word with its own mixed capitals is kept. */
+const properName = (name: string) => name.split(/\s+/).filter(Boolean).map((w) => (w === w.toLowerCase() || w === w.toUpperCase() ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : w.charAt(0).toUpperCase() + w.slice(1))).join(" ");
 
 type Values = Record<string, string | boolean>;
 const ENTITY_TYPES = [["individual", "Person"], ["firm", "Firm"], ["institute", "Institute"], ["agency", "Agency"]] as const;
@@ -85,7 +89,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
     setCidState("loading");
     try {
       const r = await api<{ full_name: string }>("/public/cid-lookup/", { json: { cid } });
-      setV((p) => (p.cid === cid ? { ...p, complainant_name: r.full_name } : p));
+      setV((p) => (p.cid === cid ? { ...p, complainant_name: properName(r.full_name) } : p));
       setCidState("found");
     } catch (x) {
       setCidState((x as ApiError).status === 404 ? "missing" : "unavailable");
@@ -98,9 +102,29 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   };
   const check = (k: string) => (e: { target: { checked: boolean } }) => setV((p) => ({ ...p, [k]: e.target.checked }));
   const f = (k: string) => err?.fields[k];
+  const tidyName = () => setV((p) => (p.complainant_type === "individual" && typeof p.complainant_name === "string" ? { ...p, complainant_name: properName(p.complainant_name) } : p));
   const cat = meta?.categories.find((c) => c.id === v.category);
   const spec = cat?.form ?? null;
   const division = meta?.divisions.find((d) => d.id === cat?.default_division);
+  // Before submitting: how many people recently reported the same issue (same category and provider or platform). A number only.
+  const [similar, setSimilar] = useState<SimilarInfo | null>(null);
+  const detailProvider = spec?.fields.find((fd) => fd.type === "provider" && typeof det[fd.key] === "string" && det[fd.key])?.key;
+  const checkPlatform = ((v.platform as string) || (detailProvider ? (det[detailProvider] as string) : "")).trim();
+  useEffect(() => {
+    if (!v.category || !(checkPlatform || v.provider || v.subcategory)) { setSimilar(null); return; }
+    setSimilar(null);
+    let stale = false;
+    const t = setTimeout(() => {
+      const q = new URLSearchParams({ category: v.category as string });
+      if (v.provider) q.set("provider", v.provider as string);
+      if (checkPlatform) q.set("platform", checkPlatform);
+      if (v.subcategory) q.set("subcategory", v.subcategory as string);
+      if (v.dzongkhag) q.set("dzongkhag", v.dzongkhag as string);  // only people in the same Dzongkhag
+      api<SimilarInfo>(`/public/similar/?${q}`).then((r) => { if (!stale) setSimilar(r); }).catch(() => { if (!stale) setSimilar(null); });
+    }, 600);
+    return () => { stale = true; clearTimeout(t); };
+  }, [v.category, v.provider, v.subcategory, v.dzongkhag, checkPlatform]);
+  const similarNotice = similar && <SimilarNotice info={similar} showEmpty />;
   const dn = division?.name.toLowerCase() ?? "";
   const isMedia = dn.startsWith("media");
   const isIid = dn.startsWith("infocomm");
@@ -154,8 +178,8 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
     if (opts.draft) fd.append("draft", "true");
     if (opts.confirmDuplicate) fd.append("confirm_duplicate", "true");
     files.forEach((f) => fd.append("files", f));
+    if (spec || (cat?.extra_fields?.length ?? 0) > 0) fd.append("details", JSON.stringify(det));
     if (spec) {
-      fd.append("details", JSON.stringify(det));
       for (const [slot, list] of Object.entries(slotFiles)) list.forEach((f) => fd.append(`doc__${slot}`, f));
     }
     try {
@@ -203,7 +227,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       return (
         <fieldset className="field complaint-choice-field" key={fd.key}>
           <legend style={{ fontWeight: 600, fontSize: ".9rem", marginBottom: 7 }}>{fd.label}{fd.required && <span className="req" aria-hidden="true"> *</span>}</legend>
-          <p className="complaint-choice-help"><span>Select all that apply</span><span>{list.length ? `${list.length} selected` : ""}</span></p>
+          <p className="complaint-choice-help"><span>{fd.hint ?? "Select all that apply"}</span><span>{list.length ? `${list.length} selected` : ""}</span></p>
           <div className="complaint-choice-grid">
             {options.length === 0 && <span className="muted">No options yet. An administrator adds them under Master data.</span>}
             {options.map((o) => <label key={o} className={`complaint-choice${list.includes(o) ? " is-selected" : ""}${o.length > 110 ? " complaint-choice-long" : ""}`}><input type="checkbox" checked={list.includes(o)} onChange={() => setD(fd.key, list.includes(o) ? list.filter((x) => x !== o) : [...list, o])} /><span>{o}</span></label>)}
@@ -217,7 +241,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
     const text = typeof val === "string" ? val : "";
     const common = { required: fd.required, value: text };
     return (
-      <Field key={fd.key} label={fd.label} required={fd.required} error={err}>
+      <Field key={fd.key} label={fd.label} required={fd.required} error={err} hint={fd.hint}>
         {fd.type === "textarea" ? <textarea rows={3} {...common} onChange={(e) => setD(fd.key, e.target.value)} />
           : fd.type === "date" ? <input type="date" max={fd.past ? today : undefined} {...common} onChange={(e) => setD(fd.key, e.target.value)} />
           : fd.type === "yesno" ? <YesNoBoxes name={fd.key} value={(val === "Yes" || val === "No" ? val : "") as "Yes" | "No" | ""} onChange={(x) => setD(fd.key, x)} invalid={!!err} />
@@ -239,6 +263,8 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       </Field>
     );
   };
+  // Questions an Administrator added in the form builder for this category's division; shown in every layout
+  const extraQuestions = (cat?.extra_fields ?? []).length > 0 ? <div className="extra-questions">{(cat?.extra_fields ?? []).map(renderField)}</div> : null;
   const renderDoc = (d: FormDoc) => {
     if (!shown(d.when) || !meta) return null;
     const list = slotFiles[d.key] ?? [];
@@ -330,7 +356,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
                     <input required={!offline} inputMode="numeric" pattern="\d{11}" maxLength={11} placeholder="11-digit CID" value={v.cid as string} onChange={onCid} autoComplete="off" />
                   </Field>
                   <Field label={spec.division === "mcd" ? "Name of the complainant (person, firm, institute or agency)" : "Name"} required error={f("complainant_name")}>
-                    <input required readOnly={cidState === "found"} placeholder={cidState === "loading" ? "Looking up…" : "Enter the name"} value={v.complainant_name as string} onChange={set("complainant_name")} autoComplete="name" />
+                    <input required readOnly={cidState === "found"} placeholder={cidState === "loading" ? "Looking up…" : "Enter the name"} value={v.complainant_name as string} onChange={set("complainant_name")} onBlur={tidyName} autoComplete="name" />
                   </Field>
                   <Field label="Contact number" required={!offline} error={f("phone")} hint="8-digit Bhutan number"><input required={!offline} type="tel" pattern="(\+975)?\d{8}" autoComplete="tel" placeholder="17123456" value={v.phone as string} onChange={set("phone")} /></Field>
                   <Field label="Email" error={f("email")} hint="Optional. Used for the acknowledgement and updates."><input type="email" autoComplete="email" placeholder="you@example.com" value={v.email as string} onChange={set("email")} /></Field>
@@ -364,8 +390,10 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
               <section className="form-section complaint-details" aria-labelledby="details-heading">
                 <div className="complaint-section-heading"><span className="form-section-icon"><Icon name="complaint" size={23} /></span><div><span className="form-section-step">SECTION 03</span><h2 id="details-heading">Your complaint</h2><p className="section-description">Share the details and supporting evidence. Submission date and time are recorded automatically.</p></div></div>
                 {spec.fields.map(renderField)}
+                {extraQuestions}
                 {alreadyQuestion}
                 {spec.description && <Field label={spec.description.label} required={spec.description.required} error={f("description")}><textarea required={spec.description.required} rows={5} value={v.description as string} onChange={set("description")} /></Field>}
+                {similarNotice}
                 {spec.geo && <>
                 <div className="row">
                   <Field label="Geo-coordinate of issue area: latitude" error={f("geo_latitude")} hint="Optional. Inside Bhutan: 26.69 to 28.33, e.g. 27.472800."><input type="number" step="any" min="26.69" max="28.33" title="A latitude inside Bhutan: 26.69 to 28.33" placeholder="27.472800" value={v.geo_latitude as string} onChange={set("geo_latitude")} /></Field>
@@ -403,7 +431,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
                 <Field label="Agency name" required error={f("agency_name")}><input required maxLength={150} value={v.agency_name as string} onChange={set("agency_name")} /></Field>
               )}
               <Field label={entity === "individual" ? "Full name" : entity === "agency" ? "Name of complainant (contact person)" : `Name of the ${entity}`} required error={f("complainant_name")}>
-                <input required readOnly={cidState === "found" && individual} placeholder={cidState === "loading" ? "Looking up…" : "Enter the name"} value={v.complainant_name as string} onChange={set("complainant_name")} autoComplete="name" />
+                <input required readOnly={cidState === "found" && individual} placeholder={cidState === "loading" ? "Looking up…" : "Enter the name"} value={v.complainant_name as string} onChange={set("complainant_name")} onBlur={tidyName} autoComplete="name" />
               </Field>
               <Field label="Contact number" required={!offline} error={f("phone")} hint="8-digit Bhutan number"><input required={!offline} type="tel" pattern="(\+975)?\d{8}" autoComplete="tel" placeholder="17123456" value={v.phone as string} onChange={set("phone")} /></Field>
               <Field label="Email" error={f("email")} hint="Optional. Used for the acknowledgement and updates."><input type="email" autoComplete="email" placeholder="you@example.com" value={v.email as string} onChange={set("email")} /></Field>
@@ -472,6 +500,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
                   {otherProvider && <Field label="Name of the provider" required error={f("platform")} hint="The Division Head confirms it in triage."><input required value={v.platform as string} onChange={set("platform")} /></Field>}
                   {alreadyQuestion}
                 </div>
+                {extraQuestions}
                 <Field label="Complaint description" required error={f("description")} hint="Detailed description of the complaint."><textarea required rows={6} placeholder={t("Describe what happened and any steps you have already taken.", "Record what the complainant reported.")} value={v.description as string} onChange={set("description")} /></Field>
               </>
             )}
