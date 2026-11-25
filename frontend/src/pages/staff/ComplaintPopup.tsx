@@ -26,7 +26,7 @@ export function ComplaintPanel({ id, onClose, onChanged }: { id: string; onClose
         <span className="complaint-reference"><Icon name="complaint" size={17} />{c?.reference ?? "Complaint details"}</span>
         <div>
           <Link className="icon-btn" to={`/staff/complaints/${id}`} aria-label="Open full page" title="Open full page"><Icon name="expand" size={18} /></Link>
-          <button ref={closeBtn} className="icon-btn" onClick={onClose} aria-label="Close panel" title="Close (Esc)"><Icon name="close" size={18} /></button>
+          <button type="submit" ref={closeBtn} className="icon-btn" onClick={onClose} aria-label="Close panel" title="Close (Esc)"><Icon name="close" size={18} /></button>
         </div>
       </div>
       {err && <p className="error" style={{ margin: 16 }} role="alert">{err}</p>}

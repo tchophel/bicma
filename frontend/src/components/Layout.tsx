@@ -21,7 +21,7 @@ export function PublicLayout() {
             <img src="/bicma-logo.png" alt="BICMA logo" />
             <span><strong>BICMA Complaint Portal</strong><small>Bhutan InfoComm and Media Authority</small></span>
           </Link>
-          <button className={pub.menuBtn} aria-label="Toggle menu" aria-expanded={open} aria-controls="public-nav" onClick={() => setOpen(!open)}><Icon name={open ? "close" : "menu"} /></button>
+          <button type="submit" className={pub.menuBtn} aria-label="Toggle menu" aria-expanded={open} aria-controls="public-nav" onClick={() => setOpen(!open)}><Icon name={open ? "close" : "menu"} /></button>
           <nav id="public-nav" className={pub.nav} aria-label="Public" onClick={() => setOpen(false)}>
             <NavLink to="/" end><Icon name="home" />Home</NavLink>
             <NavLink to="/submit"><Icon name="plus" />Submit a Complaint</NavLink>
@@ -102,8 +102,8 @@ export function StaffLayout() {
   useEffect(() => {
     if (!user) return;
     const load = () => api<{ count: number }>("/complaints/?page_size=1").then((d) => setTotal(d.count)).catch(() => {});
-    load();
-    const t = setInterval(() => { if (document.visibilityState === "visible") load(); }, 30000);
+    void load();
+    const t = setInterval(() => { if (document.visibilityState === "visible") void load(); }, 30000);
     return () => clearInterval(t);
   }, [user, pathname]);
   if (loading) return <div className="page-loader"><Loader /></div>;
@@ -113,7 +113,7 @@ export function StaffLayout() {
     <div className={css.shell}>
       <a className="skip" href="#main">Skip to content</a>
       <header className={css.top}>
-        <button className={css.menuBtn} aria-label="Toggle navigation" aria-expanded={open} aria-controls="sidebar" onClick={() => setOpen(!open)}><Icon name={open ? "close" : "menu"} /></button>
+        <button type="submit" className={css.menuBtn} aria-label="Toggle navigation" aria-expanded={open} aria-controls="sidebar" onClick={() => setOpen(!open)}><Icon name={open ? "close" : "menu"} /></button>
         <Link to="/staff/dashboard" className={css.brand}><img src="/bicma-logo.png" alt="" className={css.logo} />BICMA Complaint Management System</Link>
         <div className={css.actions}><NotificationBell /><UserMenu /></div>
       </header>

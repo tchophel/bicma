@@ -1,6 +1,7 @@
 import { useToast } from "../../components/Toast";
 import { Icon } from "../../components/Icon";
 import { NdiLogin } from "../../components/NdiLogin";
+import { GoogleLogin } from "../../components/GoogleLogin";
 import { useState, type FormEvent } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { ApiError } from "../../api";
@@ -49,8 +50,9 @@ export function Login() {
         </div>
         <div className="login-options"><label><input type="checkbox" checked={rememberMe} onChange={(e) => setRememberMe(e.target.checked)} />Remember me</label><Link to="/staff/forgot-password">Forgot password?</Link></div>
         {err && <p className="error" role="alert">{err}</p>}
-        <button className="btn" disabled={busy} style={{ width: "100%" }}><Icon name="login" />{busy ? "Signing in…" : "Sign in"}</button>
+        <button type="submit" className="btn" disabled={busy} style={{ width: "100%" }}><Icon name="login" />{busy ? "Signing in…" : "Sign in"}</button>
         <div className="login-or" aria-hidden="true"><span>or</span></div>
+        <GoogleLogin onError={(m) => { setErr(m); toast.error(m); }} />
         <NdiLogin onError={(m) => { setErr(m); toast.error(m); }} />
       </form>
     </div>

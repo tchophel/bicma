@@ -111,7 +111,7 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
           ))}
           {editing && <Field label="Reason for the change" hint="Kept in the audit trail with the before and after values."><input value={reason} onChange={(e) => setReason(e.target.value)} /></Field>}
         </div>
-        <button className="btn" disabled={busy}><Icon name={editing ? "check" : "plus"} />{editing ? "Save changes" : "Add"}</button>
+        <button type="submit" className="btn" disabled={busy}><Icon name={editing ? "check" : "plus"} />{editing ? "Save changes" : "Add"}</button>
         <button type="button" className="btn secondary" disabled={busy} onClick={() => setOpen(false)}>Cancel</button>
       </form>
       </Modal>

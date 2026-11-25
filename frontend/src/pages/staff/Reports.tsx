@@ -54,7 +54,7 @@ export function Reports() {
           <div className="report-result-heading">
             <h2 style={{ margin: 0, flex: 1 }}>{rep.title}{rep.subtitle ? ` · ${rep.subtitle}` : ""} <span className="chip">{rep.total_rows} rows</span></h2>
             {canExport && ["csv", "xlsx", "pdf"].map((x) => <a key={x} className="btn secondary" href={`/api/reports/${generated.key}/?${generated.query}&export=${x}`}><Icon name="send" />{x.toUpperCase()}</a>)}
-            <button className="btn secondary" onClick={() => window.print()}><Icon name="complaint" />Print</button>
+            <button type="submit" className="btn secondary" onClick={() => window.print()}><Icon name="complaint" />Print</button>
           </div>
           <div className="table-wrap report-table-wrap"><table className={generated.key === "monthly" ? "report-monthly-table" : "report-data-table"}>
             <thead><tr>{rep.columns.map((c, i) => <th key={i}>{c}</th>)}</tr></thead>

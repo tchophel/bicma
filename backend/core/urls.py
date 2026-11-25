@@ -21,6 +21,8 @@ urlpatterns = [
     path("notifications/<uuid:pk>/read/", views.NotificationReadView.as_view()),
     path("admin/settings/", views.SettingsView.as_view()),
     path("admin/security-scan/", views.SecurityScanView.as_view()),
+    path("admin/security-solve/", views.SecuritySolveView.as_view()),
+    path("admin/security-report/", views.SecurityReportView.as_view()),
     path("admin/security-checks/", views.SecurityChecksView.as_view()),
     path("admin/security-checks/config/", views.SecurityChecksConfigView.as_view()),
     path("admin/workflow/", views.WorkflowView.as_view()),

@@ -79,7 +79,7 @@ export function NotificationBell() {
 
   return (
     <div className={css.pop} ref={ref}>
-      <button className={css.iconBtn} aria-label={`Notifications, ${unread} unread`} aria-expanded={open} aria-haspopup="true" onClick={() => { setOpen(!open); if (!open) load(); }}>
+      <button type="submit" className={css.iconBtn} aria-label={`Notifications, ${unread} unread`} aria-expanded={open} aria-haspopup="true" onClick={() => { setOpen(!open); if (!open) load(); }}>
         <Icon name="bell" size={20} />
         {unread > 0 && <span className={css.count}>{unread > 99 ? "99+" : unread}</span>}
       </button>
@@ -87,14 +87,14 @@ export function NotificationBell() {
         <div className={`${css.panel} ${css.notificationPanel}`} role="region" aria-label="Notifications">
           <div className={css.notificationHead}>
             <div className={css.notificationTitle}><span className={css.notificationHeadingIcon}><Icon name="bell" size={20} /></span><strong>Notifications</strong>{unread > 0 && <span className={css.unreadCount}>{unread} unread</span>}</div>
-            {items.length > 0 && <div className={css.notificationActions}>{unread > 0 && <button disabled={clearing} onClick={readAll}><Icon name="check" size={15} />Mark all as read</button>}<button disabled={clearing} onClick={clearAll}><Icon name="trash" size={15} />{clearing ? "Clearing…" : "Clear all"}</button></div>}
+            {items.length > 0 && <div className={css.notificationActions}>{unread > 0 && <button type="submit" disabled={clearing} onClick={readAll}><Icon name="check" size={15} />Mark all as read</button>}<button type="submit" disabled={clearing} onClick={clearAll}><Icon name="trash" size={15} />{clearing ? "Clearing…" : "Clear all"}</button></div>}
           </div>
           {clearError && <p className="error" role="alert">{clearError}</p>}
           {items.length === 0 && <div className={css.notificationEmpty}><Icon name="inbox" size={30} /><strong>You're all caught up</strong><p>New complaint updates will appear here.</p></div>}
           <ul className={css.notes}>
             {items.map((n) => (
               <li key={n.id}>
-                <button className={`${css.note} ${n.read ? "" : css.unread}`} onClick={() => openItem(n)}>
+                <button type="submit" className={`${css.note} ${n.read ? "" : css.unread}`} onClick={() => openItem(n)}>
                   <span className={css.noteIcon}><Icon name="complaint" size={19} /></span>
                   <span className={css.noteContent}><span className={css.noteMessage}>{n.message}</span><small><Icon name="clock" size={12} /><time dateTime={n.created_at} title={new Date(n.created_at).toLocaleString()}>{ago(n.created_at)}</time>{!n.read && <span className={css.noteNew}>Unread</span>}</small></span>
                   <Icon name="chev" size={15} />
@@ -128,7 +128,7 @@ export function UserMenu() {
   );
   return (
     <div className={css.pop} ref={ref}>
-      <button className={css.userBtn} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button type="submit" className={css.userBtn} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
         <span className={css.avatar} aria-hidden="true">{user.profile_photo && failedPhoto !== user.profile_photo ? <img src={user.profile_photo} alt="" onError={() => setFailedPhoto(user.profile_photo)} /> : initials}</span>
         <span className={css.who}><strong>{name}</strong><small>{user.role_display}</small></span>
         <Icon name="chev" size={14} />
@@ -139,7 +139,7 @@ export function UserMenu() {
           {item("/staff/profile", "user", "My profile")}
           {user.base_role === "super_admin" && item("/staff/workflow", "refresh", "Workflow")}
           {user.base_role === "super_admin" && item("/staff/settings", "gear", "Settings")}
-          <button className={css.menuItem} role="menuitem" onClick={() => { setOpen(false); setConfirming(true); }}><Icon name="logout" />Sign out</button>
+          <button type="submit" className={css.menuItem} role="menuitem" onClick={() => { setOpen(false); setConfirming(true); }}><Icon name="logout" />Sign out</button>
         </div>
       )}
       <Modal open={confirming} onClose={() => setConfirming(false)} title="Log out" icon="logout" busy={leaving}>

@@ -69,7 +69,7 @@ export function Divisions() {
             </tbody>
           </table></div>
           <div className="users-directory-footer location-pagination"><span>{data?.count ? `Showing ${(page - 1) * 10 + 1}–${(page - 1) * 10 + data.results.length} of ${data.count} divisions` : "No divisions to show"}</span>
-            <nav aria-label="Division pages"><button className="btn secondary" disabled={loading || !data?.previous} onClick={() => setPage(page - 1)}><Icon name="left" size={14} />Previous</button><span aria-live="polite">{page} / {Math.max(1, Math.ceil((data?.count ?? 0) / 10))}</span><button className="btn secondary" disabled={loading || !data?.next} onClick={() => setPage(page + 1)}>Next<Icon name="right" size={14} /></button></nav>
+            <nav aria-label="Division pages"><button type="submit" className="btn secondary" disabled={loading || !data?.previous} onClick={() => setPage(page - 1)}><Icon name="left" size={14} />Previous</button><span aria-live="polite">{page} / {Math.max(1, Math.ceil((data?.count ?? 0) / 10))}</span><button type="submit" className="btn secondary" disabled={loading || !data?.next} onClick={() => setPage(page + 1)}>Next<Icon name="right" size={14} /></button></nav>
           </div>
         </section>
         <aside className="locations-aside">
@@ -81,7 +81,7 @@ export function Divisions() {
         <form onSubmit={add} aria-busy={busy}>
               <Field label="Division name" required><input required maxLength={120} placeholder="Enter division name" disabled={busy} value={name} onChange={(e) => setName(e.target.value)} /></Field>
               <Field label="Code" required hint="A unique short code, e.g. TEL."><input required maxLength={20} placeholder="e.g. TEL" disabled={busy} value={code} onChange={(e) => setCode(e.target.value)} /></Field>
-              <button className="btn" disabled={busy || !name.trim() || !code.trim()}><Icon name="plus" />{busy ? "Adding…" : "Add division"}</button>
+              <button type="submit" className="btn" disabled={busy || !name.trim() || !code.trim()}><Icon name="plus" />{busy ? "Adding…" : "Add division"}</button>
             </form>
       </Modal>
     </div>

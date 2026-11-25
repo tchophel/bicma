@@ -7,7 +7,8 @@ import { fmt } from "./ui";
 
 type Finding = { package: string; ecosystem: string; version: string; id: string; aliases: string[]; severity: string; summary: string; fixed_in: string; fix: string };
 type Field = { key: string; label: string; secret: boolean; placeholder: string; value: string; set: boolean };
-type Check = { fields: Field[]; key: string; label: string; about: string; configured: boolean; setup: string; state: string; summary: string; link: string; checked_at: string | null };
+type Item = { severity: string; type: string; file: string; line: number; message: string; rule: string; link: string };
+type Check = { items?: Item[]; fields: Field[]; key: string; label: string; about: string; configured: boolean; setup: string; state: string; summary: string; link: string; checked_at: string | null };
 const STATE: Record<string, [string, string]> = { ok: ["ok", "All clear"], issues: ["bad", "Issues found"], error: ["warn", "Check failed"], never: ["plain", "Not checked yet"], not_configured: ["plain", "Not set up"] };
 type Scan = { scanned_at?: string; packages?: number; frontend_included?: boolean; findings?: Finding[]; counts?: Record<string, number> };
 const TONE: Record<string, string> = { CRITICAL: "bad", HIGH: "bad", MEDIUM: "warn", LOW: "plain", UNKNOWN: "plain" };
@@ -24,6 +25,14 @@ export function SecurityScan() {
     catch (e) { setErr((e as ApiError).message); }
     finally { setRunning(""); }
   }
+  async function solve() {
+    if (!window.confirm("Solve starts an automatic fix on GitHub. It updates the vulnerable packages and fixes code issues, then opens a pull request for you to review. Nothing changes on the live system until you merge it and redeploy. Start now?")) return;
+    setRunning("solve"); setErr("");
+    try { const r = await api<{ message: string; link: string }>("/admin/security-solve/", { method: "POST", json: {} }); toast.success(r.message); setSolveLink(r.link); }
+    catch (e) { setErr((e as ApiError).message); }
+    finally { setRunning(""); }
+  }
+  const [solveLink, setSolveLink] = useState("");
   const [editing, setEditing] = useState("");
   const [vals, setVals] = useState<Record<string, string>>({});
   async function saveConfig(c: Check) {
@@ -58,7 +67,12 @@ export function SecurityScan() {
           <p>Checks the packages this system runs on against the public vulnerability database (OSV) and shows how to fix each finding. Only package names and versions are sent.</p></div></header>
       <div className="scan-checks">
         <div className="scan-checks-head"><h3>Automated checks</h3>
-          <button type="button" className="btn secondary" disabled={!!running} onClick={() => runCheck("")}><Icon name="refresh" />{running === "all" ? "Checking…" : "Check all now"}</button></div>
+          <button type="button" className="btn secondary" disabled={!!running} onClick={() => runCheck("")}><Icon name="refresh" />{running === "all" ? "Checking…" : "Check all now"}</button>
+          {(findings.length > 0 || (checks.data?.checks ?? []).some((c) => c.state === "issues" || c.state === "error")) &&
+            <button type="button" className="btn" disabled={!!running} onClick={() => void solve()}><Icon name="check" />{running === "solve" ? "Starting…" : "Solve"}</button>}
+          {(findings.length > 0 || (checks.data?.checks ?? []).some((c) => c.state === "issues" || c.state === "error")) &&
+            <a className="btn secondary" href="/api/admin/security-report/" download><Icon name="send" />Download PDF: what to fix</a>}</div>
+        {solveLink && <p role="status" className="notice"><Icon name="check" size={16} /> Fix started. <a href={solveLink} target="_blank" rel="noreferrer">Watch it on GitHub</a>, then open the pull request it creates.</p>}
         <p className="muted">Checked automatically every day. The Administrators get a notification when a check newly finds issues.</p>
         <div className="scan-cards">{checks.data?.checks.map((c) => {
           const [tone, label] = STATE[c.state] ?? STATE.never;
@@ -68,6 +82,12 @@ export function SecurityScan() {
               <p className="muted">{c.about}</p>
               <p>{c.summary}</p>
               {c.checked_at && <small className="muted">Checked {fmt(c.checked_at)}</small>}
+              {!!c.items?.length && (
+                <details className="scan-items"><summary>Show the {c.items.length} issues to fix</summary>
+                  <ul>{c.items.map((i, n) => (
+                    <li key={n}><span className={`badge ${i.severity === "BLOCKER" || i.severity === "CRITICAL" ? "bad" : i.severity === "MAJOR" ? "warn" : "plain"}`}>{i.severity.toLowerCase()}</span>{" "}
+                      <a href={i.link} target="_blank" rel="noreferrer"><code>{i.file}{i.line ? `:${i.line}` : ""}</code></a><br /><small>{i.message}</small></li>))}</ul>
+                </details>)}
               {editing === c.key && (
                 <form className="scan-config" onSubmit={(e) => { e.preventDefault(); saveConfig(c); }}>
                   {c.fields.map((f) => (
@@ -75,7 +95,7 @@ export function SecurityScan() {
                       <input type={f.secret ? "password" : "text"} autoComplete="off" value={vals[f.key] ?? ""} placeholder={f.secret && f.set ? "Saved. Leave blank to keep it." : f.placeholder}
                         onChange={(e) => setVals({ ...vals, [f.key]: e.target.value })} /></label>
                   ))}
-                  <div className="scan-card-actions"><button className="btn" disabled={!!running}>{running === c.key ? "Saving…" : "Save and check"}</button>
+                  <div className="scan-card-actions"><button type="submit" className="btn" disabled={!!running}>{running === c.key ? "Saving…" : "Save and check"}</button>
                     <button type="button" className="linklike" onClick={() => setEditing("")}>Cancel</button></div>
                 </form>)}
               <div className="scan-card-actions">

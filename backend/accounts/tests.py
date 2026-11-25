@@ -374,3 +374,53 @@ class ProfileThemeTests(APITestCase):
         self.assertEqual(self.client.patch("/api/auth/me/", {"theme": "hotpink"}, format="json").status_code, 400)
         user.refresh_from_db()
         self.assertEqual(user.theme, "blue")
+
+
+class GoogleLoginTests(APITestCase):
+    def setUp(self):
+        cache.clear()
+        self.admin = User.objects.create_user("admin@example.org", "Admin-pass-182!", role=Role.SUPER_ADMIN)
+        self.staff = User.objects.create_user("Staff@Example.org", "Staff-pass-182!", role=Role.INVESTIGATOR)
+
+    def enable(self):
+        c = APIClient()
+        c.force_login(self.admin)
+        r = c.post("/api/admin/google-login/", {"client_id": "id.apps.googleusercontent.com", "client_secret": "s3cret"}, format="json")
+        self.assertEqual(r.status_code, 200)
+        self.assertNotIn("s3cret", r.content.decode())
+        return r.json()
+
+    def test_off_until_set_up_and_secret_never_returned(self):
+        self.assertFalse(APIClient().get("/api/auth/google/").json()["enabled"])
+        cfg = self.enable()
+        self.assertTrue(cfg["secret_set"] and cfg["enabled"])
+        self.assertTrue(APIClient().get("/api/auth/google/").json()["enabled"])
+        self.assertEqual(APIClient().get("/api/admin/google-login/").status_code, 403)
+
+    def test_sign_in_only_for_an_existing_active_account(self):
+        self.enable()
+        c = APIClient()
+        uri = "http://localhost:5173/staff/login/google"
+        self.assertEqual(c.post("/api/auth/google/start/", {"redirect_uri": "http://evil.example/staff/login/google"}, format="json", HTTP_ORIGIN="http://localhost:5173").status_code, 400)
+        url = c.post("/api/auth/google/start/", {"redirect_uri": uri}, format="json", HTTP_ORIGIN="http://localhost:5173").json()["url"]
+        self.assertIn("accounts.google.com", url)
+        state = c.session["google_state"]
+        with patch("accounts.google.email_for_code", return_value="staff@example.org"):
+            r = c.post("/api/auth/google/callback/", {"code": "x", "state": state}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(c.get("/api/auth/me/").json()["email"], "staff@example.org")
+        with patch("accounts.google.email_for_code", return_value="nobody@example.org"):
+            self.assertEqual(APIClient().post("/api/auth/google/callback/", {"code": "x", "state": "y"}, format="json").status_code, 400)
+
+    def test_wrong_state_is_refused(self):
+        self.enable()
+        r = APIClient().post("/api/auth/google/callback/", {"code": "x", "state": "nope"}, format="json")
+        self.assertEqual(r.status_code, 400)
+
+    def test_wrong_password_says_attempts_left_then_locks(self):
+        for left in (4, 3, 2, 1):
+            r = APIClient().post("/api/auth/login/", {"email": "staff@example.org", "password": "bad"}, format="json")
+            self.assertIn(f"{left} attempt", r.json()["detail"])
+        r = APIClient().post("/api/auth/login/", {"email": "staff@example.org", "password": "bad"}, format="json")
+        self.assertIn("locked", r.json()["detail"])
+        self.assertEqual(APIClient().post("/api/auth/login/", {"email": "staff@example.org", "password": "bad"}, format="json").status_code, 429)

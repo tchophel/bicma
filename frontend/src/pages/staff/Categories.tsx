@@ -52,18 +52,18 @@ export function Categories() {
         <IconBtn icon="plus" label={`Add subcategory to ${c.name}`} onClick={() => setSubFor(c)} /></div>
       </div>))}
     <Modal open={addCat} onClose={() => setAddCat(false)} title="Add category" icon="category">
-      <form onSubmit={(e) => { e.preventDefault(); run(async () => { await api("/admin/categories/", { json: { name, description: desc } }); setName(""); setDesc(""); setAddCat(false); }); }}>
+      <form onSubmit={(e) => { e.preventDefault(); void run(async () => { await api("/admin/categories/", { json: { name, description: desc } }); setName(""); setDesc(""); setAddCat(false); }); }}>
         {msg && <p className="error" role="alert">{msg}</p>}
         <Field label="Name" required><input required value={name} onChange={(e) => setName(e.target.value)} /></Field>
         <Field label="What this category is for" hint="Optional. Shown to complainants when they point at the category. Up to 400 characters."><textarea rows={3} maxLength={400} value={desc} onChange={(e) => setDesc(e.target.value)} /></Field>
-        <button className="btn"><Icon name="plus" />Add category</button>
+        <button type="submit" className="btn"><Icon name="plus" />Add category</button>
       </form>
     </Modal>
     <Modal open={!!subFor} onClose={() => setSubFor(null)} title={subFor ? `Add subcategory to ${subFor.name}` : ""} icon="category">
-      <form onSubmit={(e) => { e.preventDefault(); run(async () => { await api("/admin/subcategories/", { json: { category: subFor?.id, name: sub } }); setSub(""); setSubFor(null); }); }}>
+      <form onSubmit={(e) => { e.preventDefault(); void run(async () => { await api("/admin/subcategories/", { json: { category: subFor?.id, name: sub } }); setSub(""); setSubFor(null); }); }}>
         {msg && <p className="error" role="alert">{msg}</p>}
         <Field label="Subcategory name" required><input required value={sub} onChange={(e) => setSub(e.target.value)} /></Field>
-        <button className="btn"><Icon name="plus" />Add subcategory</button>
+        <button type="submit" className="btn"><Icon name="plus" />Add subcategory</button>
       </form>
     </Modal></>);
 }

@@ -5,6 +5,7 @@ import { Field, PageHeader } from "../../components/ui";
 import { Icon } from "../../components/Icon";
 import { useList } from "../../useList";
 import { SecurityScan } from "../../components/SecurityScan";
+import { GoogleSettings } from "../../components/GoogleSettings";
 import "../../styles/Settings.css";
 
 type Settings = { reference_length: number; declaration_text: string; reality_shows: string };
@@ -62,8 +63,9 @@ export function SettingsPage() {
           </section>
         </fieldset>
         {error && <p className="error" role="alert">{error.message}</p>}
-        <div className="settings-save-bar"><span role="status" className={success && !dirty ? "settings-saved" : "muted"}>{busy ? "Saving settings…" : dirty ? "You have unsaved changes" : success ? "All changes saved" : "Changes apply to new submissions"}</span><div><button type="button" className="btn secondary" disabled={busy || !dirty} onClick={reset}>Discard changes</button><button className="btn" disabled={busy || !dirty}><Icon name={busy ? "refresh" : "check"} size={17} />{busy ? "Saving…" : "Save settings"}</button></div></div>
+        <div className="settings-save-bar"><span role="status" className={success && !dirty ? "settings-saved" : "muted"}>{busy ? "Saving settings…" : dirty ? "You have unsaved changes" : success ? "All changes saved" : "Changes apply to new submissions"}</span><div><button type="button" className="btn secondary" disabled={busy || !dirty} onClick={reset}>Discard changes</button><button type="submit" className="btn" disabled={busy || !dirty}><Icon name={busy ? "refresh" : "check"} size={17} />{busy ? "Saving…" : "Save settings"}</button></div></div>
       </form>
+      <GoogleSettings />
       <SecurityScan />
       <aside className="settings-communications"><span className="icon-tile"><Icon name="mail" size={20} /></span><div><strong>Email &amp; SMS configuration</strong><p>Delivery settings are managed outside this page.</p></div><span className="chip">Managed separately</span></aside>
     </div>

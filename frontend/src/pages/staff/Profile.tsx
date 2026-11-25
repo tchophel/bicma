@@ -90,7 +90,7 @@ export function Profile() {
         <Field label="Email address"><input value={user.email} readOnly disabled /></Field>
         <Field label="Division"><input value={user.division_name ?? "Not tied to a division"} readOnly disabled /></Field>
         {msg.err && <p className="error" role="alert">{msg.err}</p>}{msg.ok && <p className="notice" role="status">{msg.ok}</p>}
-        <button className="btn" disabled={saving}><Icon name="check" />{saving ? "Saving…" : "Save changes"}</button>
+        <button type="submit" className="btn" disabled={saving}><Icon name="check" />{saving ? "Saving…" : "Save changes"}</button>
         <p className="profile-admin-note"><Icon name="lock" size={16} /><span>Contact a Super Administrator to change your role, division or email.</span></p>
       </form>
       <div className="profile-side-col">
@@ -111,7 +111,7 @@ export function Profile() {
         <Field label="New password" required hint="Minimum 10 characters; not common or numeric only."><span className="profile-input-icon profile-password-input"><Icon name="lock" size={17} /><input required minLength={10} maxLength={128} id="profile-new_password" type={visiblePasswords.new_password ? "text" : "password"} disabled={changing} autoComplete="new-password" value={pw.new_password} onChange={(e) => setPw({ ...pw, new_password: e.target.value })} /><button type="button" className="profile-password-toggle" aria-label={(visiblePasswords.new_password ? "Hide" : "Show") + " new password"} aria-pressed={visiblePasswords.new_password} aria-controls="profile-new_password" disabled={changing} onClick={() => setVisiblePasswords((previous) => ({ ...previous, new_password: !previous.new_password }))}><Icon name={visiblePasswords.new_password ? "eyeOff" : "eye"} size={19} /></button></span></Field>
         <Field label="Confirm new password" required><span className="profile-input-icon profile-password-input"><Icon name="lock" size={17} /><input required minLength={10} maxLength={128} id="profile-confirm" type={visiblePasswords.confirm ? "text" : "password"} disabled={changing} autoComplete="new-password" value={pw.confirm} onChange={(e) => setPw({ ...pw, confirm: e.target.value })} /><button type="button" className="profile-password-toggle" aria-label={(visiblePasswords.confirm ? "Hide" : "Show") + " confirm new password"} aria-pressed={visiblePasswords.confirm} aria-controls="profile-confirm" disabled={changing} onClick={() => setVisiblePasswords((previous) => ({ ...previous, confirm: !previous.confirm }))}><Icon name={visiblePasswords.confirm ? "eyeOff" : "eye"} size={19} /></button></span></Field>
         {pmsg.err && <p className="error" role="alert">{pmsg.err}</p>}{pmsg.ok && <p className="notice" role="status">{pmsg.ok}</p>}
-        <button className="btn secondary" disabled={changing}><Icon name="lock" />{changing ? "Updating…" : "Change password"}</button>
+        <button type="submit" className="btn secondary" disabled={changing}><Icon name="lock" />{changing ? "Updating…" : "Change password"}</button>
         <p className="profile-security-note"><Icon name="help" size={16} /><span>Changing your password signs out your other sessions.</span></p>
       </form>
       </div>

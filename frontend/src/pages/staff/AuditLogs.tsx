@@ -20,9 +20,9 @@ export function AuditLogs({ embedded = false }: { embedded?: boolean }) {
     <div className="pager">
       <span className="muted">{data?.count ? `Showing ${(page - 1) * 10 + 1}–${(page - 1) * 10 + data.results.length} of ${data.count} entries` : "0 entries"}</span>
       <div>
-        <button className="btn secondary" disabled={loading || !data?.previous} onClick={() => setPage((current) => current - 1)}><Icon name="left" size={16} />Previous</button>
+        <button type="submit" className="btn secondary" disabled={loading || !data?.previous} onClick={() => setPage((current) => current - 1)}><Icon name="left" size={16} />Previous</button>
         <span aria-live="polite">{page} / {Math.max(1, Math.ceil((data?.count ?? 0) / 10))}</span>
-        <button className="btn secondary" disabled={loading || !data?.next} onClick={() => setPage((current) => current + 1)}>Next<Icon name="right" size={16} /></button>
+        <button type="submit" className="btn secondary" disabled={loading || !data?.next} onClick={() => setPage((current) => current + 1)}>Next<Icon name="right" size={16} /></button>
       </div>
     </div></>);
 }

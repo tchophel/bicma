@@ -90,7 +90,7 @@ export function Dzongkhags() {
         {msg && <p className="error" role="alert">{msg}</p>}
         <form onSubmit={add} aria-busy={busy}>
               <Field label="Dzongkhag name" required><input required maxLength={80} placeholder="Enter Dzongkhag name" value={name} onChange={(e) => setName(e.target.value)} disabled={busy} /></Field>
-              <button className="btn" disabled={busy || !name.trim()}><Icon name="plus" />{busy ? "Adding…" : "Add Dzongkhag"}</button>
+              <button type="submit" className="btn" disabled={busy || !name.trim()}><Icon name="plus" />{busy ? "Adding…" : "Add Dzongkhag"}</button>
             </form>
       </Modal>
     </div>

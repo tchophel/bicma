@@ -1,4 +1,4 @@
-from rest_framework.test import APITestCase
+from rest_framework.test import APIClient, APITestCase
 
 from accounts.models import Role, User
 from .models import FAQ, AuditLog, Category
@@ -235,3 +235,41 @@ class SecurityCheckSettingsTests(APITestCase):
     def test_bad_addresses_are_refused(self):
         r = self.client.post("/api/admin/security-checks/config/", {"check": "zap", "values": {"ZAP_URL": "zap:8080"}}, format="json")
         self.assertEqual(r.status_code, 400)
+
+
+class SecurityReportTests(APITestCase):
+    def test_pdf_lists_what_to_fix_and_is_admin_only(self):
+        from accounts.models import Role, User
+        from .models import SystemConfiguration
+        import json
+        admin = User.objects.create_user("a@example.org", "Admin-pass-182!", role=Role.SUPER_ADMIN)
+        SystemConfiguration.objects.create(key="security_scan", value=json.dumps({"packages": 3, "findings": [
+            {"package": "django", "ecosystem": "PyPI", "version": "5.1.0", "id": "GHSA-x", "aliases": [], "severity": "HIGH",
+             "summary": "Bad thing", "fixed_in": "5.1.9", "fix": "pip install -U django==5.1.9"}]}))
+        c = APIClient()
+        self.assertEqual(c.get("/api/admin/security-report/").status_code, 403)
+        c.force_login(admin)
+        r = c.get("/api/admin/security-report/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r["Content-Type"], "application/pdf")
+        self.assertTrue(r.content.startswith(b"%PDF"))
+
+
+class SecuritySolveTests(APITestCase):
+    def test_solve_needs_github_setup_and_is_admin_only(self):
+        from accounts.models import Role, User
+        from unittest.mock import patch
+        admin = User.objects.create_user("s@example.org", "Admin-pass-182!", role=Role.SUPER_ADMIN)
+        c = APIClient()
+        self.assertEqual(c.post("/api/admin/security-solve/", {}, format="json").status_code, 403)
+        c.force_login(admin)
+        r = c.post("/api/admin/security-solve/", {}, format="json")
+        self.assertEqual(r.status_code, 400)
+        self.assertIn("GitHub repository", r.json()["message"])
+        from . import secscan
+        secscan.save_config("ci", {"GITHUB_REPO": "o/n", "GITHUB_TOKEN": "t"})
+        with patch("core.secscan._json", return_value={"default_branch": "main"}), patch("core.secscan.urllib.request.urlopen") as op:
+            r = c.post("/api/admin/security-solve/", {}, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(r.json()["started"])
+        self.assertIn("auto-fix.yml/dispatches", op.call_args[0][0].full_url)

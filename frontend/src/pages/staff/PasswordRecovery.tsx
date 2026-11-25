@@ -72,7 +72,7 @@ export function PasswordRecovery({ reset = false }: { reset?: boolean }) {
             )}
             {reset && passwordFields}
             {error && <p className="error" role="alert">{error}</p>}
-            <button className="btn" disabled={busy || (isCode && code.length !== 6)}><Icon name={reset || isCode ? "lock" : "mail"} />{busy ? "Please wait…" : reset || isCode ? "Reset password" : "Send code"}</button>
+            <button type="submit" className="btn" disabled={busy || (isCode && code.length !== 6)}><Icon name={reset || isCode ? "lock" : "mail"} />{busy ? "Please wait…" : reset || isCode ? "Reset password" : "Send code"}</button>
           </form>
         )}
         {isCode && <button type="button" className="recovery-back linklike" onClick={() => { setStage("email"); setCode(""); setError(""); }}>Didn’t get it? Send a new code</button>}

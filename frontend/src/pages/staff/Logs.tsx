@@ -102,17 +102,17 @@ function LogTable({ kind }: { kind: "api" | "email" | "sms" }) {
             <p className="muted">The email “{String(fixing.subject)}” could not be sent{fixing.error ? ` (${String(fixing.error)})` : ""}. Fix the address and it is sent again straight away. The corrected address is saved on the case.</p>
             {fixErr && <p className="error" role="alert">{fixErr}</p>}
             <Field label="Send to (email address)" required><input type="email" required autoFocus value={address} onChange={(e) => setAddress(e.target.value)} /></Field>
-            <button className="btn" disabled={working !== null || !address.trim()}><Icon name="send" />{working ? "Sending…" : "Save and send again"}</button>
+            <button type="submit" className="btn" disabled={working !== null || !address.trim()}><Icon name="send" />{working ? "Sending…" : "Save and send again"}</button>
           </form>
         )}
       </Modal>
       <div className="pager">
         <span className="muted">{data?.count ?? 0} entr{data?.count === 1 ? "y" : "ies"}</span>
         <div>
-          <button className="btn secondary" onClick={reload}><Icon name="refresh" size={16} />Refresh</button>
-          <button className="btn secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}><Icon name="left" size={16} />Previous</button>
+          <button type="submit" className="btn secondary" onClick={reload}><Icon name="refresh" size={16} />Refresh</button>
+          <button type="submit" className="btn secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}><Icon name="left" size={16} />Previous</button>
           <span aria-live="polite">{page} / {data?.pages ?? 1}</span>
-          <button className="btn secondary" disabled={!data || page >= data.pages} onClick={() => setPage(page + 1)}>Next<Icon name="right" size={16} /></button>
+          <button type="submit" className="btn secondary" disabled={!data || page >= data.pages} onClick={() => setPage(page + 1)}>Next<Icon name="right" size={16} /></button>
         </div>
       </div>
     </>

@@ -94,7 +94,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   const onCid = (e: { target: { value: string } }) => {
     const cid = individual ? e.target.value.replace(/\D/g, "").slice(0, 11) : e.target.value.slice(0, 20);
     setV((p) => ({ ...p, cid }));
-    if (individual && cid.length === 11) lookupCid(cid); else setCidState("");
+    if (individual && cid.length === 11) void lookupCid(cid); else setCidState("");
   };
   const check = (k: string) => (e: { target: { checked: boolean } }) => setV((p) => ({ ...p, [k]: e.target.checked }));
   const f = (k: string) => err?.fields[k];
@@ -527,7 +527,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
       <div className="form-actions">
         <p className="muted"><Icon name="check" size={18} /><span>{t("Please check your details before submitting.", "Check the details before registering the complaint.")}</span></p>
         {offline && <button type="button" className="btn secondary" disabled={busy} onClick={(e) => submit(e as unknown as FormEvent, { draft: true })}><Icon name="edit" />Save draft</button>}
-        <button className="btn" disabled={busy}><Icon name="send" />{busy ? "Submitting…" : offline ? "Register complaint" : "Submit complaint"}</button>
+        <button type="submit" className="btn" disabled={busy}><Icon name="send" />{busy ? "Submitting…" : offline ? "Register complaint" : "Submit complaint"}</button>
       </div>
         </>
       )}

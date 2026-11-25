@@ -12,6 +12,7 @@ newly finds issues. Address and credentials are typed into Settings (.env works 
 import base64
 import json
 import os
+import urllib.error
 import urllib.parse
 import urllib.request
 
@@ -112,7 +113,14 @@ def _sonarqube():
     meas = _json(f"{base}/api/measures/component?component={proj}&metricKeys=bugs,vulnerabilities,security_hotspots,code_smells", h)
     counts = {m["metric"]: int(float(m.get("value", 0))) for m in meas["component"]["measures"]}
     bad = gate["status"] != "OK" or counts.get("vulnerabilities", 0) or counts.get("bugs", 0)
-    return {"state": "issues" if bad else "ok", "counts": counts, "link": f"{base}/dashboard?id={proj}",
+    items = []
+    if bad:  # the actual bugs and vulnerabilities, most serious first, so they can be fixed from the list
+        found = _json(f"{base}/api/issues/search?componentKeys={proj}&types=BUG,VULNERABILITY&resolved=false&ps=200&s=SEVERITY&asc=false", h)
+        order = {"BLOCKER": 0, "CRITICAL": 1, "MAJOR": 2, "MINOR": 3, "INFO": 4}
+        for i in sorted(found.get("issues", []), key=lambda i: order.get(i["severity"], 5)):
+            items.append({"severity": i["severity"], "type": i["type"], "file": i["component"].split(":", 1)[-1], "line": i.get("line") or 0,
+                          "message": i["message"], "rule": i["rule"], "link": f"{base}/project/issues?id={proj}&open={urllib.parse.quote(i['key'])}"})
+    return {"state": "issues" if bad else "ok", "counts": counts, "link": f"{base}/dashboard?id={proj}", "items": items,
             "summary": f"Quality gate {gate['status'].lower()}: {counts.get('bugs', 0)} bugs, {counts.get('vulnerabilities', 0)} vulnerabilities, {counts.get('security_hotspots', 0)} hotspots"}
 
 
@@ -165,3 +173,94 @@ def overview():
 
 def run_all():
     return {k: run(k) for k, _, _ in CHECKS}
+
+
+def solve():
+    """Start the "Auto fix" GitHub workflow, which opens a pull request with the fixes. Returns (ok, message, link)."""
+    repo, token = _env("GITHUB_REPO"), _env("GITHUB_TOKEN")
+    if not repo or not token:
+        return False, "Enter the GitHub repository and an access token (with Actions: read and write) in the CI pipeline settings first.", ""
+    api = f"https://api.github.com/repos/{repo}"
+    hdr = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
+    try:
+        branch = _json(api, hdr)["default_branch"]
+        body = {"ref": branch, "inputs": {"sonar_url": _env("SONARQUBE_URL").rstrip("/"), "sonar_project": _env("SONARQUBE_PROJECT")}}
+        urllib.request.urlopen(urllib.request.Request(f"{api}/actions/workflows/auto-fix.yml/dispatches", data=json.dumps(body).encode(),
+                                                      headers={**hdr, "Content-Type": "application/json"}, method="POST"), timeout=20)
+    except urllib.error.HTTPError as exc:
+        why = {401: "the token is not accepted", 403: "the token needs the permission Actions: read and write", 404: "the workflow auto-fix.yml was not found on the default branch (push it first) or the token cannot see the repository", 422: "GitHub refused the request (is auto-fix.yml on the default branch?)"}.get(exc.code, f"GitHub answered {exc.code}")
+        return False, f"Could not start the fix: {why}.", ""
+    except Exception as exc:
+        return False, f"Could not reach GitHub ({type(exc).__name__}).", ""
+    return True, "The fix has started. In a few minutes a pull request appears on GitHub. Review it, merge it, then redeploy.", f"https://github.com/{repo}/actions/workflows/auto-fix.yml"
+
+
+TODO = {
+    "ci": "Open the failing run on GitHub (link below), read the red step, fix the code or the test, and push again. The check turns green when the next run passes.",
+    "sonarqube": "Open the project in SonarQube (link below), look at the failed conditions of the quality gate (bugs, vulnerabilities, security hotspots), fix those lines in the code and run the analysis again.",
+    "zap": "Open the ZAP report (link below), start with the High and Medium alerts, fix each one in the code or the web server settings, and run the ZAP scan again.",
+    "dependencies": "Update the packages listed below to the shown version, run the tests, then rebuild and redeploy the images.",
+}
+ERROR_TODO = "The check could not run. In Settings > Security scan, open Edit settings and check the address, project and token, and make sure the tool is running and reachable from the server."
+
+
+def report_pdf(by=""):
+    """A PDF listing everything that is not clear, and what to update or fix for each item."""
+    import html
+    import io
+    from reportlab.lib import colors
+    from reportlab.lib.pagesizes import A4
+    from reportlab.lib.styles import ParagraphStyle, getSampleStyleSheet
+    from reportlab.platypus import Paragraph, SimpleDocTemplate, Spacer, Table, TableStyle
+    from . import depscan
+    e = lambda v: html.escape(str(v or ""))
+    st = getSampleStyleSheet()
+    small = ParagraphStyle("small", parent=st["BodyText"], fontSize=8, leading=10)
+    mono = ParagraphStyle("mono", parent=small, fontName="Courier", fontSize=7.5, leading=9.5)
+    buf = io.BytesIO()
+    doc = SimpleDocTemplate(buf, pagesize=A4, title="Security report", leftMargin=36, rightMargin=36, topMargin=36, bottomMargin=36)
+    flow = [Paragraph("BICMA CMS: security report", st["Title"]),
+            Paragraph(f"Made {timezone.localtime():%Y-%m-%d %H:%M}" + (f" for {e(by)}" if by else ""), st["Normal"]), Spacer(1, 10)]
+    problems = [c for c in overview() if c["state"] in ("issues", "error")]
+    if not problems:
+        flow.append(Paragraph("Everything that is set up is clear. Nothing needs updating.", st["Heading2"]))
+    else:
+        rows = [[Paragraph("<b>Check</b>", small), Paragraph("<b>Result</b>", small), Paragraph("<b>What to do</b>", small)]]
+        for c in problems:
+            rows.append([Paragraph(e(c["label"]), small), Paragraph(e(c["summary"]), small), Paragraph(e(TODO[c["key"]] if c["state"] == "issues" else ERROR_TODO), small)])
+        t = Table(rows, colWidths=[90, 150, 300], repeatRows=1)
+        t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey), ("GRID", (0, 0), (-1, -1), 0.25, colors.grey), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+        flow += [Paragraph("What needs attention", st["Heading2"]), t]
+        for c in problems:
+            if c["link"]:
+                flow.append(Paragraph(f"{e(c['label'])} report: {e(c['link'])}", small))
+    sonar = (last("sonarqube") or {}).get("items") or []
+    if sonar:
+        flow += [Spacer(1, 12), Paragraph("Code issues to fix (SonarQube)", st["Heading2"]),
+                 Paragraph(f"{len(sonar)} bugs and vulnerabilities, most serious first. Fix the line shown, then run the check again.", small), Spacer(1, 4)]
+        rows = [[Paragraph(f"<b>{h}</b>", small) for h in ("Severity", "File and line", "What is wrong")]]
+        for i in sonar[:150]:
+            rows.append([Paragraph(f"{e(i['severity'])}<br/>{e(i['type'])}", small), Paragraph(f"{e(i['file'])}:{i['line']}", small), Paragraph(f"{e(i['message'])[:220]}<br/>({e(i['rule'])})", small)])
+        t = Table(rows, colWidths=[60, 150, 330], repeatRows=1)
+        t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey), ("GRID", (0, 0), (-1, -1), 0.25, colors.grey), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+        flow.append(t)
+    scan = depscan.last() or {}
+    finds = scan.get("findings") or []
+    if finds:
+        flow += [Spacer(1, 12), Paragraph("Packages to update", st["Heading2"]),
+                 Paragraph(f"{len(finds)} known vulnerabilities in {scan.get('packages', '?')} packages. Highest severity first.", small), Spacer(1, 4)]
+        order = {"CRITICAL": 0, "HIGH": 1, "MEDIUM": 2, "LOW": 3}
+        rows = [[Paragraph(f"<b>{h}</b>", small) for h in ("Package", "Severity", "Issue", "Update to")]]
+        for f in sorted(finds, key=lambda f: order.get(f["severity"], 4)):
+            rows.append([Paragraph(f"{e(f['package'])} {e(f['version'])}<br/>({e(f['ecosystem'])})", small), Paragraph(e(f["severity"]), small),
+                         Paragraph(f"{e(f['id'])}<br/>{e(f['summary'])[:200]}", small), Paragraph(e(f["fixed_in"]) or "No fixed version yet", small)])
+        t = Table(rows, colWidths=[110, 55, 275, 100], repeatRows=1)
+        t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey), ("GRID", (0, 0), (-1, -1), 0.25, colors.grey), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+        flow.append(t)
+        cmds = list(dict.fromkeys(f["fix"] for f in finds if f.get("fix")))
+        if cmds:
+            flow += [Spacer(1, 12), Paragraph("Commands to run in the project folder", st["Heading2"]),
+                     Paragraph("Run these, then run the tests, rebuild the images and redeploy.", small)]
+            flow += [Paragraph(e(c), mono) for c in cmds]
+    doc.build(flow)
+    return buf.getvalue()

@@ -111,7 +111,7 @@ export function DashboardPage() {
   return (
     <div className="dashboard-page">
       <PageHeader icon="dashboard" title="Dashboard" subtitle={`Complaints you are permitted to see as ${user?.role_display}. Select any figure to open the matching list.`}>
-        <button className="btn secondary" onClick={reload}><Icon name="refresh" />Refresh</button>
+        <button type="submit" className="btn secondary" onClick={reload}><Icon name="refresh" />Refresh</button>
       </PageHeader>
       <div className="card filter-bar" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(min(150px, 100%), 1fr))" }}>
         <label><span>From</span><input type="date" value={sp.get("date_from") ?? ""} onChange={set("date_from")} /></label>

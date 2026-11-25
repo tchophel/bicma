@@ -13,6 +13,7 @@ spec:
   template:
     metadata: { labels: { app: cms-backend } }
     spec:
+      automountServiceAccountToken: false
       imagePullSecrets: [{ name: harbor-secret }]
       securityContext: { fsGroup: 10001 }
       initContainers:
@@ -28,6 +29,7 @@ spec:
           ports: [{ containerPort: 8000 }]
           volumeMounts: [{ name: media, mountPath: /app/media }]
           readinessProbe: { tcpSocket: { port: 8000 }, periodSeconds: 5 }
+          resources: { requests: { cpu: 50m, memory: 256Mi }, limits: { memory: 1Gi, ephemeral-storage: 2Gi } }
       volumes: [{ name: media, persistentVolumeClaim: { claimName: cms-media } }]
 ---
 apiVersion: v1

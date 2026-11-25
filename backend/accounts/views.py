@@ -68,17 +68,84 @@ class LoginView(APIView):
             email_for_auth = email
         if cache.get(key, 0) >= MAX_FAILURES:
             audit.log(request, "auth.login_locked", detail={"email": email[:254]})
-            return Response({"detail": "Too many failed attempts. Try again later."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
+            return Response({"detail": f"Too many failed attempts. This account is locked for {LOCKOUT_SECONDS // 60} minutes. Try again later."}, status=status.HTTP_429_TOO_MANY_REQUESTS)
         user = authenticate(request, username=email_for_auth, password=password)
         if user is None or not user.is_active:
-            cache.set(key, cache.get(key, 0) + 1, LOCKOUT_SECONDS)
+            fails = cache.get(key, 0) + 1
+            cache.set(key, fails, LOCKOUT_SECONDS)
             audit.log(request, "auth.login_failed", detail={"email": email[:254]})
-            return Response({"detail": "Invalid username or password."}, status=status.HTTP_400_BAD_REQUEST)
+            left = MAX_FAILURES - fails
+            more = (f" {left} attempt{'s' if left != 1 else ''} left before the account is locked for {LOCKOUT_SECONDS // 60} minutes."
+                    if left > 0 else f" The account is now locked for {LOCKOUT_SECONDS // 60} minutes.")
+            return Response({"detail": "Invalid username or password." + more}, status=status.HTTP_400_BAD_REQUEST)
         cache.delete(key)
         login(request, user)
         request.session.set_expiry(settings.REMEMBER_ME_AGE if request.data.get("remember_me") is True else 0)
         audit.log(request, "auth.login", actor=user)
         return Response(_with_perms(UserSerializer(user).data, user))
+
+
+class GoogleConfigView(APIView):
+    """Public: is Sign in with Google turned on?"""
+
+    authentication_classes = []
+    permission_classes = [AllowAny]
+
+    def get(self, request):
+        from . import google
+        return Response({"enabled": google.enabled()})
+
+
+class GoogleStartView(APIView):
+    authentication_classes = [CsrfOnlyAuthentication]
+    permission_classes = [AllowAny]
+    throttle_scope = "login"
+
+    def post(self, request):
+        from . import google
+        redirect_uri = str(request.data.get("redirect_uri", ""))
+        if not google.enabled():
+            return Response({"detail": "Sign in with Google is not turned on."}, status=status.HTTP_400_BAD_REQUEST)
+        if not google.allowed_redirect(redirect_uri, request):
+            return Response({"detail": "Unexpected sign-in address."}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({"url": google.start_url(request, redirect_uri)})
+
+
+class GoogleCallbackView(APIView):
+    authentication_classes = [CsrfOnlyAuthentication]
+    permission_classes = [AllowAny]
+    throttle_scope = "login"
+
+    def post(self, request):
+        from . import google
+        try:
+            email = google.email_for_code(request, str(request.data.get("code", "")), str(request.data.get("state", "")))
+        except ValueError as e:
+            return Response({"detail": str(e)}, status=status.HTTP_400_BAD_REQUEST)
+        user = User.objects.filter(email__iexact=email, is_active=True).first()
+        if user is None:
+            audit.log(request, "auth.login_failed", detail={"method": "google", "email": email[:254], "reason": "no active account for this email"})
+            return Response({"detail": f"No active BICMA account uses {email}. Ask your Administrator to add it."}, status=status.HTTP_400_BAD_REQUEST)
+        login(request, user, backend="django.contrib.auth.backends.ModelBackend")
+        request.session.set_expiry(0)
+        audit.log(request, "auth.login", actor=user, detail={"method": "google"})
+        return Response(_with_perms(UserSerializer(user).data, user))
+
+
+class GoogleAdminView(APIView):
+    """Administrator: type the Google Client ID and secret in Settings."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        from . import google
+        return Response(google.public())
+
+    def post(self, request):
+        from . import google
+        google.save(str(request.data.get("client_id", "")), str(request.data.get("client_secret", "")))
+        audit.log(request, "security.google_login_config", entity_type="settings", entity_id="google_login")
+        return Response(google.public())
 
 
 class PasswordResetRequestSerializer(serializers.Serializer):

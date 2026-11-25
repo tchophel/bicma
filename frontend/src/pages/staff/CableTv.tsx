@@ -95,7 +95,7 @@ export function CableTv() {
               <label htmlFor="cable-name">Add a cable TV name for {chosen.name}</label>
               <div>
                 <input id="cable-name" maxLength={150} value={name} onChange={(e) => setName(e.target.value)} placeholder="Name of the cable TV operator" />
-                <button className="btn" disabled={busy || !name.trim() || !typeId}><Icon name="plus" />Add</button>
+                <button type="submit" className="btn" disabled={busy || !name.trim() || !typeId}><Icon name="plus" />Add</button>
               </div>
               {err && <p className="error" role="alert">{err}</p>}
             </form>

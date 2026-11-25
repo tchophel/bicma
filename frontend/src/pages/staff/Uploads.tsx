@@ -80,7 +80,7 @@ export function Uploads() {
           </fieldset>
           <Field label="Upload instructions" hint="Shown in red beside supporting document uploads on all complaint forms. Leave empty to hide." ><textarea rows={3} maxLength={2000} value={cur.upload_instructions ?? ""} onChange={(e) => setLim({ ...lim, upload_instructions: e.target.value })} /></Field>
           {msg.err && <p className="error" role="alert">{msg.err}</p>}{msg.ok && <p className="notice" role="status">{msg.ok}</p>}
-          <button className="btn"><Icon name="check" />Save upload settings</button>
+          <button type="submit" className="btn"><Icon name="check" />Save upload settings</button>
         </form>
       )}
       <section className="card">
@@ -102,8 +102,8 @@ export function Uploads() {
         </table>
         {!loading && data?.results.length === 0 && <EmptyState icon="search">No documents match.</EmptyState>}</div>
         {data && <div className="pager"><span>{data.matches} document{data.matches === 1 ? "" : "s"}</span>
-          <div><button className="btn secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}><Icon name="left" size={16} />Previous</button>
-            <button className="btn secondary" disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next<Icon name="right" size={16} /></button></div></div>}
+          <div><button type="submit" className="btn secondary" disabled={page <= 1} onClick={() => setPage(page - 1)}><Icon name="left" size={16} />Previous</button>
+            <button type="submit" className="btn secondary" disabled={page >= data.pages} onClick={() => setPage(page + 1)}>Next<Icon name="right" size={16} /></button></div></div>}
       </section>
     </>
   );

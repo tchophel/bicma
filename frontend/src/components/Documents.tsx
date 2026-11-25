@@ -56,7 +56,7 @@ export function UploadDocuments({ c, onDone, heading = false }: { c: ComplaintDe
           {files.map((f, i) => <li key={`${f.name}-${i}`}><strong>{f.name}</strong><small>{Math.ceil(f.size / 1024)} KB</small><ScanBadge scan={scan.of(f)} /></li>)}
         </ul>
       )}
-      <button className={`btn upload-btn${busy ? " uploading" : ""}${done ? " completed" : ""}`} style={{ ["--pct" as string]: `${percent}%` }}
+      <button type="submit" className={`btn upload-btn${busy ? " uploading" : ""}${done ? " completed" : ""}`} style={{ ["--pct" as string]: `${percent}%` }}
         disabled={busy || !files.length || scan.blocked || scan.scanning}>
         <Icon name={done ? "check" : "plus"} />
         {busy ? (percent < 100 ? `Uploading… ${percent}%` : "Finishing…") : scan.blocked ? "Remove the blocked file" : scan.scanning && files.length ? "Scanning…" : "Upload"}

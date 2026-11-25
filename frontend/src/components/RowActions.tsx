@@ -47,7 +47,7 @@ function AssignForm({ c, onClose, onDone }: { c: ComplaintRow; onClose: () => vo
   const [officer, setOfficer] = useState("");
   const [priority, setPriority] = useState(c.priority ?? "");
   const [reason, setReason] = useState("");
-  const submit = (e: FormEvent) => { e.preventDefault(); run({ assigned_to: officer, priority, reason }); };
+  const submit = (e: FormEvent) => { e.preventDefault(); void run({ assigned_to: officer, priority, reason }); };
   return (
     <form onSubmit={submit}>
       <p className="muted">The officer is alerted and emailed, and the complaint moves to <strong>Assigned</strong>. Only officers of {c.division_name ?? "this division"} are listed.</p>
@@ -66,7 +66,7 @@ function AssignForm({ c, onClose, onDone }: { c: ComplaintRow; onClose: () => vo
       <Field label={c.assigned_to ? "Reason for reassigning" : "Note (optional)"} required={!!c.assigned_to} error={f("reason")}><input required={!!c.assigned_to} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
       <div className="modal-actions">
         <button type="button" className="btn secondary" disabled={busy} onClick={onClose}>Cancel</button>
-        <button className="btn" disabled={busy}><Icon name="users" />{c.assigned_to ? "Reassign" : "Assign"}</button>
+        <button type="submit" className="btn" disabled={busy}><Icon name="users" />{c.assigned_to ? "Reassign" : "Assign"}</button>
       </div>
     </form>
   );
@@ -77,7 +77,7 @@ function ReferForm({ c, onClose, onDone }: { c: ComplaintRow; onClose: () => voi
   const { busy, err, run, f } = useAct(c, "refer", onClose, onDone, "Complaint referred.");
   const [division, setDivision] = useState("");
   const [reason, setReason] = useState("");
-  const submit = (e: FormEvent) => { e.preventDefault(); run({ division, reason }); };
+  const submit = (e: FormEvent) => { e.preventDefault(); void run({ division, reason }); };
   return (
     <form onSubmit={submit}>
       <p className="muted">The complaint keeps its reference number and goes to the other division&rsquo;s triage queue. Its Division Head is alerted and emailed.</p>
@@ -91,7 +91,7 @@ function ReferForm({ c, onClose, onDone }: { c: ComplaintRow; onClose: () => voi
       <Field label="Reason" required error={f("reason")}><textarea required rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
       <div className="modal-actions">
         <button type="button" className="btn secondary" disabled={busy} onClick={onClose}>Cancel</button>
-        <button className="btn" disabled={busy}><Icon name="send" />Refer</button>
+        <button type="submit" className="btn" disabled={busy}><Icon name="send" />Refer</button>
       </div>
     </form>
   );

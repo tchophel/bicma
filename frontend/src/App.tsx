@@ -17,6 +17,7 @@ import { DashboardPage } from "./pages/staff/Dashboard";
 import { Divisions } from "./pages/staff/Divisions";
 import { Dzongkhags } from "./pages/staff/Dzongkhags";
 import { Login } from "./pages/staff/Login";
+import { GoogleCallback } from "./pages/staff/GoogleCallback";
 import { Profile } from "./pages/staff/Profile";
 import { Register } from "./pages/staff/Register";
 import { SettingsPage } from "./pages/staff/Settings";
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="track" element={<Track />} />
             <Route path="help" element={<Navigate to="/staff/help" replace />} />
             <Route path="staff" element={<Login />} />
+            <Route path="staff/login/google" element={<GoogleCallback />} />
             <Route path="staff/forgot-password" element={<PasswordRecovery key="request" />} />
             <Route path="staff/reset-password/:uid/:token" element={<PasswordRecovery key="reset" reset />} />
             <Route path="*" element={<NotFound />} />

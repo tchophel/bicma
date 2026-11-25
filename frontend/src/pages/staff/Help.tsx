@@ -43,7 +43,7 @@ export function Help() {
         <Field label="Warning message" hint="Explain which photos or documents to upload. Leave empty to hide the warning.">
           <textarea rows={8} maxLength={2000} disabled={busy} value={message} onChange={(e) => { setDraft(e.target.value); setSuccess(""); }} placeholder={"Warning\nPlease upload clear photos, screenshots, receipts, or other documents that support your complaint."} />
         </Field>
-        <div className="faq-form-actions"><button className="btn" disabled={busy}><Icon name="check" />{busy ? "Saving…" : "Save warning"}</button></div>
+        <div className="faq-form-actions"><button type="submit" className="btn" disabled={busy}><Icon name="check" />{busy ? "Saving…" : "Save warning"}</button></div>
       </form>
       <section className="card faq-admin-form" aria-label="Upload warning preview">
         <PanelTitle icon="help">Preview</PanelTitle>

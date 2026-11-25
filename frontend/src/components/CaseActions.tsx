@@ -73,14 +73,15 @@ function Triage({ c, meta, onDone }: { c: ComplaintDetail; meta: Meta; onDone: (
   const inDivision = (x: Meta["categories"][number]) => !!c.division && [x.default_division, x.urban_division, x.rural_division].includes(c.division);
   const divCats = meta.categories.some(inDivision) ? meta.categories.filter((x) => inDivision(x) || x.id === c.category) : meta.categories;
   async function saveReview(changes: { category?: string; subcategory?: string; priority?: string; confidential_case?: boolean }) {
+    const before = { category, subcategory, priority, confCase };
     const next = { category, subcategory, division, priority, confidential_case: confCase, ...changes };
     if (changes.category !== undefined) { setCategory(changes.category); setSubcategory(""); }
     if (changes.priority !== undefined) setPriority(changes.priority);
     if (changes.confidential_case !== undefined) setConfCase(changes.confidential_case);
     const ok = await run("triage", next);
-    if (!ok) { setCategory(category); setSubcategory(subcategory); setPriority(priority); setConfCase(confCase); }
+    if (!ok) { setCategory(before.category); setSubcategory(before.subcategory); setPriority(before.priority); setConfCase(before.confCase); }
   }
-  const act = (name: string, body: Record<string, unknown>) => (e: FormEvent) => { e.preventDefault(); run(name, body); };
+  const act = (name: string, body: Record<string, unknown>) => (e: FormEvent) => { e.preventDefault(); void run(name, body); };
   return (
     <Block icon="division" title="Triage and assignment">
       <div className="case-triage-context"><div><span>Suggested division</span><strong>{c.suggested_division_name ?? "Not suggested"}</strong></div><div><span>Response due</span><strong>{c.response_due_at ? new Date(c.response_due_at).toLocaleDateString() : "Set a priority"}</strong></div></div>
@@ -115,7 +116,7 @@ function Triage({ c, meta, onDone }: { c: ComplaintDetail; meta: Meta; onDone: (
             </>}
           </span>
         </fieldset>
-        <button className="btn" disabled={busy || team.loading || !!team.err}><Icon name="users" />{busy ? "Saving…" : "Save joined officers"}</button>
+        <button type="submit" className="btn" disabled={busy || team.loading || !!team.err}><Icon name="users" />{busy ? "Saving…" : "Save joined officers"}</button>
       </form>}
       {p.assign && routing === "assign" && (
         <form className="case-routing-form" aria-label="Assign officer" onSubmit={act("assign", { assigned_to: officer, priority, reason: assignNote })}>
@@ -123,7 +124,7 @@ function Triage({ c, meta, onDone }: { c: ComplaintDetail; meta: Meta; onDone: (
           <div className="case-routing-row">
             <Field label="Officer" required error={f("assigned_to")}><select required value={officer} onChange={(e) => setOfficer(e.target.value)}><option value="">Select officer</option>{officers.data?.map((o) => <option key={o.id} value={o.id}>{o.name} · {o.role}</option>)}</select></Field>
             <Field label={c.assigned_to ? "Reason for reassigning" : "Note"} required={!!c.assigned_to} error={f("reason")}><input required={!!c.assigned_to} placeholder={c.assigned_to ? "Why are you reassigning?" : "Optional instructions for the officer"} value={assignNote} onChange={(e) => setAssignNote(e.target.value)} /></Field>
-          <button className="btn" disabled={busy}><Icon name="users" />{c.assigned_to ? "Reassign officer" : "Assign officer"}</button>
+          <button type="submit" className="btn" disabled={busy}><Icon name="users" />{c.assigned_to ? "Reassign officer" : "Assign officer"}</button>
           </div>
         </form>
       )}
@@ -133,7 +134,7 @@ function Triage({ c, meta, onDone }: { c: ComplaintDetail; meta: Meta; onDone: (
           <div className="case-routing-row">
             <Field label="Division" required error={f("division")}><select required value={refTo} onChange={(e) => setRefTo(e.target.value)}><option value="">Select division</option>{meta.divisions.filter((d) => d.id !== c.division).map((d) => <option key={d.id} value={d.id}>{d.name}</option>)}</select></Field>
             <Field label="Reason" required error={f("reason")}><input required placeholder="Why should this division handle it?" value={referReason} onChange={(e) => setReferReason(e.target.value)} /></Field>
-          <button className="btn secondary" disabled={busy}><Icon name="send" />Refer complaint</button>
+          <button type="submit" className="btn secondary" disabled={busy}><Icon name="send" />Refer complaint</button>
           </div>
         </form>
       )}
@@ -143,7 +144,7 @@ function Triage({ c, meta, onDone }: { c: ComplaintDetail; meta: Meta; onDone: (
         <form className="case-disclosure-content" onSubmit={act("not-in-mandate", { reason: mandateReason, authority_referred_to: authority })}>
           <Field label="Reason (the complainant is emailed)" required error={f("reason")}><textarea required rows={2} value={mandateReason} onChange={(e) => setMandateReason(e.target.value)} /></Field>
           <Field label="Authority referred to" hint="Optional: the agency the complainant is directed to." error={f("authority_referred_to")}><input value={authority} onChange={(e) => setAuthority(e.target.value)} /></Field>
-          <button className="btn secondary" disabled={busy} onClick={(e) => { if (!confirm("Close this complaint as outside BICMA's jurisdiction?")) e.preventDefault(); }}><Icon name="close" />Close as not within mandate</button>
+          <button type="submit" className="btn secondary" disabled={busy} onClick={(e) => { if (!confirm("Close this complaint as outside BICMA's jurisdiction?")) e.preventDefault(); }}><Icon name="close" />Close as not within mandate</button>
         </form>
         </details>
       )}
@@ -165,15 +166,15 @@ function Investigation({ c, onDone }: { c: ComplaintDetail; onDone: () => void }
   return (
     <Block icon="search" title="Investigation">
       <Err e={err} />
-      {p.start && <button className="btn" disabled={busy} onClick={() => run("start", {})}><Icon name="search" />Start investigation</button>}
-      {p.resume && <button className="btn" disabled={busy} onClick={() => run("resume", {})}><Icon name="refresh" />Resume investigation</button>}
+      {p.start && <button type="submit" className="btn" disabled={busy} onClick={() => run("start", {})}><Icon name="search" />Start investigation</button>}
+      {p.resume && <button type="submit" className="btn" disabled={busy} onClick={() => run("resume", {})}><Icon name="refresh" />Resume investigation</button>}
       {editable ? (
-        <form onSubmit={(e) => { e.preventDefault(); run("save-findings", v); }} style={{ marginTop: 10 }}>
+        <form onSubmit={(e) => { e.preventDefault(); void run("save-findings", v); }} style={{ marginTop: 10 }}>
           <Field label="Investigation findings" required error={f("investigation_findings")}><textarea rows={4} value={v.investigation_findings} onChange={set("investigation_findings")} /></Field>
           <Field label="Action taken" required error={f("action_taken")}><textarea rows={3} value={v.action_taken} onChange={set("action_taken")} /></Field>
           <Field label="Recommendation"><textarea rows={2} value={v.recommendation} onChange={set("recommendation")} /></Field>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button className="btn secondary" disabled={busy}><Icon name="edit" />Save draft</button>
+            <button type="submit" className="btn secondary" disabled={busy}><Icon name="edit" />Save draft</button>
             {p.resolve && <button type="button" className="btn" disabled={busy} onClick={() => run("resolve", v)}><Icon name="check" />Submit for Division Head approval</button>}
           </div>
         </form>
@@ -187,11 +188,11 @@ function Investigation({ c, onDone }: { c: ComplaintDetail; onDone: () => void }
         </dl>
       )}
       {p.request_info && (
-        <form onSubmit={(e) => { e.preventDefault(); run("request-info", { message: ask }).then((ok) => ok && setAsk("")); }} style={{ marginTop: 16 }}>
+        <form onSubmit={(e) => { e.preventDefault(); void run("request-info", { message: ask }).then((ok) => ok && setAsk("")); }} style={{ marginTop: 16 }}>
           <h3>Request information</h3>
           <p className="muted">Pauses the response clock until the complainant replies.</p>
           <Field label="What do you need?" required error={f("message")}><textarea required rows={2} value={ask} onChange={(e) => setAsk(e.target.value)} /></Field>
-          <button className="btn secondary" disabled={busy}><Icon name="mail" />Request information</button>
+          <button type="submit" className="btn secondary" disabled={busy}><Icon name="mail" />Request information</button>
         </form>
       )}
       {p.return && !started && !showBack && <button type="button" className="btn secondary" style={{ marginLeft: 8 }} onClick={() => setShowBack(true)}><Icon name="refresh" />Return to Division Head</button>}
@@ -200,7 +201,7 @@ function Investigation({ c, onDone }: { c: ComplaintDetail; onDone: () => void }
           <h3>Return to Division Head</h3>
           <p className="muted">Use this if the complaint is outside your division or you cannot proceed. The Division Head is alerted and reassigns or redirects it.</p>
           <Field label="Reason for returning" required error={f("reason")}><textarea required rows={2} value={back} onChange={(e) => setBack(e.target.value)} /></Field>
-          <button className="btn secondary" disabled={busy}><Icon name="refresh" />Return to Division Head</button>
+          <button type="submit" className="btn secondary" disabled={busy}><Icon name="refresh" />Return to Division Head</button>
         </form>
       )}
       <Modal open={confirmReturn} onClose={() => setConfirmReturn(false)} busy={busy} title="Return to Division Head?" icon="refresh">
@@ -238,31 +239,31 @@ function Approval({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
             {p.reject && <button type="button" className="case-decision-return" aria-pressed={decision === "return"} disabled={busy} onClick={() => setDecision("return")}><Icon name="refresh" size={23} /><strong>Return to officer</strong><small>Ask the officer for further work</small></button>}
           </div>
           <div className="case-decision-form">
-          {decision === "approve" && <form className="decision-card" onSubmit={(e) => { e.preventDefault(); run("approve", { closure_reason: closure, public_message: pub }); }}>
+          {decision === "approve" && <form className="decision-card" onSubmit={(e) => { e.preventDefault(); void run("approve", { closure_reason: closure, public_message: pub }); }}>
             <h4><Icon name="check" size={16} />Accept and close</h4>
             <Field label="Closure reason" required error={f("closure_reason")}><textarea required rows={3} placeholder="Summarize why this complaint is being closed" value={closure} onChange={(e) => setClosure(e.target.value)} /></Field>
             <Field label="Message to complainant (optional)"><textarea rows={3} placeholder="Add a message for the complainant, if needed" value={pub} onChange={(e) => setPub(e.target.value)} /></Field>
-            <button className="btn" disabled={busy}><Icon name="check" />Accept and close</button>
+            <button type="submit" className="btn" disabled={busy}><Icon name="check" />Accept and close</button>
           </form>}
           {p.send_to_management && decision === "supervisor" && (
-            <form className="decision-card" onSubmit={(e) => { e.preventDefault(); run("send-to-management", { note }); }}>
+            <form className="decision-card" onSubmit={(e) => { e.preventDefault(); void run("send-to-management", { note }); }}>
               <h4><Icon name="send" size={16} />Send to Supervisor</h4>
               <Field label="Note (optional)"><input value={note} onChange={(e) => setNote(e.target.value)} placeholder="Anything they should look at" /></Field>
-              <button className="btn secondary" disabled={busy}><Icon name="send" />Send to Supervisor</button>
+              <button type="submit" className="btn secondary" disabled={busy}><Icon name="send" />Send to Supervisor</button>
             </form>
           )}
-          {p.reject && decision === "return" && <form className="decision-card" onSubmit={(e) => { e.preventDefault(); run("reject", { reason }); }}>
+          {p.reject && decision === "return" && <form className="decision-card" onSubmit={(e) => { e.preventDefault(); void run("reject", { reason }); }}>
             <h4><Icon name="refresh" size={16} />Return to officer</h4>
             <Field label="What must be done?" required error={f("reason")}><textarea required rows={3} placeholder="Describe what needs to be checked or completed" value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-            <button className="btn secondary" disabled={busy}><Icon name="refresh" />Return to officer</button>
+            <button type="submit" className="btn secondary" disabled={busy}><Icon name="refresh" />Return to officer</button>
           </form>}
           </div>
         </>
       )}
       {p.reopen && (
-        <form onSubmit={(e) => { e.preventDefault(); run("reopen", { reason }); }}>
+        <form onSubmit={(e) => { e.preventDefault(); void run("reopen", { reason }); }}>
           <Field label="Reason for reopening" required error={f("reason")}><textarea required rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-          <button className="btn secondary" disabled={busy}><Icon name="refresh" />Reopen</button>
+          <button type="submit" className="btn secondary" disabled={busy}><Icon name="refresh" />Reopen</button>
         </form>
       )}
     </Block>
@@ -316,13 +317,13 @@ function ManagementDecision({ c, onDone }: { c: ComplaintDetail; onDone: () => v
         {c.recommendation && <><dt>Recommendation</dt><dd style={{ whiteSpace: "pre-wrap" }}>{c.recommendation}</dd></>}
         {c.outcome_name && <><dt>Outcome</dt><dd>{c.outcome_name}</dd></>}
       </dl>}
-      <form onSubmit={(e) => { e.preventDefault(); run("mgmt-approve", { remarks }); }} style={{ marginTop: 12 }}>
+      <form onSubmit={(e) => { e.preventDefault(); void run("mgmt-approve", { remarks }); }} style={{ marginTop: 12 }}>
         <Field label="Remarks (optional)"><input value={remarks} onChange={(e) => setRemarks(e.target.value)} /></Field>
-        <button className="btn" disabled={busy}><Icon name="check" />Accept</button>
+        <button type="submit" className="btn" disabled={busy}><Icon name="check" />Accept</button>
       </form>
-      <form onSubmit={(e) => { e.preventDefault(); run("mgmt-reject", { reason }); }} style={{ marginTop: 16 }}>
+      <form onSubmit={(e) => { e.preventDefault(); void run("mgmt-reject", { reason }); }} style={{ marginTop: 16 }}>
         <Field label="Reject: why are the findings not accepted?" required error={f("reason")}><textarea required rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-        <button className="btn secondary" disabled={busy}><Icon name="close" />Reject</button>
+        <button type="submit" className="btn secondary" disabled={busy}><Icon name="close" />Reject</button>
       </form>
     </Block>
   );
@@ -337,9 +338,9 @@ function ReturnedByManagement({ c, onDone }: { c: ComplaintDetail; onDone: () =>
     <Block icon="alert" title="Returned by supervisor">
       <Err e={err} />
       <p>The Supervisor did not accept the findings{why ? <>: <em>{why}</em></> : "."} Decide what happens next: send the case back to {c.assigned_to_name ?? "the officer"}, or choose a different Investigating Officer in <strong>Assign</strong>.</p>
-      <form onSubmit={(e) => { e.preventDefault(); run("send-back", { reason }); }}>
+      <form onSubmit={(e) => { e.preventDefault(); void run("send-back", { reason }); }}>
         <Field label={`Instructions for ${c.assigned_to_name ?? "the officer"}`} required error={f("reason")}><textarea required rows={2} value={reason} onChange={(e) => setReason(e.target.value)} /></Field>
-        <button className="btn" disabled={busy || !c.assigned_to}><Icon name="refresh" />Send back to the same officer</button>
+        <button type="submit" className="btn" disabled={busy || !c.assigned_to}><Icon name="refresh" />Send back to the same officer</button>
       </form>
     </Block>
   );
@@ -383,7 +384,7 @@ function Messages({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) {
           </div>
           <Field label="Message" required error={f("body")}><textarea required rows={3} value={body} onChange={(e) => setBody(e.target.value)} /></Field>
           <Field label="Attachments"><input type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} /></Field>
-          <button className="btn" disabled={busy}><Icon name="send" />{kind === "public-message" ? "Send" : "Save note"}</button>
+          <button type="submit" className="btn" disabled={busy}><Icon name="send" />{kind === "public-message" ? "Send" : "Save note"}</button>
         </form>
       )}
     </Block>
@@ -403,7 +404,7 @@ function Stakeholder({ c, onDone }: { c: ComplaintDetail; onDone: () => void }) 
         <EmailChips value={to} onChange={(list) => { setTo(list); setOk(false); }} />
       </Field>
       <Field label="Additional message" required><textarea required rows={2} value={msg} onChange={(e) => setMsg(e.target.value)} /></Field>
-      <button className="btn secondary" disabled={busy || to.length === 0 || !msg.trim()} onClick={async () => setOk(await run("stakeholder-review", { message: msg, recipients: to }))}><Icon name="mail" />{to.length > 1 ? `Send notice to ${to.length} addresses` : "Send notice"}</button>
+      <button type="submit" className="btn secondary" disabled={busy || to.length === 0 || !msg.trim()} onClick={async () => setOk(await run("stakeholder-review", { message: msg, recipients: to }))}><Icon name="mail" />{to.length > 1 ? `Send notice to ${to.length} addresses` : "Send notice"}</button>
       {ok && <p className="notice" role="status">Notice sent.</p>}
     </Block>
   );

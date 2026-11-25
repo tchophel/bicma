@@ -144,7 +144,7 @@ export function Users() {
             {divs.err && <p className="error" role="alert">Could not load divisions. Refresh the page to try again.</p>}
             {!editing && <div className="users-password-notice"><span className="users-password-icon"><Icon name="lock" size={20} /></span><div><strong>Password delivered by email</strong><p>A secure initial password will be generated automatically and sent to the user’s email address.</p></div></div>}
           </fieldset>
-          <div className="users-form-footer"><span className="muted">{editing ? "Review the changes before saving." : "Review the details before creating the account."}</span><div className="users-form-actions"><button type="button" className="btn secondary" disabled={busy} onClick={closeDialog}>Cancel</button><button className="btn" disabled={busy}><Icon name={editing ? "check" : "plus"} />{busy ? (editing ? "Saving…" : "Creating…") : (editing ? "Save changes" : "Create user")}</button></div></div>
+          <div className="users-form-footer"><span className="muted">{editing ? "Review the changes before saving." : "Review the details before creating the account."}</span><div className="users-form-actions"><button type="button" className="btn secondary" disabled={busy} onClick={closeDialog}>Cancel</button><button type="submit" className="btn" disabled={busy}><Icon name={editing ? "check" : "plus"} />{busy ? (editing ? "Saving…" : "Creating…") : (editing ? "Save changes" : "Create user")}</button></div></div>
         </form>
       </section>
       </dialog>
@@ -161,7 +161,7 @@ export function Users() {
           <label style={{ display: "flex", gap: 8, alignItems: "center", margin: "4px 0 14px" }}><input type="checkbox" checked={pwShow} onChange={(e) => setPwShow(e.target.checked)} />Show password</label>
           <div className="modal-actions">
             <button type="button" className="btn secondary" disabled={pwBusy} onClick={() => setPwUser(null)}>Cancel</button>
-            <button className="btn" disabled={pwBusy}><Icon name="check" />{pwBusy ? "Saving…" : "Set password"}</button>
+            <button type="submit" className="btn" disabled={pwBusy}><Icon name="check" />{pwBusy ? "Saving…" : "Set password"}</button>
           </div>
         </form>
       </Modal>

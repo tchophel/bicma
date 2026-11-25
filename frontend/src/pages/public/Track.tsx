@@ -62,7 +62,7 @@ export function Track() {
     catch (x) { setErr((x as ApiError).message); if (withToken) setToken(""); }
     finally { setBusy(false); }
   }
-  useEffect(() => { if (pre && token) lookup(pre, token); }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (pre && token) void lookup(pre, token); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function sendCode(e?: FormEvent) {
     e?.preventDefault();
@@ -103,7 +103,7 @@ export function Track() {
       setExtras((prev) => (offset ? [...prev, ...r.items] : r.items)); setExtraTotal(r.total); setExtraOpen(r.open);
     } catch { /* the complaint itself is still shown */ }
   }
-  useEffect(() => { if (res && token) loadExtras(res.reference, token); else { setExtras([]); setExtraTotal(0); } }, [res?.reference, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (res && token) void loadExtras(res.reference, token); else { setExtras([]); setExtraTotal(0); } }, [res?.reference, token]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const extraScan = useFileScan(extraFiles);  // each chosen file is checked for viruses and harmful content straight away
   const replyScan = useFileScan(files);
@@ -174,7 +174,7 @@ export function Track() {
           <div className="track-lookup-heading"><span className="track-lookup-icon"><Icon name="search" size={25} /></span><span className="tracking-eyebrow">STEP 1 OF 2 · FIND YOUR COMPLAINT</span><h2 id="track-lookup-title">Let’s find your complaint</h2><p>Use your complaint reference or the CID provided when you submitted it.</p></div>
           <Field label="Reference number or CID" required hint="Find your reference in your confirmation email, or enter your 11-digit CID."><input required value={ref} onChange={(e) => setRef(e.target.value)} placeholder="e.g. 0009 or your 11-digit CID" autoComplete="off" spellCheck={false} aria-invalid={!!err} aria-describedby={err ? "track-error" : undefined} /></Field>
           {err && <p id="track-error" className="error" role="alert">{err}</p>}
-          <button className="btn track-lookup-submit" disabled={busy || !ref.trim()}><Icon name={busy ? "refresh" : "mail"} />{busy ? "Sending…" : "Send verification code"}<Icon name="right" size={17} /></button>
+          <button type="submit" className="btn track-lookup-submit" disabled={busy || !ref.trim()}><Icon name={busy ? "refresh" : "mail"} />{busy ? "Sending…" : "Send verification code"}<Icon name="right" size={17} /></button>
           <div className="track-lookup-email"><Icon name="lock" size={18} /><p>We’ll email a 6-digit code to the address on your complaint before showing your details.</p></div>
           <p className="track-lookup-new">Need to raise a new issue? <Link to="/submit">Submit a complaint<Icon name="right" size={14} /></Link></p>
         </form>
@@ -190,7 +190,7 @@ export function Track() {
           {notice && <div id="track-code-notice" className="track-code-notice" role="status"><Icon name="inbox" size={20} /><p>{notice}</p></div>}
           <Field label="6-digit code" required><input className="track-code-input" required inputMode="numeric" pattern="\d{6}" maxLength={6} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="000000" autoComplete="one-time-code" autoFocus aria-invalid={!!err} aria-describedby={[notice && "track-code-notice", err && "track-error"].filter(Boolean).join(" ") || undefined} /></Field>
           {err && <p id="track-error" className="error" role="alert">{err}</p>}
-          <button className="btn track-code-confirm" disabled={busy || code.length !== 6}><Icon name={busy ? "refresh" : "check"} />{busy ? "Checking…" : "Confirm code"}</button>
+          <button type="submit" className="btn track-code-confirm" disabled={busy || code.length !== 6}><Icon name={busy ? "refresh" : "check"} />{busy ? "Checking…" : "Confirm code"}</button>
           <div className="track-code-actions">
             <p>Didn’t receive an email? Check your spam folder.</p>
             <button type="button" className="track-code-link" disabled={busy} onClick={() => sendCode()}><Icon name="refresh" size={16} />Send a new code</button>
@@ -200,7 +200,7 @@ export function Track() {
         </form>
       )}
       {res && others.length > 1 && (
-        <p className="muted" role="group" aria-label="Your complaints">Your complaints: {others.map((o) => <button key={o.reference} type="button" className="btn secondary" disabled={o.reference === res.reference} onClick={() => { setToken(o.token); setRef(o.reference); lookup(o.reference, o.token); }}>{o.reference}</button>)}</p>
+        <p className="muted" role="group" aria-label="Your complaints">Your complaints: {others.map((o) => <button key={o.reference} type="button" className="btn secondary" disabled={o.reference === res.reference} onClick={() => { setToken(o.token); setRef(o.reference); void lookup(o.reference, o.token); }}>{o.reference}</button>)}</p>
       )}
       {res && stage && (
         <section className="card tracking-result" aria-live="polite" aria-label="Complaint tracking result">
@@ -241,7 +241,7 @@ export function Track() {
                       <input ref={extraInput} type="file" multiple onChange={(e) => setExtraFiles(Array.from(e.target.files ?? []))} />
                     </Field>
                     </div>
-                    <button className="btn" disabled={extraBusy || extraScan.blocked || extraScan.scanning || (!extraText.trim() && !extraFiles.length)}><Icon name="send" />{extraBusy ? "Sending…" : extraScan.blocked ? "Remove the blocked file" : extraScan.scanning && extraFiles.length ? "Scanning…" : "Send to BICMA"}</button>
+                    <button type="submit" className="btn" disabled={extraBusy || extraScan.blocked || extraScan.scanning || (!extraText.trim() && !extraFiles.length)}><Icon name="send" />{extraBusy ? "Sending…" : extraScan.blocked ? "Remove the blocked file" : extraScan.scanning && extraFiles.length ? "Scanning…" : "Send to BICMA"}</button>
                   </div>
                   {extraFiles.length > 0 && <ul className="scan-list" aria-label="Files to send">{extraFiles.map((f, i) => <li key={`${f.name}-${i}`}><strong>{f.name}</strong><small>{Math.ceil(f.size / 1024)} KB</small><ScanBadge scan={extraScan.of(f)} /></li>)}</ul>}
                   {extraErr && <p className="error" role="alert">{extraErr}</p>}
@@ -280,7 +280,7 @@ export function Track() {
                 <Field label="Additional documents" hint="Optional. You can choose several files (photos, PDF and similar).">
                   <input ref={fileInput} type="file" multiple onChange={(e) => setFiles(Array.from(e.target.files ?? []))} />
                 </Field>
-                <button className="btn" disabled={sending || replyScan.blocked || replyScan.scanning}><Icon name="send" />{sending ? "Sending…" : replyScan.blocked ? "Remove the blocked file" : replyScan.scanning && files.length ? "Scanning…" : "Send to BICMA"}</button>
+                <button type="submit" className="btn" disabled={sending || replyScan.blocked || replyScan.scanning}><Icon name="send" />{sending ? "Sending…" : replyScan.blocked ? "Remove the blocked file" : replyScan.scanning && files.length ? "Scanning…" : "Send to BICMA"}</button>
               </div>
               {files.length > 0 && <ul className="scan-list" aria-label="Files to send">{files.map((f, i) => <li key={`${f.name}-${i}`}><strong>{f.name}</strong><small>{Math.ceil(f.size / 1024)} KB</small><ScanBadge scan={replyScan.of(f)} /></li>)}</ul>}
               {replyErr && <p className="error" role="alert">{replyErr}</p>}

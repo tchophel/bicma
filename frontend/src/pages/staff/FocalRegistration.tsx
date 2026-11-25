@@ -80,7 +80,7 @@ export function FocalRegistration({ divisions, onDone }: { divisions: Division[]
           </div>
           <div className="focal-actions">
             <span className="muted">{filled.length} of {pending.length} ready to register</span>
-            <button className="btn" disabled={busy || !filled.length}><Icon name="users" />{busy ? "Registering…" : `Register ${filled.length || "all"} focal${filled.length === 1 ? "" : "s"}`}</button>
+            <button type="submit" className="btn" disabled={busy || !filled.length}><Icon name="users" />{busy ? "Registering…" : `Register ${filled.length || "all"} focal${filled.length === 1 ? "" : "s"}`}</button>
           </div>
         </form>
           </Modal>

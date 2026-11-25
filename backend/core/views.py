@@ -425,3 +425,30 @@ class WorkflowView(APIView):
         audit.log(request, "workflow.update", entity_type="settings", entity_id="workflow",
                   detail={"before": [f"{x['key']}:{'on' if x['enabled'] else 'off'}" for x in before], "after": [f"{x['key']}:{'on' if x['enabled'] else 'off'}" for x in steps]})
         return Response({"steps": wf.describe()})
+
+
+class SecurityReportView(APIView):
+    """Administrator: a PDF of everything that is not clear and what to update or fix."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        from django.http import HttpResponse
+        from . import secscan
+        pdf = secscan.report_pdf(by=request.user.get_full_name() or request.user.email)
+        audit.log(request, "security.report", entity_type="settings", entity_id="security_report")
+        resp = HttpResponse(pdf, content_type="application/pdf")
+        resp["Content-Disposition"] = 'attachment; filename="security-report.pdf"'
+        return resp
+
+
+class SecuritySolveView(APIView):
+    """Administrator: Solve button. Starts the GitHub job that opens a pull request with the fixes."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        from . import secscan
+        ok, message, link = secscan.solve()
+        audit.log(request, "security.solve", entity_type="settings", entity_id="security_solve", detail={"started": ok})
+        return Response({"started": ok, "message": message, "link": link}, status=200 if ok else 400)

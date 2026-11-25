@@ -101,7 +101,7 @@ export function Complaints() {
           {f.category && <span className="chip plain">Category: {meta.data?.categories.find((c) => String(c.id) === f.category)?.name ?? f.category}</span>}
           {f.division && <span className="chip plain">One division</span>}
           {(f.provider || f.dzongkhag || f.priority || f.date_from || f.date_to) && <span className="chip plain">More filters</span>}
-          <button className="chip" onClick={() => setSp({})}><Icon name="close" size={14} />Clear all filters</button>
+          <button type="submit" className="chip" onClick={() => setSp({})}><Icon name="close" size={14} />Clear all filters</button>
         </div>
       )}
       {err && <p className="error" role="alert">{err}</p>}
@@ -135,8 +135,8 @@ export function Complaints() {
           <span>{data.count} complaint{data.count === 1 ? "" : "s"}</span>
           <div>
             <span className="complaints-page-number">Page {page}</span>
-            <button className="btn secondary" disabled={!data.previous} onClick={() => setPage(page - 1)}><Icon name="left" size={16} />Previous</button>
-            <button className="btn secondary" disabled={!data.next} onClick={() => setPage(page + 1)}>Next<Icon name="right" size={16} /></button>
+            <button type="submit" className="btn secondary" disabled={!data.previous} onClick={() => setPage(page - 1)}><Icon name="left" size={16} />Previous</button>
+            <button type="submit" className="btn secondary" disabled={!data.next} onClick={() => setPage(page + 1)}>Next<Icon name="right" size={16} /></button>
           </div>
         </div>
       )}

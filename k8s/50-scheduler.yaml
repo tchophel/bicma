@@ -10,6 +10,7 @@ spec:
   template:
     metadata: { labels: { app: cms-scheduler } }
     spec:
+      automountServiceAccountToken: false
       imagePullSecrets: [{ name: harbor-secret }]
       containers:
         - name: scheduler
@@ -17,4 +18,4 @@ spec:
           command: [python, manage.py, run_scheduler]
           envFrom: [{ configMapRef: { name: cms-config } }, { secretRef: { name: cms-secrets } }]
           env: [{ name: HOME, value: /tmp }]
-          resources: { requests: { cpu: 25m, memory: 128Mi }, limits: { memory: 384Mi } }
+          resources: { requests: { cpu: 25m, memory: 128Mi }, limits: { memory: 384Mi, ephemeral-storage: 1Gi } }
