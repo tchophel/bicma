@@ -54,7 +54,7 @@ jobs:
         if: ${{ inputs.what != 'packages' && env.SONAR_TOKEN != '' && env.ANTHROPIC_API_KEY != '' && inputs.sonar_url != '' && inputs.sonar_project != '' }}
         run: |
           curl -sf -u "$SONAR_TOKEN:" "$SONAR_URL/api/issues/search?componentKeys=$SONAR_PROJECT&types=BUG,VULNERABILITY&resolved=false&ps=200" > issues.json
-          npx -y --ignore-scripts @anthropic-ai/claude-code@2.1.330 -p "issues.json lists open SonarQube bugs and vulnerabilities (the component field is project:path). Fix each one in the code with the smallest safe change. Do not change behaviour. Skip any issue you are not sure about. Do not touch issues.json." --permission-mode acceptEdits --allowedTools "Read,Edit,Glob,Grep"
+          npx -y @anthropic-ai/claude-code@2.1.330 -p "issues.json lists open SonarQube bugs and vulnerabilities (the component field is project:path). Fix each one in the code with the smallest safe change. Do not change behaviour. Skip any issue you are not sure about. Do not touch issues.json." --permission-mode acceptEdits --allowedTools "Read,Edit,Glob,Grep"
           rm -f issues.json
 
       - name: Check the fixed code still builds
