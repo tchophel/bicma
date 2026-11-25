@@ -106,6 +106,30 @@ def _ci():
     return {"state": "ok" if good else "issues", "summary": f"{name}: {r['conclusion']}", "counts": {}, "link": r["html_url"]}
 
 
+# What to do about each SonarQube rule. verdict: "auto" = the Solve button can fix it, "decide" = needs a person's choice,
+# "safe" = not a real problem here, mark it Safe/Accepted in SonarQube. Matched on the rule number (S6505 is the same for docker and GitHub files).
+RULE_HELP = {
+    "S9011": ("auto", "Add type=\"button\" or type=\"submit\" to the button."),
+    "S9383": ("auto", "Put void in front of the call, or add .catch() so a failure is handled."),
+    "S6443": ("auto", "Do not pass the state variable to its own setter. Keep a copy of the old value first."),
+    "S6470": ("decide", "COPY . . can copy secrets into the image. A .dockerignore keeps .env, .git and keys out (added). If it is in place, mark this issue Safe in SonarQube."),
+    "S8543": ("decide", "Packages are installed without a lock file. Use npm ci with package-lock.json so exact versions are installed."),
+    "S8544": ("decide", "Packages are installed without locked versions. Create a pinned lock file for the Python packages (pip-compile --generate-hashes) and install with --require-hashes, or accept the risk."),
+    "S8541": ("decide", "--only-binary :all: stops build scripts from running, but nats-py 2.9.0 has no pre-built wheel. Upgrade nats-py to a version that has one, then add the flag, or accept the risk."),
+    "S6505": ("decide", "npm install scripts can run code. Add --ignore-scripts when the build does not need them. Some tools do need them (Claude's installer), so accept those."),
+    "S6471": ("decide", "The container runs as root. Add a USER line for a normal user. The production backend already does; for nginx use the nginx-unprivileged image. Development images can be accepted."),
+    "S2068": ("safe", "False alarm: the text is the name of a rate-limit rule, not a password. Mark this issue Safe in SonarQube."),
+    "S6865": ("decide", "Set automountServiceAccountToken: false on the pod (done in k8s/)."),
+    "S6864": ("decide", "Set a memory limit on the container (done in k8s/)."),
+    "S6870": ("decide", "Set an ephemeral-storage limit on the container (done in k8s/)."),
+    "S7630": ("auto", "Do not put workflow inputs straight into a command. Pass them through an environment variable."),
+}
+
+
+def rule_help(rule):
+    return RULE_HELP.get(rule.split(":")[-1], ("decide", "Open the issue in SonarQube. It explains the risk and how to fix it."))
+
+
 def _sonarqube():
     base, proj = _env("SONARQUBE_URL").rstrip("/"), urllib.parse.quote(_env("SONARQUBE_PROJECT"))
     h = {"Authorization": "Basic " + base64.b64encode(f"{_env('SONARQUBE_TOKEN')}:".encode()).decode()}
@@ -118,8 +142,16 @@ def _sonarqube():
         found = _json(f"{base}/api/issues/search?componentKeys={proj}&types=BUG,VULNERABILITY&resolved=false&ps=200&s=SEVERITY&asc=false", h)
         order = {"BLOCKER": 0, "CRITICAL": 1, "MAJOR": 2, "MINOR": 3, "INFO": 4}
         for i in sorted(found.get("issues", []), key=lambda i: order.get(i["severity"], 5)):
-            items.append({"severity": i["severity"], "type": i["type"], "file": i["component"].split(":", 1)[-1], "line": i.get("line") or 0,
+            verdict, how = rule_help(i["rule"])
+            items.append({"verdict": verdict, "how": how, "severity": i["severity"], "type": i["type"], "file": i["component"].split(":", 1)[-1], "line": i.get("line") or 0,
                           "message": i["message"], "rule": i["rule"], "link": f"{base}/project/issues?id={proj}&open={urllib.parse.quote(i['key'])}"})
+    seen, unique = set(), []
+    for it in items:
+        k = (it["file"], it["line"], it["rule"], it["message"])
+        if k not in seen:
+            seen.add(k)
+            unique.append(it)
+    items = unique
     return {"state": "issues" if bad else "ok", "counts": counts, "link": f"{base}/dashboard?id={proj}", "items": items,
             "summary": f"Quality gate {gate['status'].lower()}: {counts.get('bugs', 0)} bugs, {counts.get('vulnerabilities', 0)} vulnerabilities, {counts.get('security_hotspots', 0)} hotspots"}
 
@@ -239,14 +271,24 @@ def report_pdf(by=""):
                 flow.append(Paragraph(f"{e(c['label'])} report: {e(c['link'])}", small))
     sonar = (last("sonarqube") or {}).get("items") or []
     if sonar:
-        flow += [Spacer(1, 12), Paragraph("Code issues to fix (SonarQube)", st["Heading2"]),
-                 Paragraph(f"{len(sonar)} bugs and vulnerabilities, most serious first. Fix the line shown, then run the check again.", small), Spacer(1, 4)]
-        rows = [[Paragraph(f"<b>{h}</b>", small) for h in ("Severity", "File and line", "What is wrong")]]
-        for i in sonar[:150]:
-            rows.append([Paragraph(f"{e(i['severity'])}<br/>{e(i['type'])}", small), Paragraph(f"{e(i['file'])}:{i['line']}", small), Paragraph(f"{e(i['message'])[:220]}<br/>({e(i['rule'])})", small)])
-        t = Table(rows, colWidths=[60, 150, 330], repeatRows=1)
-        t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey), ("GRID", (0, 0), (-1, -1), 0.25, colors.grey), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
-        flow.append(t)
+        titles = {"auto": "Solve can fix these", "decide": "Needs your decision", "safe": "Not a real problem: mark as Safe in SonarQube"}
+        flow += [Spacer(1, 12), Paragraph("Code issues (SonarQube)", st["Heading2"]),
+                 Paragraph(f"{len(sonar)} issues. Grouped by what to do about them.", small)]
+        for verdict in ("auto", "decide", "safe"):
+            groups = {}
+            for it in sonar:
+                if it["verdict"] == verdict:
+                    groups.setdefault(it["rule"], []).append(it)
+            if not groups:
+                continue
+            flow += [Spacer(1, 8), Paragraph(f"{titles[verdict]} ({sum(len(v) for v in groups.values())})", st["Heading3"])]
+            rows = [[Paragraph(f"<b>{h}</b>", small) for h in ("Problem", "Where", "What to do")]]
+            for rule, its in groups.items():
+                where = "<br/>".join(f"{e(i['file'])}:{i['line']}" for i in its[:12]) + (f"<br/>and {len(its) - 12} more" if len(its) > 12 else "")
+                rows.append([Paragraph(f"{e(its[0]['message'])[:200]}<br/>({e(rule)}, {e(its[0]['severity'].lower())})", small), Paragraph(where, small), Paragraph(e(its[0]["how"]), small)])
+            t = Table(rows, colWidths=[170, 150, 220], repeatRows=1)
+            t.setStyle(TableStyle([("BACKGROUND", (0, 0), (-1, 0), colors.lightgrey), ("GRID", (0, 0), (-1, -1), 0.25, colors.grey), ("VALIGN", (0, 0), (-1, -1), "TOP")]))
+            flow.append(t)
     scan = depscan.last() or {}
     finds = scan.get("findings") or []
     if finds:

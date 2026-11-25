@@ -7,7 +7,7 @@ import { fmt } from "./ui";
 
 type Finding = { package: string; ecosystem: string; version: string; id: string; aliases: string[]; severity: string; summary: string; fixed_in: string; fix: string };
 type Field = { key: string; label: string; secret: boolean; placeholder: string; value: string; set: boolean };
-type Item = { severity: string; type: string; file: string; line: number; message: string; rule: string; link: string };
+type Item = { verdict: string; how: string; severity: string; type: string; file: string; line: number; message: string; rule: string; link: string };
 type Check = { items?: Item[]; fields: Field[]; key: string; label: string; about: string; configured: boolean; setup: string; state: string; summary: string; link: string; checked_at: string | null };
 const STATE: Record<string, [string, string]> = { ok: ["ok", "All clear"], issues: ["bad", "Issues found"], error: ["warn", "Check failed"], never: ["plain", "Not checked yet"], not_configured: ["plain", "Not set up"] };
 type Scan = { scanned_at?: string; packages?: number; frontend_included?: boolean; findings?: Finding[]; counts?: Record<string, number> };
@@ -86,7 +86,8 @@ export function SecurityScan() {
                 <details className="scan-items"><summary>Show the {c.items.length} issues to fix</summary>
                   <ul>{c.items.map((i, n) => (
                     <li key={n}><span className={`badge ${i.severity === "BLOCKER" || i.severity === "CRITICAL" ? "bad" : i.severity === "MAJOR" ? "warn" : "plain"}`}>{i.severity.toLowerCase()}</span>{" "}
-                      <a href={i.link} target="_blank" rel="noreferrer"><code>{i.file}{i.line ? `:${i.line}` : ""}</code></a><br /><small>{i.message}</small></li>))}</ul>
+                      <a href={i.link} target="_blank" rel="noreferrer"><code>{i.file}{i.line ? `:${i.line}` : ""}</code></a><br /><small>{i.message}</small><br />
+                      <small className="scan-how"><strong>{i.verdict === "auto" ? "Solve can fix this." : i.verdict === "safe" ? "Safe to accept." : "Needs your decision."}</strong> {i.how}</small></li>))}</ul>
                 </details>)}
               {editing === c.key && (
                 <form className="scan-config" onSubmit={(e) => { e.preventDefault(); void saveConfig(c); }}>

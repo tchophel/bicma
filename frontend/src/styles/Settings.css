@@ -50,3 +50,4 @@
 .scan-items summary { cursor: pointer; font-weight: 600; }
 .scan-items ul { list-style: none; margin: 8px 0 0; padding: 0; max-height: 320px; overflow: auto; display: grid; gap: 8px; }
 .scan-items code { font-size: .8rem; word-break: break-all; }
+.scan-how { display: block; margin-top: 2px; color: #3d4a4a; }
