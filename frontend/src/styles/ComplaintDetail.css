@@ -317,3 +317,10 @@
 .doc-body .file-link { min-width: 0; }
 .doc-body .file-link a { display: block; min-width: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .doc-meta { min-width: 0; }
+
+/* similar complaints in the same division */
+.similar-box { border-left: 4px solid var(--c-accent); margin-bottom: 12px; }
+.similar-box h3 { display: flex; align-items: center; gap: 8px; margin: 0 0 4px; }
+.similar-list { list-style: none; padding: 0; margin: 10px 0; display: grid; gap: 8px; }
+.similar-list li { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; padding: 10px; border: 1px solid var(--c-border, #e3e3e3); border-radius: 8px; }
+.similar-list li > div { flex: 1 1 240px; }

@@ -1,0 +1,28 @@
+/* Cable TV by Dzongkhag: Dzongkhag list on the left, its operators on the right */
+.cable-layout { display: grid; grid-template-columns: 280px 1fr; gap: 16px; align-items: start; }
+.cable-dz h2, .cable-panel h2 { margin: 0; font-size: 1rem; }
+.cable-dz ul { list-style: none; margin: 10px 0 0; padding: 0; display: grid; gap: 2px; }
+.cable-dz button { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 5px 10px; border: 0; border-radius: 8px; background: none; font: inherit; color: inherit; text-align: left; cursor: pointer; }
+.cable-dz button:hover { background: rgba(0,0,0,.05); }
+.cable-dz button[aria-current="true"] { background: var(--c-accent); color: #fff; font-weight: 600; }
+.cable-count { min-width: 26px; text-align: center; padding: 1px 8px; border-radius: 999px; font-size: .8rem; background: rgba(0,0,0,.07); color: #6b6258; }
+.cable-count.has { background: #dff3e4; color: #1d6b34; font-weight: 700; }
+.cable-dz button[aria-current="true"] .cable-count { background: rgba(255,255,255,.25); color: #fff; }
+.cable-panel { position: sticky; top: 12px; }
+.cable-panel header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.cable-panel header p { margin: 0; }
+.cable-ops { list-style: none; margin: 0 0 16px; padding: 0; display: grid; gap: 8px; }
+.cable-ops li { display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 1px solid #e6e0d8; border-radius: 10px; background: #fff; }
+.cable-ops strong { flex: 1; }
+.cable-avatar { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; background: #fdebd9; color: var(--c-accent); font-weight: 700; }
+.cable-empty { display: grid; justify-items: center; gap: 4px; text-align: center; padding: 28px 12px; margin-bottom: 16px; border: 1.5px dashed #d8cfc4; border-radius: 12px; color: #6b6258; }
+.cable-empty strong { color: #3d3226; }
+.cable-add { padding-top: 14px; border-top: 1px solid #eee7de; }
+.cable-add label { display: block; font-weight: 600; margin-bottom: 6px; }
+.cable-add > div { display: flex; gap: 8px; }
+.cable-add input { flex: 1; min-width: 0; }
+@media (max-width: 760px) {
+  .cable-layout { grid-template-columns: 1fr; }
+  .cable-dz ul { grid-template-columns: repeat(2, 1fr); }
+  .cable-add > div { flex-direction: column; }
+}

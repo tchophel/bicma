@@ -26,6 +26,7 @@ services:
     command: sh -c "python manage.py migrate && python manage.py bootstrap && python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./backend:/app
+      - ./frontend/package-lock.json:/frontend-lock.json:ro  # so Settings > Security scan can also check the frontend packages
     ports:
       - "8000:8000"
     environment:
@@ -40,6 +41,14 @@ services:
       BICMA_ADMIN_PASSWORD: ${BICMA_ADMIN_PASSWORD:-}
       BICMA_ADMIN_EMAIL: ${BICMA_ADMIN_EMAIL:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      GITHUB_REPO: ${GITHUB_REPO:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      SONARQUBE_URL: ${SONARQUBE_URL:-}
+      SONARQUBE_PROJECT: ${SONARQUBE_PROJECT:-}
+      SONARQUBE_TOKEN: ${SONARQUBE_TOKEN:-}
+      ZAP_URL: ${ZAP_URL:-}
+      ZAP_TARGET: ${ZAP_TARGET:-}
+      ZAP_API_KEY: ${ZAP_API_KEY:-}
       BCRS_API_URL: ${BCRS_API_URL:-}
       CLAMAV_HOST: ${CLAMAV_HOST:-}
       CLAMAV_REQUIRED: ${CLAMAV_REQUIRED:-0}
@@ -73,6 +82,7 @@ services:
     command: sh -c "sleep 15 && python manage.py run_scheduler"
     volumes:
       - ./backend:/app
+      - ./frontend/package-lock.json:/frontend-lock.json:ro
     environment:
       DJANGO_SECRET_KEY: ${DJANGO_SECRET_KEY:-dev-insecure-change-me}
       DJANGO_DEBUG: ${DJANGO_DEBUG:-1}
@@ -85,6 +95,14 @@ services:
       BICMA_ADMIN_PASSWORD: ${BICMA_ADMIN_PASSWORD:-}
       BICMA_ADMIN_EMAIL: ${BICMA_ADMIN_EMAIL:-}
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+      GITHUB_REPO: ${GITHUB_REPO:-}
+      GITHUB_TOKEN: ${GITHUB_TOKEN:-}
+      SONARQUBE_URL: ${SONARQUBE_URL:-}
+      SONARQUBE_PROJECT: ${SONARQUBE_PROJECT:-}
+      SONARQUBE_TOKEN: ${SONARQUBE_TOKEN:-}
+      ZAP_URL: ${ZAP_URL:-}
+      ZAP_TARGET: ${ZAP_TARGET:-}
+      ZAP_API_KEY: ${ZAP_API_KEY:-}
       BCRS_API_URL: ${BCRS_API_URL:-}
       BCRS_API_METHOD: ${BCRS_API_METHOD:-GET}
       BCRS_AUTH_HEADER: ${BCRS_AUTH_HEADER:-Authorization}

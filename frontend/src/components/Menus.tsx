@@ -84,15 +84,20 @@ export function NotificationBell() {
         {unread > 0 && <span className={css.count}>{unread > 99 ? "99+" : unread}</span>}
       </button>
       {open && (
-        <div className={css.panel} role="region" aria-label="Notifications">
-          <div className={css.panelHead}><strong>Notifications</strong><div style={{ display: "flex", gap: 12, flexWrap: "wrap", justifyContent: "flex-end" }}>{unread > 0 && <button className={css.linkBtn} disabled={clearing} onClick={readAll}>Mark all as read</button>}{items.length > 0 && <button className={css.linkBtn} disabled={clearing} onClick={clearAll}>{clearing ? "Clearing…" : "Clear all"}</button>}</div></div>
+        <div className={`${css.panel} ${css.notificationPanel}`} role="region" aria-label="Notifications">
+          <div className={css.notificationHead}>
+            <div className={css.notificationTitle}><span className={css.notificationHeadingIcon}><Icon name="bell" size={20} /></span><strong>Notifications</strong>{unread > 0 && <span className={css.unreadCount}>{unread} unread</span>}</div>
+            {items.length > 0 && <div className={css.notificationActions}>{unread > 0 && <button disabled={clearing} onClick={readAll}><Icon name="check" size={15} />Mark all as read</button>}<button disabled={clearing} onClick={clearAll}><Icon name="trash" size={15} />{clearing ? "Clearing…" : "Clear all"}</button></div>}
+          </div>
           {clearError && <p className="error" role="alert">{clearError}</p>}
-          {items.length === 0 && <p className={css.empty}>You have no notifications.</p>}
+          {items.length === 0 && <div className={css.notificationEmpty}><Icon name="inbox" size={30} /><strong>You're all caught up</strong><p>New complaint updates will appear here.</p></div>}
           <ul className={css.notes}>
             {items.map((n) => (
               <li key={n.id}>
                 <button className={`${css.note} ${n.read ? "" : css.unread}`} onClick={() => openItem(n)}>
-                  <span>{n.message}</span><small>{ago(n.created_at)}</small>
+                  <span className={css.noteIcon}><Icon name="complaint" size={19} /></span>
+                  <span className={css.noteContent}><span className={css.noteMessage}>{n.message}</span><small><Icon name="clock" size={12} /><time dateTime={n.created_at} title={new Date(n.created_at).toLocaleString()}>{ago(n.created_at)}</time>{!n.read && <span className={css.noteNew}>Unread</span>}</small></span>
+                  <Icon name="chev" size={15} />
                 </button>
               </li>
             ))}

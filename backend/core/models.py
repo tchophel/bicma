@@ -158,6 +158,7 @@ class Provider(UUIDModel):
     provider_type = models.ForeignKey(ProviderType, null=True, blank=True, on_delete=models.PROTECT, related_name="providers")
     licence_number = models.CharField(max_length=60, blank=True)
     contact_email = models.EmailField(blank=True)
+    dzongkhags = models.ManyToManyField("Dzongkhag", blank=True, related_name="providers", help_text="Dzongkhags the provider serves; none means everywhere")
     is_active = models.BooleanField(default=True)
 
     class Meta:

@@ -92,7 +92,7 @@ SPECS = [
     ("std", ["tower"], [_ops("operator", "Concerned telecom operator", True)], [_doc("photo", "Supporting document (photo)", True, image=True, hint="A clear photo of the concerned tower (JPG or PNG).")], True),
     # ---- IID
     ("iid", ["internet"], [_prov("isp", "Name of ISP", True), _t("customer_id", "Customer service identification number provided by the ISP", True)], [], True),
-    ("iid", ["cable"], [_prov("cable_provider", "Name of cable service provider", True)], [], True),
+    ("iid", ["cable"], [_prov("cable_provider", "Name of cable service provider", True, provider_type="Cable TV operator")], [], True),
     ("iid", ["rural", "communication"], [_prov("operator", "Concerned telecom operator (can be both)", True)], [], True),
     ("iid", ["data", "cent"], [_prov("operator", "Concerned data center operators", True), _t("operator_contact", "Contact number of operators")], [], True),
     ("iid", ["tariff"], [_prov("provider", "Name of the concerned service provider", True)], [], True),

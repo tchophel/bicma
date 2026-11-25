@@ -232,6 +232,8 @@ class ComplaintListSerializer(serializers.ModelSerializer):
     complainant_name = serializers.SerializerMethodField()
     can_assign = serializers.SerializerMethodField()
     can_refer = serializers.SerializerMethodField()
+    awaiting = serializers.SerializerMethodField()
+    resolved_by = serializers.SerializerMethodField()
 
     class Meta:
         model = Complaint
@@ -239,7 +241,7 @@ class ComplaintListSerializer(serializers.ModelSerializer):
             "id", "reference", "subject", "channel", "category", "category_name", "division", "division_name",
             "assigned_to", "assigned_to_name", "internal_status", "internal_status_display", "public_status",
             "complainant_name", "dzongkhag", "dzongkhag_name", "provider_name", "priority", "priority_name",
-            "resolution_due_at", "sla_state", "confidential", "created_at", "can_assign", "can_refer",
+            "resolution_due_at", "sla_state", "confidential", "created_at", "resolved_at", "closed_at", "can_assign", "can_refer", "awaiting", "resolved_by",
         ]
 
     def _actions(self, obj):
@@ -253,6 +255,35 @@ class ComplaintListSerializer(serializers.ModelSerializer):
         if request.user.role not in cache:
             cache[request.user.role] = role_perms(request.user.role)
         return allowed_actions(request.user, obj, cache[request.user.role])
+
+    def get_resolved_by(self, obj):
+        """Who resolved (or closed) a finished case: the person behind the latest Resolved / Closed step."""
+        from .models import InternalStatus as S, StatusHistory
+        if obj.internal_status not in (S.RESOLVED, S.CLOSED):
+            return None
+        h = (StatusHistory.objects.filter(complaint=obj, new_status__in=[S.RESOLVED, S.CLOSED]).select_related("actor")
+             .order_by("-created_at").first())
+        if not h or not h.actor:
+            return None
+        return {"name": h.actor.get_full_name() or h.actor.email, "action": "Resolved" if h.new_status == S.RESOLVED else "Closed"}
+
+    def get_awaiting(self, obj):
+        """Who has to approve this case next, by name (looked up once per division per request)."""
+        from accounts.models import Role, User, roles_with_base
+        from .models import InternalStatus as S
+        if obj.internal_status in (S.SUBMITTED, S.MANAGEMENT_REJECTED):
+            role, key, base = "Division Head", ("head", obj.division_id), Role.FOCAL
+        elif obj.internal_status == S.PENDING_APPROVAL:
+            role, key, base = "Supervisor", ("sup", None), Role.SUPERVISOR
+        else:
+            return None
+        cache = self.context.setdefault("_awaiting", {})
+        if key not in cache:
+            qs = User.objects.filter(role__in=roles_with_base(base), is_active=True)
+            if base == Role.FOCAL:
+                qs = qs.filter(division_id=obj.division_id)
+            cache[key] = [u.get_full_name() or u.email for u in qs.order_by("first_name")]
+        return {"role": role, "names": cache[key], "returned": obj.internal_status == S.MANAGEMENT_REJECTED}
 
     def get_can_assign(self, obj):
         return bool(self._actions(obj).get("assign"))

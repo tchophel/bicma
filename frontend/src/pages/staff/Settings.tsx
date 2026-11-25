@@ -4,6 +4,7 @@ import { api, ApiError } from "../../api";
 import { Field, PageHeader } from "../../components/ui";
 import { Icon } from "../../components/Icon";
 import { useList } from "../../useList";
+import { SecurityScan } from "../../components/SecurityScan";
 import "../../styles/Settings.css";
 
 type Settings = { reference_length: number; declaration_text: string; reality_shows: string };
@@ -23,8 +24,6 @@ export function SettingsPage() {
   const declValue = decl ?? current?.declaration_text ?? "";
   const showsValue = shows ?? current?.reality_shows ?? "";
   const dirty = !!current && (Number(value) !== current.reference_length || declValue !== current.declaration_text || showsValue !== current.reality_shows);
-  const digits = Math.max(3, Math.min(10, Number(value) || 4));
-  const sample = `BICMA-${new Date().getFullYear()}-3-${"9".padStart(digits, "0")}`;
   function reset() { setLen(null); setDecl(null); setShows(null); setError(null); setSuccess(false); }
   async function save(e: FormEvent) {
     e.preventDefault();
@@ -47,7 +46,6 @@ export function SettingsPage() {
             <header className="settings-section-header"><span className="icon-tile"><Icon name="complaint" size={22} /></span><div><span className="settings-eyebrow">COMPLAINT IDENTIFICATION</span><h2 id="settings-references">Reference numbers</h2><p>Each new complaint gets a random reference number. Choose how many digits it has.</p></div></header>
             <div className="settings-reference-grid">
               <Field label="Reference number length" required error={error?.fields.reference_length} hint="Digits in the random number at the end, 3 to 10."><input required type="number" inputMode="numeric" min={3} max={10} step={1} value={value} onChange={(e) => { setLen(e.target.value); setSuccess(false); }} /></Field>
-              <div className="settings-reference-preview"><span>EXAMPLE REFERENCE</span><strong>{sample}</strong><small>BICMA · Year · Division code · Random number</small></div>
             </div>
             <p className="settings-inline-note"><Icon name="help" size={16} />Existing complaint reference numbers stay the same. A longer number allows more complaints per division each year; if the numbers ever run out, the next ones grow by one digit automatically.</p>
           </section>
@@ -66,6 +64,7 @@ export function SettingsPage() {
         {error && <p className="error" role="alert">{error.message}</p>}
         <div className="settings-save-bar"><span role="status" className={success && !dirty ? "settings-saved" : "muted"}>{busy ? "Saving settings…" : dirty ? "You have unsaved changes" : success ? "All changes saved" : "Changes apply to new submissions"}</span><div><button type="button" className="btn secondary" disabled={busy || !dirty} onClick={reset}>Discard changes</button><button className="btn" disabled={busy || !dirty}><Icon name={busy ? "refresh" : "check"} size={17} />{busy ? "Saving…" : "Save settings"}</button></div></div>
       </form>
+      <SecurityScan />
       <aside className="settings-communications"><span className="icon-tile"><Icon name="mail" size={20} /></span><div><strong>Email &amp; SMS configuration</strong><p>Delivery settings are managed outside this page.</p></div><span className="chip">Managed separately</span></aside>
     </div>
   );

@@ -62,6 +62,7 @@ const NAV: { heading?: string; items: NavItem[] }[] = [
       { to: "/staff/roles", label: "Roles", icon: "lock", roles: ["super_admin"] },
       { to: "/staff/divisions", label: "Divisions", icon: "division", roles: ["super_admin"] },
       { to: "/staff/providers", label: "Service providers", icon: "users", roles: ["super_admin"] },
+      { to: "/staff/cable-tv", label: "Cable TV by Dzongkhag", icon: "map", roles: ["super_admin"] },
       { to: "/staff/provider-types", label: "Provider types", icon: "category", roles: ["super_admin"] },
       { to: "/staff/priorities", label: "Priorities & timelines", icon: "alert", roles: ["super_admin"] },
       { to: "/staff/outcomes", label: "Outcomes", icon: "check", roles: ["super_admin"] },

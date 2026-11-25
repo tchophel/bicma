@@ -714,6 +714,45 @@ class ComplaintViewSet(mixins.ListModelMixin, mixins.RetrieveModelMixin, mixins.
                 raise WorkflowError("Select a valid outcome.", "outcome")
             c.outcome = oc
 
+    @action(detail=True, methods=["get"])
+    def similar(self, request, pk=None):
+        """Similar open cases in this division, and which of them this case is already linked with."""
+        c = self.get_object()
+        if not (allowed_actions(request.user, c).get("save_findings") or allowed_actions(request.user, c).get("assign")):
+            return Response({"items": []})
+        linked = set(CaseMessage.objects.filter(complaint=c, body__startswith="Linked with ").values_list("body", flat=True))
+        items = []
+        for score, o, why in services.similar_in_division(c, request.user):
+            items.append({
+                "id": o.pk, "reference": o.reference, "subject": o.subject, "status": o.get_internal_status_display(),
+                "officer": (o.assigned_to.get_full_name() or o.assigned_to.email) if o.assigned_to else None,
+                "why": why, "linked": any(b.startswith(f"Linked with {o.reference}") for b in linked),
+                "has_resolution": bool(o.investigation_findings and o.action_taken),
+            })
+        return Response({"items": items})
+
+    @action(detail=True, methods=["post"], url_path="link-similar")
+    def link_similar(self, request, pk=None):
+        """Yes: handle this case together with a similar one. Notes go on both, and the findings can be reused."""
+        def run(c):
+            other = next((o for _, o, _ in services.similar_in_division(c, request.user) if str(o.pk) == str(request.data.get("id"))), None)
+            if not other:
+                raise WorkflowError("That complaint is not available to link.", "id")
+            if not CaseMessage.objects.filter(complaint=c, body__startswith=f"Linked with {other.reference}").exists():
+                services.add_message(c, author=request.user, visibility="internal", body=f"Linked with {other.reference}: similar complaint, handled together.")
+                services.add_message(other, author=request.user, visibility="internal", body=f"Linked with {c.reference}: similar complaint, handled together.")
+            if request.data.get("reuse"):
+                if not allowed_actions(request.user, c).get("save_findings"):
+                    raise WorkflowError("Start the investigation before reusing the findings.", "reuse")
+                if not (other.investigation_findings and other.action_taken):
+                    raise WorkflowError(f"{other.reference} has no findings to reuse yet.", "reuse")
+                c.investigation_findings, c.action_taken = other.investigation_findings, other.action_taken
+                c.recommendation, c.outcome = other.recommendation, other.outcome
+                c.save()
+                services.add_message(c, author=request.user, visibility="internal", body=f"Findings and action reused from {other.reference}.")
+            audit.log(request, "complaint.linked_similar", entity_type="complaint", entity_id=c.pk)
+        return self._run(request, "note", run)
+
     @action(detail=True, methods=["post"], url_path="save-findings")
     def save_findings(self, request, pk=None):
         def run(c):

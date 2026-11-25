@@ -50,6 +50,7 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
   const [already, setAlready] = useState<"" | "yes" | "no">("");
   const [remedies, setRemedies] = useState<string[]>([]);
   const [natures, setNatures] = useState<string[]>([]);
+  const [otherKeys, setOtherKeys] = useState<string[]>([]);
   const [det, setDet] = useState<Record<string, string | string[]>>({});
   const [slotFiles, setSlotFiles] = useState<Record<string, File[]>>({});
   const scan = useFileScan([...files, ...Object.values(slotFiles).flat()]);  // each file is scanned as soon as it is chosen
@@ -211,6 +212,8 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
         </fieldset>
       );
     }
+    // the cable provider depends on the Dzongkhag: nothing to pick until one is chosen
+    if (fd.type === "provider" && fd.provider_type && !v.dzongkhag) return null;
     const text = typeof val === "string" ? val : "";
     const common = { required: fd.required, value: text };
     return (
@@ -219,7 +222,19 @@ export function ComplaintForm({ offline, onDone }: { offline: boolean; onDone: (
           : fd.type === "date" ? <input type="date" max={fd.past ? today : undefined} {...common} onChange={(e) => setD(fd.key, e.target.value)} />
           : fd.type === "yesno" ? <YesNoBoxes name={fd.key} value={(val === "Yes" || val === "No" ? val : "") as "Yes" | "No" | ""} onChange={(x) => setD(fd.key, x)} invalid={!!err} />
           : fd.type === "select" ? <select {...common} onChange={(e) => setD(fd.key, e.target.value)}><option value="">Select</option>{fd.options?.map((o) => <option key={o} value={o}>{o}</option>)}</select>
-          : fd.type === "provider" ? <><input list={`providers-${fd.key}`} maxLength={150} {...common} onChange={(e) => setD(fd.key, e.target.value)} /><datalist id={`providers-${fd.key}`}>{meta?.providers.map((p) => <option key={p.id} value={p.name} />)}</datalist></>
+          : fd.type === "provider" ? (() => {
+              const typeId = fd.provider_type ? meta?.provider_types.find((t) => t.name === fd.provider_type)?.id : undefined;
+              const ofType = (meta?.providers ?? []).filter((p) => p.provider_type === typeId);
+              const list = (typeId && ofType.length ? ofType : meta?.providers ?? []).filter((p) => !v.dzongkhag || p.dzongkhags.length === 0 || p.dzongkhags.includes(v.dzongkhag as string));
+              const other = otherKeys.includes(fd.key) || (!!text && !list.some((p) => p.name === text));
+              return <>
+                <select required={fd.required} value={other ? OTHER : text} onChange={(e) => {
+                  if (e.target.value === OTHER) { setOtherKeys((k) => [...k, fd.key]); setD(fd.key, ""); }
+                  else { setOtherKeys((k) => k.filter((x) => x !== fd.key)); setD(fd.key, e.target.value); }
+                }}><option value="">Select</option>{list.map((p) => <option key={p.id} value={p.name}>{p.name}</option>)}<option value={OTHER}>Other / Not listed</option></select>
+                {other && <input style={{ marginTop: 8 }} required={fd.required} maxLength={150} placeholder="Type the provider name" value={text} onChange={(e) => setD(fd.key, e.target.value)} />}
+              </>;
+            })()
           : <input maxLength={300} {...common} onChange={(e) => setD(fd.key, e.target.value)} />}
       </Field>
     );

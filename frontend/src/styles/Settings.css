@@ -6,17 +6,13 @@
 .settings-eyebrow { display: block; color: var(--c-muted); font-size: .625rem; letter-spacing: .12em; font-weight: 700; margin-bottom: 6px; }
 .settings-section-header h2 { font-size: 1.125rem; letter-spacing: -.02em; margin: 0 0 8px; color: #452e1e; }
 .settings-section-header p { color: var(--c-muted); font-size: .85rem; line-height: 1.7; margin: 0; }
-.settings-reference-grid { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.settings-reference-grid { display: grid; grid-template-columns: minmax(0, 1fr); max-width: 420px; gap: 24px; align-items: start; }
 .settings-section .field { margin: 0; }
 .settings-section .field > span { font-size: .85rem; }
 .settings-section input, .settings-section textarea { background: #fff; border: 1px solid #cdbcaf; border-radius: 8px; }
 .settings-section input { min-height: 46px; font-family: ui-monospace, monospace; letter-spacing: .04em; }
 .settings-section textarea { width: 100%; min-height: 220px; resize: vertical; font-size: .9375rem; line-height: 1.9; padding: 16px; }
 .settings-section input:focus, .settings-section textarea:focus { outline: 3px solid var(--c-primary-soft); outline-offset: 1px; border-color: var(--c-primary); }
-.settings-reference-preview { padding: 18px; border: 1px solid #efdfd1; border-radius: 10px; background: #fff8f0; }
-.settings-reference-preview > span { display: block; font-size: .625rem; color: #947055; font-weight: 700; letter-spacing: .12em; }
-.settings-reference-preview strong { display: block; font: 600 .95rem/1.7 ui-monospace, monospace; color: var(--c-primary-dark); margin: 10px 0 7px; overflow-wrap: anywhere; }
-.settings-reference-preview small { color: var(--c-muted); font-size: .75rem; }
 .settings-inline-note { display: flex; align-items: flex-start; gap: 8px; margin: 20px 0 0; padding-top: 16px; border-top: 1px solid var(--c-border); color: var(--c-muted); font-size: .78rem; line-height: 1.7; }
 .settings-inline-note > .icon { flex-shrink: 0; color: var(--c-primary); margin-top: 2px; }
 .settings-editor-footer { display: flex; justify-content: space-between; gap: 12px; margin-top: 10px; font-size: .75rem; color: var(--c-muted); }
@@ -31,3 +27,23 @@
 .settings-communications p { color: var(--c-muted); font-size: .78rem; line-height: 1.7; margin: 6px 0 0; }
 .settings-communications .chip { margin-left: auto; white-space: nowrap; font-size: .7rem; }
 @media (max-width: 650px) { .settings-section.card { padding: 22px 18px; } .settings-reference-grid { grid-template-columns: minmax(0, 1fr); gap: 18px; } .settings-section-header { gap: 10px; } .settings-save-bar { padding: 18px; } .settings-save-bar > div { width: 100%; } .settings-save-bar .btn { flex: 1; justify-content: center; } .settings-communications { flex-wrap: wrap; } .settings-communications .chip { margin-left: 54px; } }
+
+/* security scan */
+.scan-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin: 4px 0 12px; }
+.scan-counts { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.cell-sub { display: block; font-size: .78rem; margin-top: 2px; }
+.scan-plan { margin-top: 16px; padding: 14px; border: 1px solid #e6e0d8; border-radius: 10px; background: #fcf8f5; }
+.scan-plan h3 { margin: 0 0 4px; }
+.scan-plan pre { margin: 10px 0; padding: 10px; background: #2b2420; color: #f4ece4; border-radius: 8px; overflow: auto; font-size: .82rem; }
+.badge.plain { background: #ececec; color: #5c554d; }
+.scan-checks { margin-bottom: 18px; }
+.scan-checks-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap; }
+.scan-checks-head h3 { margin: 0; }
+.scan-cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; margin-top: 10px; }
+.scan-card { padding: 14px; border: 1px solid #e6e0d8; border-radius: 10px; background: #fff; display: grid; gap: 6px; align-content: start; }
+.scan-card p { margin: 0; }
+.scan-card-title { display: flex; justify-content: space-between; gap: 8px; align-items: center; }
+.scan-card-actions { display: flex; gap: 12px; align-items: center; margin-top: 4px; }
+.scan-config { display: grid; gap: 8px; margin: 4px 0; }
+.scan-config label { display: grid; gap: 3px; font-size: .85rem; font-weight: 600; }
+.scan-config input { font-weight: 400; }

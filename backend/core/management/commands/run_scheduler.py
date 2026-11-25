@@ -11,6 +11,7 @@ JOBS = [
     ("check_apis", [], 300),             # is DCRC / ZESt up? (feeds the graph on Logs > API)
     ("retry_failed_emails", [], 300),    # retry emails that failed to send
     ("sla_alerts", [], 3600),            # due-soon, overdue and untriaged alerts
+    ("security_scans", [], 86400),       # dependency, CI, SonarQube and ZAP checks; alerts the Administrators on new issues
     ("purge_logs", ["--days", "90"], 86400),
 ]
 

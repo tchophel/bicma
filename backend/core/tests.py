@@ -179,3 +179,59 @@ class SingleUploadBoxTests(APITestCase):
         div = Division.objects.create(name="Spectrum and Technology Division", code="STD")
         spec = spec_for(Category.objects.create(name="Telecom tower structure", default_division=div))
         self.assertEqual([(d["key"], d["required"]) for d in spec["docs"]], [("photo", True)])
+
+
+class SecurityChecksTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(email="sa@x.bt", password="x" * 12, role=Role.SUPER_ADMIN)
+
+    def test_unconfigured_checks_say_how_to_set_them_up(self):
+        from core import secscan
+        res = secscan.run("zap")
+        self.assertEqual(res["state"], "not_configured")
+        self.assertIn("ZAP address", res["summary"])
+
+    def test_admin_is_told_once_when_a_check_newly_finds_issues(self):
+        from unittest import mock
+        from core import secscan
+        bad = {"state": "issues", "summary": "2 high alerts", "counts": {"High": 2}, "link": ""}
+        with mock.patch.dict(secscan.RUN, {"zap": lambda: dict(bad)}), mock.patch.object(secscan, "configured", return_value=True):
+            secscan.run("zap"); secscan.run("zap")  # same result twice: one alert
+            self.assertEqual(self.admin.notifications.count(), 1)
+            bad["counts"] = {"High": 3}
+            secscan.run("zap")  # it got worse: alert again
+            self.assertEqual(self.admin.notifications.count(), 2)
+
+    def test_only_the_administrator_can_see_or_run_checks(self):
+        u = User.objects.create_user(email="o@x.bt", password="x" * 12, role=Role.INVESTIGATOR)
+        self.client.force_login(u)
+        self.assertEqual(self.client.get("/api/admin/security-checks/").status_code, 403)
+        self.client.force_login(self.admin)
+        r = self.client.get("/api/admin/security-checks/")
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual([c["key"] for c in r.data["checks"]], ["dependencies", "ci", "sonarqube", "zap"])
+
+
+class SecurityCheckSettingsTests(APITestCase):
+    def setUp(self):
+        self.admin = User.objects.create_user(email="sa2@x.bt", password="x" * 12, role=Role.SUPER_ADMIN)
+        self.client.force_login(self.admin)
+
+    def test_zap_is_set_up_from_settings_and_the_key_is_never_returned(self):
+        from unittest import mock
+        from core import secscan
+        body = {"check": "zap", "values": {"ZAP_URL": "http://zap:8080", "ZAP_TARGET": "https://cms.example.bt", "ZAP_API_KEY": "s3cret"}}
+        with mock.patch.dict(secscan.RUN, {"zap": lambda: {"state": "ok", "summary": "0 high", "counts": {}, "link": ""}}):
+            r = self.client.post("/api/admin/security-checks/config/", body, format="json")
+        self.assertEqual(r.status_code, 200, r.content)
+        zap = next(c for c in r.data["checks"] if c["key"] == "zap")
+        self.assertTrue(zap["configured"])
+        self.assertNotIn("s3cret", str(r.data))
+        self.assertTrue(next(f for f in zap["fields"] if f["key"] == "ZAP_API_KEY")["set"])
+        # a blank secret keeps the saved one
+        secscan.save_config("zap", {"ZAP_API_KEY": ""})
+        self.assertEqual(secscan._env("ZAP_API_KEY"), "s3cret")
+
+    def test_bad_addresses_are_refused(self):
+        r = self.client.post("/api/admin/security-checks/config/", {"check": "zap", "values": {"ZAP_URL": "zap:8080"}}, format="json")
+        self.assertEqual(r.status_code, 400)

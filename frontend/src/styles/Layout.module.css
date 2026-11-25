@@ -141,3 +141,35 @@
 /* Number of complaints on the "All complaints" link */
 .navCount { margin-left: auto; min-width: 22px; padding: 1px 7px; border-radius: 999px; background: #f2eeec; color: #6d6056; font-size: .72rem; font-weight: 700; line-height: 1.6; text-align: center; font-variant-numeric: tabular-nums; }
 .side a[aria-current=page] .navCount { background: var(--c-primary); color: #fff; }
+
+/* Complaint notifications */
+.notificationPanel { width: 420px; border-radius: 16px; box-shadow: 0 16px 48px rgb(40 30 20 / 16%); }
+.notificationHead { padding: 18px; border-bottom: 1px solid var(--c-border); }
+.notificationTitle { display: flex; align-items: center; gap: 10px; }
+.notificationTitle strong { font-size: 1rem; }
+.notificationHeadingIcon { display: grid; place-items: center; color: var(--c-primary); }
+.unreadCount { margin-left: auto; padding: 4px 9px; border-radius: 999px; background: var(--c-primary-soft); color: var(--c-primary-dark); font-size: .72rem; font-weight: 650; }
+.notificationActions { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 12px; padding-top: 12px; }
+.notificationActions button { display: inline-flex; align-items: center; gap: 6px; border: 0; border-radius: 6px; padding: 6px 4px; background: transparent; color: var(--c-primary-dark); font: inherit; font-size: .76rem; font-weight: 600; cursor: pointer; }
+.notificationActions button:last-child { color: var(--c-muted); margin-left: auto; }
+.notificationActions button:hover { background: var(--c-primary-soft); color: var(--c-primary-dark); }
+.notificationActions button:disabled { opacity: .5; cursor: wait; }
+.notificationPanel .notes { max-height: min(440px, calc(100dvh - 240px)); overscroll-behavior: contain; }
+.notificationPanel .note { display: flex; align-items: flex-start; gap: 12px; padding: 16px 18px; border-left: 0; font-weight: 400; line-height: 1.5; }
+.notificationPanel .notes li:last-child .note { border-bottom: 0; }
+.notificationPanel .unread { background: #fffaf1; }
+.notificationPanel .note:hover { background: var(--c-primary-soft); }
+.noteIcon { display: grid; place-items: center; flex: 0 0 36px; height: 36px; background: #f4f2ef; color: var(--c-muted); border-radius: 11px; }
+.unread .noteIcon { background: #ffedcf; color: var(--c-primary-dark); }
+.noteContent { flex: 1; min-width: 0; }
+.noteMessage { display: block; font-size: .83rem; overflow-wrap: anywhere; }
+.unread .noteMessage { font-weight: 600; }
+.notificationPanel .note small { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; margin-top: 8px; font-size: .7rem; font-weight: 400; }
+.noteNew { display: inline-flex; align-items: center; gap: 5px; margin-left: 5px; color: var(--c-primary-dark); }
+.noteNew::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--c-brand-orange); }
+.note > svg { flex-shrink: 0; margin-top: 10px; color: var(--c-muted); }
+.notificationEmpty { display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 36px 20px; text-align: center; color: var(--c-muted); }
+.notificationEmpty > svg { color: var(--c-primary); }
+.notificationEmpty strong { color: var(--c-text); font-size: .9rem; }
+.notificationEmpty p { margin: 0; font-size: .8rem; }
+.notificationActions button:focus-visible, .note:focus-visible { outline: 2px solid var(--c-primary); outline-offset: -3px; }

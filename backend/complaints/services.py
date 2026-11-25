@@ -376,6 +376,31 @@ def find_duplicates(data, exclude=None):
     return out[:5]
 
 
+def similar_in_division(complaint, user):
+    """Other open cases in the same division that look like this one: same category, then the same
+    provider (or platform) and sub-category rank higher. Anyone in the division is told a similar case exists
+    (so officers do not duplicate work); confidential cases are never shown."""
+    if not complaint.category_id or not complaint.division_id:
+        return []
+    qs = (Complaint.objects.exclude(pk=complaint.pk).filter(confidential_case=False)
+          .filter(division_id=complaint.division_id, category_id=complaint.category_id)
+          .exclude(internal_status__in=[S.DRAFT, S.NOT_WITHIN_MANDATE]).select_related("assigned_to", "outcome"))
+    ranked = []
+    for o in qs.order_by("-created_at")[:100]:
+        score, why = 0, ["same category"]
+        if complaint.subcategory_id and o.subcategory_id == complaint.subcategory_id:
+            score += 1; why.append("same sub-category")
+        if (complaint.provider_id and o.provider_id == complaint.provider_id) or (
+                complaint.platform and o.platform and o.platform.lower() == complaint.platform.lower()):
+            score += 2; why.append("same provider")
+        if complaint.dzongkhag_id and o.dzongkhag_id == complaint.dzongkhag_id:
+            score += 1; why.append("same dzongkhag")
+        if score >= 2:  # category alone is too loose
+            ranked.append((score, o, why))
+    ranked.sort(key=lambda t: -t[0])
+    return ranked[:5]
+
+
 def recurring_for(complaint):
     """Same category + provider + location, excluding the complaint itself."""
     qs = Complaint.objects.exclude(pk=complaint.pk).exclude(internal_status=S.DRAFT)

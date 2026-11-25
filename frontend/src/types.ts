@@ -47,7 +47,7 @@ export interface Meta {
   categories: Category[];
   channels: { value: string; label: string }[];
   provider_types: Named[];
-  providers: { id: string; name: string; provider_type: string | null }[];
+  providers: { id: string; name: string; provider_type: string | null; dzongkhags: string[] }[];
   priorities: { id: string; name: string; response_days: number; resolution_days: number }[];
   outcomes: Named[];
   closure_reasons: Named[];
@@ -59,6 +59,9 @@ export interface Page<T> { count: number; next: string | null; previous: string 
 
 export interface ComplaintRow {
   id: string;
+  resolved_by?: { name: string; action: string } | null;
+  awaiting?: { role: string; names: string[]; returned: boolean } | null;
+  resolved_at?: string | null; closed_at?: string | null;
   can_assign?: boolean;
   can_refer?: boolean;
   division: string | null;

@@ -27,6 +27,7 @@ import { Permissions } from "./pages/staff/Permissions";
 import { Uploads } from "./pages/staff/Uploads";
 import { Logs } from "./pages/staff/Logs";
 import { Roles } from "./pages/staff/MasterPage";
+import { CableTv } from "./pages/staff/CableTv";
 import { ClosureReasons, Outcomes, Priorities, ProviderTypes, Providers } from "./pages/staff/MasterPage";
 
 function AdminOnly({ children }: { children: JSX.Element }) {
@@ -70,6 +71,7 @@ export default function App() {
             <Route path="uploads" element={<AdminOnly><Uploads /></AdminOnly>} />
             <Route path="permissions" element={<AdminOnly><Permissions /></AdminOnly>} />
             <Route path="reports" element={<Reports />} />
+            <Route path="cable-tv" element={<AdminOnly><CableTv /></AdminOnly>} />
             <Route path="providers" element={<AdminOnly><Providers /></AdminOnly>} />
             <Route path="provider-types" element={<AdminOnly><ProviderTypes /></AdminOnly>} />
             <Route path="priorities" element={<AdminOnly><Priorities /></AdminOnly>} />

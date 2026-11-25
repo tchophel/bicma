@@ -7,6 +7,7 @@ import { Field, PanelTitle } from "./ui";
 import { Icon } from "./Icon";
 import { useToast } from "./Toast";
 import { Modal } from "./Modal";
+import { SimilarComplaints } from "./SimilarComplaints";
 import { FileLink } from "./FileLink";
 import { UploadDocuments } from "./Documents";
 import { EmailChips } from "./EmailChips";
@@ -426,6 +427,7 @@ export function CaseActions({ c, onDone }: { c: ComplaintDetail; onDone: () => v
   if (!meta) return null;
   return (
     <div className="case-workspace">
+      {(p.save_findings || p.assign) && <SimilarComplaints c={c} onDone={onDone} />}
       <nav className="case-workspace-tabs" aria-label="Case workspace">
         {tabs.map((tab) => <button type="button" key={tab.key} aria-pressed={active === tab.key} onClick={() => setSelected(tab.key)}>{tab.label}</button>)}
       </nav>
@@ -435,7 +437,7 @@ export function CaseActions({ c, onDone }: { c: ComplaintDetail; onDone: () => v
         {(p.approve || p.reopen) && <Approval c={c} onDone={onDone} />}
       </div>}
       {showInv && <div hidden={active !== "investigation"} className="case-workspace-panel">
-        <Investigation c={c} onDone={onDone} />
+        <Investigation key={`${c.investigation_findings}|${c.action_taken}`} c={c} onDone={onDone} />
         {!p.mgmt_approve && <ManagementTrail c={c} />}
       </div>}
       {showTriage && <div hidden={active !== "assignment"}><Triage c={c} meta={meta} onDone={onDone} /></div>}

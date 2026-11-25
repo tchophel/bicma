@@ -984,7 +984,7 @@ class SchedulerTests(WorkflowBase):
         with mock.patch.object(run_scheduler, "call_command", side_effect=fake):
             last = {}
             ran = run_scheduler.run_due(last, T)
-            self.assertEqual(ran, ["check_apis", "retry_failed_emails", "sla_alerts", "purge_logs"])
+            self.assertEqual(ran, ["check_apis", "retry_failed_emails", "sla_alerts", "security_scans", "purge_logs"])
             self.assertEqual(run_scheduler.run_due(last, T + 100), [])          # nothing due yet
             self.assertEqual(run_scheduler.run_due(last, T + 300), ["check_apis", "retry_failed_emails"])
             self.assertEqual(run_scheduler.run_due(last, T + 3600), ["check_apis", "retry_failed_emails", "sla_alerts"])
@@ -1528,3 +1528,27 @@ class EmailResendTests(WorkflowBase):
         self.assertEqual(self.login(self.admin).post(f"{self.URL}{plain.pk}/resend/", {}, format="json").status_code, 400)
         entry = self.failed_entry()
         self.assertIn(self.login(self.focal1).post(f"{self.URL}{entry.pk}/resend/", {}, format="json").status_code, (401, 403))
+
+
+class SimilarComplaintTests(WorkflowBase):
+    def setUp(self):
+        super().setUp()
+        self.prov = Provider.objects.first() or Provider.objects.create(name="P1")
+        Complaint.objects.filter(pk=self.c.pk).update(provider=self.prov)
+        self.o, _ = self.make(division=self.d1)
+        Complaint.objects.filter(pk=self.o.pk).update(provider=self.prov, investigation_findings="Found", action_taken="Fixed")
+        self.to_investigating()
+
+    def test_lists_only_same_division_and_provider(self):
+        other, _ = self.make(division=self.d2)
+        Complaint.objects.filter(pk=other.pk).update(provider=self.prov)
+        r = self.login(self.focal1).get(f"/api/complaints/{self.c.pk}/similar/")
+        self.assertEqual([str(i["id"]) for i in r.data["items"]], [str(self.o.pk)])
+
+    def test_link_and_reuse_findings(self):
+        r = self.act(self.focal1, "link-similar", {"id": str(self.o.pk)})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertTrue(self.login(self.focal1).get(f"/api/complaints/{self.c.pk}/similar/").data["items"][0]["linked"])
+        r = self.act(self.inv1, "link-similar", {"id": str(self.o.pk), "reuse": True})
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self.reload().investigation_findings, "Found")

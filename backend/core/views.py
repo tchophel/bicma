@@ -53,7 +53,8 @@ class MetaView(APIView):
             "declaration_text": SystemConfiguration.get("declaration_text", DEFAULT_DECLARATION),
             "limits": __import__("core.limits", fromlist=["get_limits"]).get_limits(),
             "provider_types": list(ProviderType.objects.filter(is_active=True).values("id", "name")),
-            "providers": list(Provider.objects.filter(is_active=True).values("id", "name", "provider_type")),
+            "providers": [{"id": p.id, "name": p.name, "provider_type": p.provider_type_id, "dzongkhags": [d.id for d in p.dzongkhags.all()]}
+                          for p in Provider.objects.filter(is_active=True).prefetch_related("dzongkhags")],
             "priorities": list(Priority.objects.filter(is_active=True).values("id", "name", "response_days", "resolution_days")),
             "outcomes": list(Outcome.objects.filter(is_active=True).values("id", "name")),
             "closure_reasons": list(ClosureReason.objects.filter(is_active=True).values("id", "name")),
@@ -214,6 +215,70 @@ class SettingsView(APIView):
         return Response(self._current())
 
 
+class SecurityScanView(APIView):
+    """Administrator: scan the system's packages for known vulnerabilities, and read the last result."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        from . import depscan
+        return Response(depscan.last() or {})
+
+    def post(self, request):
+        from . import depscan
+        try:
+            result = depscan.run()
+        except Exception as exc:  # the vulnerability database is an outside service
+            return Response({"detail": f"The scan could not reach the vulnerability database ({type(exc).__name__}). Check the server's internet access and try again."},
+                            status=status.HTTP_502_BAD_GATEWAY)
+        audit.log(request, "security.scan", entity_type="settings", entity_id="security_scan",
+                  detail={"packages": result["packages"], "findings": len(result["findings"])})
+        return Response(result)
+
+
+class SecurityChecksView(APIView):
+    """Administrator: state of each automated security check, and run one (or all) now."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def get(self, request):
+        from . import secscan
+        return Response({"checks": secscan.overview()})
+
+    def post(self, request):
+        from . import secscan
+        key = request.data.get("check")
+        if key and key not in dict((k, 1) for k, _, _ in secscan.CHECKS):
+            return Response({"detail": "Unknown check."}, status=status.HTTP_400_BAD_REQUEST)
+        secscan.run(key) if key else secscan.run_all()
+        audit.log(request, "security.check", entity_type="settings", entity_id="security_checks", detail={"check": key or "all"})
+        return Response({"checks": secscan.overview()})
+
+
+class SecurityChecksConfigView(APIView):
+    """Administrator: save the address and credentials of a security check from Settings."""
+
+    permission_classes = [IsSuperAdmin]
+
+    def post(self, request):
+        from . import secscan
+        key = request.data.get("check")
+        if key not in secscan.FIELDS:
+            return Response({"detail": "Unknown check."}, status=status.HTTP_400_BAD_REQUEST)
+        values = request.data.get("values") or {}
+        repo = str(values.get("GITHUB_REPO", "")).strip()
+        if key == "ci" and repo and not re.fullmatch(r"[\w.-]+/[\w.-]+", repo):
+            return Response({"detail": "Enter the repository as owner/name."}, status=status.HTTP_400_BAD_REQUEST)
+        for name in ("SONARQUBE_URL", "ZAP_URL", "ZAP_TARGET"):
+            v = str(values.get(name, "")).strip()
+            if v and not re.match(r"https?://", v):
+                return Response({"detail": "Addresses must start with http:// or https://."}, status=status.HTTP_400_BAD_REQUEST)
+        secscan.save_config(key, values)
+        audit.log(request, "security.check_config", entity_type="settings", entity_id="security_checks", detail={"check": key})
+        secscan.run(key, notify_admins=False)
+        return Response({"checks": secscan.overview()})
+
+
 class FAQAdminViewSet(AuditedModelViewSet):
     queryset = FAQ.objects.all()
     serializer_class = FAQSerializer
@@ -232,7 +297,7 @@ def _master(model, fields, entity, search=("name",)):
 
 
 ProviderTypeAdminViewSet = _master(ProviderType, ["name"], "provider_type")
-ProviderAdminViewSet = _master(Provider, ["name", "provider_type", "licence_number", "contact_email"], "provider", ("name", "licence_number"))
+ProviderAdminViewSet = _master(Provider, ["name", "provider_type", "licence_number", "contact_email", "dzongkhags"], "provider", ("name", "licence_number"))
 PriorityAdminViewSet = _master(Priority, ["name", "rank", "response_days", "resolution_days"], "priority")
 OutcomeAdminViewSet = _master(Outcome, ["name"], "outcome")
 ClosureReasonAdminViewSet = _master(ClosureReason, ["name"], "closure_reason")

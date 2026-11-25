@@ -9,9 +9,10 @@ import { EmptyState, Field, PageHeader } from "../../components/ui";
 import { Modal } from "../../components/Modal";
 import type { Page } from "../../types";
 import { useList } from "../../useList";
+import "../../styles/Users.css";
 
 export interface FieldDef {
-  key: string; label: string; type?: "text" | "number" | "date" | "email" | "textarea" | "select";
+  key: string; label: string; type?: "text" | "number" | "date" | "email" | "textarea" | "select" | "multi";
   required?: boolean; options?: { value: string; label: string }[]; hint?: string; min?: number;
 }
 type Row = { id: string; is_active: boolean } & Record<string, unknown>;
@@ -31,14 +32,14 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
   const [busy, setBusy] = useState(false);
   const [open, setOpen] = useState(false);
   const set = (k: string) => (e: { target: { value: string } }) => setForm({ ...form, [k]: e.target.value });
-  const label = (f: FieldDef, v: unknown) => f.type === "select" ? f.options?.find((o) => o.value === String(v ?? ""))?.label ?? "—" : String(v ?? "") || "—";
+  const label = (f: FieldDef, v: unknown) => f.type === "multi" ? (Array.isArray(v) && v.length ? v.map((x) => f.options?.find((o) => o.value === x)?.label ?? x).join(", ") : "All") : f.type === "select" ? f.options?.find((o) => o.value === String(v ?? ""))?.label ?? "—" : String(v ?? "") || "—";
 
   async function save(e: FormEvent) {
     e.preventDefault();
     if (busy) return;
     setBusy(true); setMsg(null);
     const body: Record<string, unknown> = { reason };
-    for (const f of fields) { const v = form[f.key]; body[f.key] = v === "" && f.type !== "text" && f.type !== "textarea" ? null : f.type === "number" ? Number(v) : v; }
+    for (const f of fields) { const v = form[f.key]; if (f.type === "multi") { body[f.key] = v ? v.split(",") : []; continue; } body[f.key] = v === "" && f.type !== "text" && f.type !== "textarea" ? null : f.type === "number" ? Number(v) : v; }
     try {
       if (editing) await api(`/admin/${path}/${editing}/`, { method: "PATCH", json: body });
       else await api(`/admin/${path}/`, { json: body });
@@ -54,7 +55,7 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
   }
   function edit(r: Row) {
     setEditing(r.id);
-    setForm(Object.fromEntries(fields.map((f) => [f.key, String(r[f.key] ?? "")])));
+    setForm(Object.fromEntries(fields.map((f) => [f.key, Array.isArray(r[f.key]) ? (r[f.key] as string[]).join(",") : String(r[f.key] ?? "")])));
     setMsg(null); setOpen(true);
   }
   const rows = (data?.results ?? []).filter((r) => !status || (status === "active") === r.is_active);
@@ -98,7 +99,12 @@ export function MasterPage({ title, subtitle, icon, path, fields }: { title: str
         <div className="row">
           {fields.map((f) => (
             <Field key={f.key} label={f.label} required={f.required} hint={f.hint} error={msg?.fields[f.key]}>
-              {f.type === "textarea" ? <textarea rows={4} required={f.required} value={form[f.key]} onChange={set(f.key)} />
+              {f.type === "multi" ? (
+                <div className="multi-pick">{f.options?.map((o) => {
+                  const on = form[f.key].split(",").includes(o.value);
+                  return <label key={o.value}><input type="checkbox" checked={on} onChange={() => { const cur = form[f.key] ? form[f.key].split(",") : []; setForm({ ...form, [f.key]: (on ? cur.filter((x) => x !== o.value) : [...cur, o.value]).join(",") }); }} /> {o.label}</label>;
+                })}</div>
+              ) : f.type === "textarea" ? <textarea rows={4} required={f.required} value={form[f.key]} onChange={set(f.key)} />
                 : f.type === "select" ? <select required={f.required} value={form[f.key]} onChange={set(f.key)}><option value="">{f.required ? "Select" : "None"}</option>{f.options?.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}</select>
                 : <input type={f.type ?? "text"} min={f.min} required={f.required} value={form[f.key]} onChange={set(f.key)} />}
             </Field>

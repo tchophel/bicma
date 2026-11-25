@@ -10,6 +10,15 @@ import { ComplaintPanel } from "./ComplaintPopup";
 import { RowActions } from "../../components/RowActions";
 import "../../styles/Complaints.css";
 
+/** How long a complaint has been open: green under a week, orange up to two weeks, red beyond. Finished cases show the time taken, in grey. */
+const DAY = 86400000;
+export function DaysOpen({ c }: { c: ComplaintRow }) {
+  const done = c.closed_at ?? (["resolved", "closed", "not_within_mandate"].includes(c.internal_status) ? c.resolved_at : null);
+  const days = Math.max(0, Math.floor(((done ? new Date(done).getTime() : Date.now()) - new Date(c.created_at).getTime()) / DAY));
+  const tone = done ? "plain" : days < 7 ? "ok" : days <= 14 ? "warn" : "bad";
+  return <span className={`badge ${tone}`} title={`Received ${fmtDate(c.created_at)}${c.resolution_due_at ? `, due ${fmtDate(c.resolution_due_at)}` : ""}`}>{days === 0 ? "Today" : `${days} ${days === 1 ? "day" : "days"}`}</span>;
+}
+
 export function Complaints() {
   const { user } = useAuth();
   const [sp, setSp] = useSearchParams();
@@ -100,22 +109,23 @@ export function Complaints() {
       <header className="complaints-results-heading"><div><h2>{f.scope === "triage" ? "Triage queue" : "Complaint register"}</h2><span className="complaints-count">{data ? `${data.count} complaint${data.count === 1 ? "" : "s"}` : "Loading…"}</span></div><p>{f.scope === "triage" ? "Oldest complaints first" : "Select a reference to view the complaint"}</p></header>
       <div className="table-wrap" tabIndex={0} role="region" aria-label="Complaints table">
         <table>
-          <thead><tr><th>Reference</th><th>Subject</th><th>Category</th><th>Division</th><th>Assigned to</th><th>Priority</th><th>Status</th><th>Due</th><th>Received</th><th className="row-actions-head">Actions</th></tr></thead>
+          <thead><tr><th>Reference</th><th>Subject</th><th>Assigned to</th><th>Status</th><th>Days open</th><th className="row-actions-head">Actions</th></tr></thead>
           <tbody>
             {data?.results.map((c) => (
               <tr key={c.id} className={`clickable ${String(c.id) === openId ? "row-active" : ""}`} onClick={() => update({ open: String(c.id) })}>
                 <td><button type="button" className="ref-link linklike" aria-label={`Open ${c.reference}`} onClick={(e) => { e.stopPropagation(); update({ open: String(c.id) }); }}>{c.reference}</button></td>
-                <td className="complaint-subject">{c.subject}</td><td><span className="chip plain">{c.category_name}</span></td>
-                <td>{c.division_name ?? <span className="muted">Unassigned</span>}</td>
-                <td>{c.assigned_to_name ?? "—"}</td>
-                <td>{c.priority_name ? <span className="complaint-priority">{c.priority_name}</span> : <span className="muted">—</span>}</td>
+                <td className="complaint-subject">{c.subject}
+                  <small className="muted cell-sub">{c.category_name}{c.priority_name ? ` · ${c.priority_name}` : ""}</small></td>
+                <td>{c.assigned_to_name ?? "—"}<small className="muted cell-sub">{c.division_name ?? "Unassigned"}</small></td>
                 <td><StatusBadge value={c.internal_status} label={c.internal_status_display} /></td>
-                <td>{c.sla_state === "overdue" ? <span className="badge bad">Overdue</span> : c.sla_state === "due_soon" ? <span className="badge warn">Due soon</span> : c.sla_state === "paused" ? <span className="badge warn">Paused</span> : c.resolution_due_at && c.sla_state !== "done" ? fmtDate(c.resolution_due_at) : "—"}</td>
-                <td>{fmtDate(c.created_at)}</td>
-                <td className="row-actions" onClick={(e) => e.stopPropagation()}><RowActions c={c} onDone={reload} /></td>
+                <td><DaysOpen c={c} /></td>
+                <td className="row-actions" onClick={(e) => e.stopPropagation()}>
+                  {c.awaiting && <span className="awaiting"><small>{c.awaiting.returned ? "Returned to" : "Awaiting approval by"} {c.awaiting.role}</small><strong>{c.awaiting.names.join(", ") || "No one assigned"}</strong></span>}
+                  {c.resolved_by && <span className="awaiting"><small>{c.resolved_by.action} by</small><strong>{c.resolved_by.name}</strong></span>}
+                  <RowActions c={c} onDone={reload} /></td>
               </tr>
             ))}
-            {loading && <tr><td colSpan={10}><Loader size={40} /></td></tr>}
+            {loading && <tr><td colSpan={6}><Loader size={40} /></td></tr>}
           </tbody>
         </table>
         {!loading && data?.results.length === 0 && <EmptyState icon="search">No complaints match your filters.</EmptyState>}
