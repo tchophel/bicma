@@ -1,0 +1,24 @@
+# ClamAV virus scanner for uploaded documents. The backend talks to it on cms-clamav:3310 (CLAMAV_HOST in 00-config.yaml).
+# It needs about 1.5 GB of memory and a few minutes on first start while it loads the virus definitions.
+apiVersion: apps/v1
+kind: Deployment
+metadata: { name: cms-clamav, namespace: bcs }
+spec:
+  replicas: 1
+  strategy: { type: Recreate }
+  selector: { matchLabels: { app: cms-clamav } }
+  template:
+    metadata: { labels: { app: cms-clamav } }
+    spec:
+      automountServiceAccountToken: false
+      containers:
+        - name: clamav
+          image: clamav/clamav:stable
+          ports: [{ containerPort: 3310 }]
+          readinessProbe: { tcpSocket: { port: 3310 }, initialDelaySeconds: 120, periodSeconds: 15, failureThreshold: 20 }
+          resources: { requests: { cpu: 100m, memory: 1536Mi }, limits: { memory: 2560Mi, ephemeral-storage: 2Gi } }
+---
+apiVersion: v1
+kind: Service
+metadata: { name: cms-clamav, namespace: bcs }
+spec: { selector: { app: cms-clamav }, ports: [{ port: 3310 }] }

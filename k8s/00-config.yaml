@@ -19,3 +19,19 @@ data:
   BCRS_API_URL: "https://staging-datahub-apim.tech.gov.bt/dcrc_citizen_details_api/1.0.0/citizendetails/{cid}"
   BCRS_TOKEN_URL: "https://stg-sso.tech.gov.bt/oauth2/token"
   # BCRS_CLIENT_ID and BCRS_CLIENT_SECRET are in the cms-secrets secret
+
+  # Bhutan NDI staff sign-in (QR code + wallet). These are the STAGING addresses from .env.example: change them to the production
+  # NDI addresses for go-live. NDI_API_CLIENT_ID, NDI_API_CLIENT_SECRET and NDI_NATS_SEED_KEY are in the cms-secrets secret.
+  # The backend keeps one NATS connection to NDI open, so keep cms-backend at replicas: 1.
+  NDI_API_HOST: "https://demo-client.bhutanndi.com"
+  NDI_API_AUTH_ENDPOINT: "https://staging.bhutanndi.com/authentication/v1/authenticate"
+  NDI_NATS_HOST: "https://natsdemoclient.bhutanndi.com"
+  NDI_NATS_PORT: "4222"
+  NDI_FOUNDATIONAL_ID_CRED_DEF_ID: "https://schema.ngotag.com/schemas/fb675203-b317-4675-a657-be7f5d1d57fb"
+  # Virus and harmful-content scan of uploads (60-clamav.yaml). Set CLAMAV_REQUIRED to "1" once the scanner pod is Ready:
+  # then an upload is refused whenever the scanner cannot be reached.
+  CLAMAV_HOST: "cms-clamav"
+  CLAMAV_PORT: "3310"
+  CLAMAV_REQUIRED: "0"
+  # Settings > Security scan: address of the public site checked for security headers (can also be typed in Settings).
+  SITE_URL: "https://bicma-cms.systems.gov.bt"
