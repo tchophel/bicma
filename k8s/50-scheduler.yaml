@@ -12,10 +12,13 @@ spec:
     spec:
       automountServiceAccountToken: false
       imagePullSecrets: [{ name: harbor-secret }]
+      securityContext: { fsGroup: 10001 }
       containers:
         - name: scheduler
           image: dev-harbor.systems.gov.bt/bcs/cms-backend:v12
           command: [python, manage.py, run_scheduler]
           envFrom: [{ configMapRef: { name: cms-config } }, { secretRef: { name: cms-secrets } }]
           env: [{ name: HOME, value: /tmp }]
+          volumeMounts: [{ name: media, mountPath: /app/media }]  # the uploads: needed to shrink pictures of resolved complaints
           resources: { requests: { cpu: 25m, memory: 128Mi }, limits: { memory: 384Mi, ephemeral-storage: 1Gi } }
+      volumes: [{ name: media, persistentVolumeClaim: { claimName: cms-media } }]
