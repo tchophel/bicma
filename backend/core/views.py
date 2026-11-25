@@ -449,6 +449,6 @@ class SecuritySolveView(APIView):
 
     def post(self, request):
         from . import secscan
-        ok, message, link = secscan.solve()
+        ok, message, link = secscan.solve(request.data.get("check"))
         audit.log(request, "security.solve", entity_type="settings", entity_id="security_solve", detail={"started": ok})
         return Response({"started": ok, "message": message, "link": link}, status=200 if ok else 400)

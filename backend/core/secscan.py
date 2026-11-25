@@ -175,8 +175,11 @@ def run_all():
     return {k: run(k) for k, _, _ in CHECKS}
 
 
-def solve():
+def solve(check=None):
     """Start the "Auto fix" GitHub workflow, which opens a pull request with the fixes. Returns (ok, message, link)."""
+    what = {None: "all", "": "all", "dependencies": "packages", "sonarqube": "code"}.get(check)
+    if what is None:
+        return False, "This check cannot be fixed automatically. Open its report and fix what it lists.", ""
     repo, token = _env("GITHUB_REPO"), _env("GITHUB_TOKEN")
     if not repo or not token:
         return False, "Enter the GitHub repository and an access token (with Actions: read and write) in the CI pipeline settings first.", ""
@@ -184,7 +187,7 @@ def solve():
     hdr = {"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28"}
     try:
         branch = _json(api, hdr)["default_branch"]
-        body = {"ref": branch, "inputs": {"sonar_url": _env("SONARQUBE_URL").rstrip("/"), "sonar_project": _env("SONARQUBE_PROJECT")}}
+        body = {"ref": branch, "inputs": {"what": what, "sonar_url": _env("SONARQUBE_URL").rstrip("/"), "sonar_project": _env("SONARQUBE_PROJECT")}}
         urllib.request.urlopen(urllib.request.Request(f"{api}/actions/workflows/auto-fix.yml/dispatches", data=json.dumps(body).encode(),
                                                       headers={**hdr, "Content-Type": "application/json"}, method="POST"), timeout=20)
     except urllib.error.HTTPError as exc:

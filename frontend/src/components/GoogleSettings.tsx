@@ -15,7 +15,7 @@ export function GoogleSettings() {
   const [err, setErr] = useState("");
   const [busy, setBusy] = useState(false);
   const load = () => api<Cfg>("/admin/google-login/").then((c) => { setCfg(c); setId(c.client_id); }).catch(() => undefined);
-  useEffect(() => { load(); }, []);
+  useEffect(() => { void load(); }, []);
   async function save() {
     setBusy(true); setErr("");
     try { setCfg(await api<Cfg>("/admin/google-login/", { json: { client_id: id, client_secret: secret } })); setSecret(""); setOpen(false); toast.success("Saved."); }

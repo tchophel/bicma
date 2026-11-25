@@ -5,6 +5,10 @@ name: Auto fix
 on:
   workflow_dispatch:
     inputs:
+      what:
+        description: "What to fix: all, packages or code"
+        required: false
+        default: all
       sonar_url:
         description: SonarQube / SonarCloud address (leave empty to skip code fixes)
         required: false
@@ -24,6 +28,8 @@ jobs:
     env:
       SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
       ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+      SONAR_URL: ${{ inputs.sonar_url }}
+      SONAR_PROJECT: ${{ inputs.sonar_project }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -34,19 +40,21 @@ jobs:
           python-version: "3.12"
 
       - name: Update vulnerable frontend packages
+        if: ${{ inputs.what != 'code' }}
         working-directory: frontend
         run: npm audit fix || true
 
       - name: Update vulnerable backend packages
+        if: ${{ inputs.what != 'code' }}
         run: |
-          pip install pip-audit -r backend/requirements.txt
+          pip install pip-audit==2.9.0 -r backend/requirements.txt
           pip-audit -r backend/requirements.txt --fix || true
 
       - name: Fix SonarQube code issues with Claude
-        if: ${{ env.SONAR_TOKEN != '' && env.ANTHROPIC_API_KEY != '' && inputs.sonar_url != '' && inputs.sonar_project != '' }}
+        if: ${{ inputs.what != 'packages' && env.SONAR_TOKEN != '' && env.ANTHROPIC_API_KEY != '' && inputs.sonar_url != '' && inputs.sonar_project != '' }}
         run: |
-          curl -sf -u "$SONAR_TOKEN:" "${{ inputs.sonar_url }}/api/issues/search?componentKeys=${{ inputs.sonar_project }}&types=BUG,VULNERABILITY&resolved=false&ps=200" > issues.json
-          npx -y @anthropic-ai/claude-code -p "issues.json lists open SonarQube bugs and vulnerabilities (the component field is project:path). Fix each one in the code with the smallest safe change. Do not change behaviour. Skip any issue you are not sure about. Do not touch issues.json." --permission-mode acceptEdits --allowedTools "Read,Edit,Glob,Grep"
+          curl -sf -u "$SONAR_TOKEN:" "$SONAR_URL/api/issues/search?componentKeys=$SONAR_PROJECT&types=BUG,VULNERABILITY&resolved=false&ps=200" > issues.json
+          npx -y --ignore-scripts @anthropic-ai/claude-code@2.1.330 -p "issues.json lists open SonarQube bugs and vulnerabilities (the component field is project:path). Fix each one in the code with the smallest safe change. Do not change behaviour. Skip any issue you are not sure about. Do not touch issues.json." --permission-mode acceptEdits --allowedTools "Read,Edit,Glob,Grep"
           rm -f issues.json
 
       - name: Check the fixed code still builds

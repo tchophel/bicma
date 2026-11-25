@@ -25,10 +25,10 @@ export function SecurityScan() {
     catch (e) { setErr((e as ApiError).message); }
     finally { setRunning(""); }
   }
-  async function solve() {
-    if (!window.confirm("Solve starts an automatic fix on GitHub. It updates the vulnerable packages and fixes code issues, then opens a pull request for you to review. Nothing changes on the live system until you merge it and redeploy. Start now?")) return;
-    setRunning("solve"); setErr("");
-    try { const r = await api<{ message: string; link: string }>("/admin/security-solve/", { method: "POST", json: {} }); toast.success(r.message); setSolveLink(r.link); }
+  async function solve(check = "") {
+    if (!window.confirm("Solve starts an automatic fix on GitHub. It fixes this problem in a copy of the code and opens a pull request for you to review. Nothing changes on the live system until you merge it and redeploy. Start now?")) return;
+    setRunning(check ? `solve-${check}` : "solve"); setErr("");
+    try { const r = await api<{ message: string; link: string }>("/admin/security-solve/", { method: "POST", json: { check } }); toast.success(r.message); setSolveLink(r.link); }
     catch (e) { setErr((e as ApiError).message); }
     finally { setRunning(""); }
   }
@@ -89,7 +89,7 @@ export function SecurityScan() {
                       <a href={i.link} target="_blank" rel="noreferrer"><code>{i.file}{i.line ? `:${i.line}` : ""}</code></a><br /><small>{i.message}</small></li>))}</ul>
                 </details>)}
               {editing === c.key && (
-                <form className="scan-config" onSubmit={(e) => { e.preventDefault(); saveConfig(c); }}>
+                <form className="scan-config" onSubmit={(e) => { e.preventDefault(); void saveConfig(c); }}>
                   {c.fields.map((f) => (
                     <label key={f.key}><span>{f.label}</span>
                       <input type={f.secret ? "password" : "text"} autoComplete="off" value={vals[f.key] ?? ""} placeholder={f.secret && f.set ? "Saved. Leave blank to keep it." : f.placeholder}
@@ -99,6 +99,7 @@ export function SecurityScan() {
                     <button type="button" className="linklike" onClick={() => setEditing("")}>Cancel</button></div>
                 </form>)}
               <div className="scan-card-actions">
+                {c.state === "issues" && (c.key === "dependencies" || c.key === "sonarqube") && <button type="button" className="btn" disabled={!!running} onClick={() => void solve(c.key)}>{running === `solve-${c.key}` ? "Starting…" : "Solve"}</button>}
                 {c.configured && <button type="button" className="btn secondary" disabled={!!running} onClick={() => runCheck(c.key)}>{running === c.key ? "Checking…" : "Check now"}</button>}
                 {c.fields.length > 0 && editing !== c.key && <button type="button" className={c.configured ? "linklike" : "btn"} onClick={() => { setEditing(editing === c.key ? "" : c.key); setVals(Object.fromEntries(c.fields.map((f) => [f.key, f.value]))); }}>{c.configured ? "Edit settings" : "Set up"}</button>}
                 {c.link && <a href={c.link} target="_blank" rel="noreferrer">Open report</a>}
